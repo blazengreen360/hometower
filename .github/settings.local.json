@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ln:*)",
+      "Bash(grep:*)",
+      "Bash(sed -i '' 's/^model: claude-opus-4-6$/model: opus/' product-owner.agent.md project-manager.agent.md refactoring-specialist.agent.md user-simulator.agent.md)",
+      "Bash(sed -i '' 's/^model: claude-sonnet-4-6$/model: sonnet/' architect.agent.md feature-engineer.agent.md qa-remediation.agent.md test-automation-engineer.agent.md ux-designer.agent.md)",
+      "Bash(sed -i '' 's/^model: claude-haiku-4-5-20251001$/model: haiku/' code-reviewer.agent.md qa-bug-finder.agent.md qa-orchestrator.agent.md security-auditor.agent.md security-orchestrator.agent.md)",
+      "Bash(sed -i '' 's/^model: opus$/model: Claude Opus 4.6 \\(copilot\\)/' product-owner.agent.md project-manager.agent.md refactoring-specialist.agent.md user-simulator.agent.md)",
+      "Bash(sed -i '' 's/^model: sonnet$/model: Claude Sonnet 4.6 \\(copilot\\)/' architect.agent.md feature-engineer.agent.md qa-remediation.agent.md test-automation-engineer.agent.md ux-designer.agent.md)",
+      "Bash(sed -i '' 's/^model: haiku$/model: Claude Haiku 4.5 \\(copilot\\)/' code-reviewer.agent.md qa-bug-finder.agent.md qa-orchestrator.agent.md security-auditor.agent.md security-orchestrator.agent.md)"
+    ]
+  }
+}

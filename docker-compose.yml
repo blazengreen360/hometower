@@ -1,0 +1,30 @@
+version: "3.9"
+services:
+  api:
+    build: .
+    ports: ["8080:8080"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://hometower:${DB_PASSWORD:-secret}@db:5432/hometower
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+    restart: unless-stopped
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: hometower
+      POSTGRES_USER: hometower
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hometower -d hometower"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+volumes:
+  postgres_data:
