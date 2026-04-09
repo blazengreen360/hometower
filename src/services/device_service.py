@@ -14,12 +14,11 @@ from src.utils.logger import logger
 def create(data: DeviceCreate, session: Session) -> Device:
     """Validate and persist a new device."""
     validated_ip = device_domain.validate_ip(data.ip)
-    validated_mac = device_domain.validate_mac(data.mac)
     device = Device(
         name=data.name,
         type=data.type,
         ip=validated_ip,
-        mac=validated_mac,
+        mac=device_domain.validate_mac(data.mac),
         os=data.os,
         notes=data.notes,
         location_id=data.location_id,

@@ -27,6 +27,8 @@ def validate_ip(ip: Optional[str]) -> Optional[str]:
     octets = ip.split(".")
     if any(int(o) > 255 for o in octets):
         raise ValueError("Invalid IPv4 address: octet out of range")
+    if any(str(int(o)) != o for o in octets):
+        raise ValueError("Invalid IPv4 address: leading zeros not allowed")
     return ip
 
 

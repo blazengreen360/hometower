@@ -16,11 +16,39 @@ _CANVAS_INIT_JS = """
 (function() {
     if (typeof initCanvas !== 'undefined') return;
 
+    var HT_CANVAS_RETRY_DELAY_MS = 100;
+    var HT_CANVAS_INIT_MAX_ATTEMPTS = 50;
+
     window._htSelectedCallback = null;
 
-    window.initCanvas = function(elements, savedPositions, deviceShapes) {
+    window.initCanvas = function(elements, savedPositions, deviceShapes, attempt) {
+        var currentAttempt = attempt || 0;
+
+        if (typeof cytoscape === 'undefined') {
+            if (currentAttempt >= HT_CANVAS_INIT_MAX_ATTEMPTS) {
+                console.error('Hometower canvas init failed: Cytoscape did not load within 5 seconds.');
+                return;
+            }
+            window.setTimeout(function() {
+                window.initCanvas(elements, savedPositions, deviceShapes, currentAttempt + 1);
+            }, HT_CANVAS_RETRY_DELAY_MS);
+            return;
+        }
+
+        var container = document.getElementById('cy');
+        if (!container || container.clientWidth === 0 || container.clientHeight === 0) {
+            if (currentAttempt >= HT_CANVAS_INIT_MAX_ATTEMPTS) {
+                console.error('Hometower canvas init failed: #cy container not ready within 5 seconds.');
+                return;
+            }
+            window.setTimeout(function() {
+                window.initCanvas(elements, savedPositions, deviceShapes, currentAttempt + 1);
+            }, HT_CANVAS_RETRY_DELAY_MS);
+            return;
+        }
+
         var cy = cytoscape({
-            container: document.getElementById('cy'),
+            container: container,
             elements: elements,
             style: [
                 {
@@ -95,14 +123,17 @@ _CANVAS_INIT_JS = """
         });
 
         // Drop handler for device palette
-        var container = document.getElementById('cy');
         container.addEventListener('dragover', function(e) { e.preventDefault(); });
         container.addEventListener('drop', function(e) {
             e.preventDefault();
             var deviceType = e.dataTransfer.getData('deviceType');
             if (!deviceType) return;
             var rect = container.getBoundingClientRect();
-            var pos = cy.renderedToModel({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            var zoom = cy.zoom();
+            var pan = cy.pan();
+            var renderedX = e.clientX - rect.left;
+            var renderedY = e.clientY - rect.top;
+            var pos = { x: (renderedX - pan.x) / zoom, y: (renderedY - pan.y) / zoom };
             document.dispatchEvent(new CustomEvent('ht:palette-drop', {
                 detail: { deviceType: deviceType, x: pos.x, y: pos.y }
             }));
@@ -147,10 +178,13 @@ def render_canvas(elements: list[dict[str, object]], saved_layout: dict[str, obj
     ui.add_body_html(f"<script>{_CANVAS_INIT_JS}</script>")
 
     # Canvas container
-    with ui.element("div").props('id="cy"').style(
-        f"width: 100%; height: 100%; background-color: {COLOR_SURFACE};"
+    with ui.element("div").style(
+        "position: absolute; top: 0; right: 0; bottom: 0; left: 0;"
     ):
-        pass
+        with ui.element("div").props('id="cy"').style(
+            f"width: 100%; height: 100%; background-color: {COLOR_SURFACE};"
+        ):
+            pass
 
     # Initialize canvas with data
     device_shapes_dict = {dt.value: shape for dt, shape in DEVICE_SHAPES.items()}

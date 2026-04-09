@@ -120,7 +120,9 @@ async def topology_page() -> None:
                 )
 
         # Three-column body
-        with ui.row().style("flex: 1; width: 100%; min-height: 0; gap: 0;"):
+        with ui.row().style(
+            "flex: 1; width: 100%; min-height: 0; gap: 0; flex-wrap: nowrap; align-items: stretch;"
+        ):
             # Left: palette
             with ui.element("div").style(
                 f"background-color: {COLOR_SURFACE_ALT}; flex-shrink: 0; overflow-y: auto;"
@@ -128,7 +130,7 @@ async def topology_page() -> None:
                 render_palette()
 
             # Center: canvas
-            with ui.element("div").style("flex: 1; min-width: 0; position: relative;"):
+            with ui.element("div").style("flex: 1; min-width: 0; min-height: 0; position: relative;"):
                 render_canvas(elements, saved_layout)
 
             # Right: detail panel

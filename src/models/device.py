@@ -17,7 +17,7 @@ def _utcnow() -> datetime:
 
 
 class DeviceBase(SQLModel):
-    name: str = Field(max_length=255)
+    name: str = Field(min_length=1, max_length=255)
     type: DeviceType
     ip: Optional[str] = Field(default=None, max_length=45)
     mac: Optional[str] = Field(default=None, max_length=17)

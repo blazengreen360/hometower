@@ -4,6 +4,13 @@ All notable changes to Hometower will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Canvas: replaced non-existent `cy.renderedToModel()` with manual zoom/pan coordinate conversion in drop handler — fixes all palette drag-drop device creation
+- Canvas: bounded retry for Cytoscape CDN race condition (max 50 attempts × 100ms)
+- Canvas: fixed 0-height `#cy` container by overriding NiceGUI `.row` align-items with stretch + absolute-fill wrapper
+- Device service: wired `validate_mac()` in create and update paths — MAC addresses now normalized to uppercase
+
+
 ### Added
 - HT-004: Device-to-device connections
   - `src/models/connection.py` — `Connection`, `ConnectionCreate`, `ConnectionUpdate`, `ConnectionResponse` SQLModel models (UUID PK, FK to devices.id for source and target)
@@ -60,3 +67,11 @@ All notable changes to Hometower will be documented in this file.
   - Full project scaffolding: `Dockerfile`, `docker-compose.yml`, `alembic.ini`, `.env.example`
   - Unit tests for RBAC domain functions
   - Integration tests for auth endpoints and middleware
+
+### Fixed
+- Topology canvas initialization race with dynamically injected Cytoscape CDN script
+  - `src/ui/components/canvas.py` now retries `initCanvas(...)` until `window.cytoscape` is available and the `#cy` container has non-zero dimensions before creating the graph instance
+  - `src/ui/components/canvas.py` now uses absolute fill positioning for `#cy` (`top/right/bottom/left: 0`) to prevent flex wrapper height-chain collapse
+- Topology canvas visibility regression (0px height)
+  - `src/ui/pages/topology.py` now forces the three-column body row to use `flex-wrap: nowrap` and `align-items: stretch`, and sets `min-height: 0` on the canvas column
+  - `src/ui/components/canvas.py` now wraps `#cy` in an absolute-fill container while `#cy` uses `width: 100%; height: 100%` to keep non-zero dimensions even if Cytoscape mutates inline styles
