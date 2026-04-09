@@ -7,7 +7,7 @@ from sqlmodel import Session
 
 from src.domain import devices as device_domain
 from src.models.device import Device, DeviceCreate, DeviceUpdate
-from src.repositories import device_repository
+from src.repositories import connection_repository, device_repository
 from src.utils.logger import logger
 
 
@@ -66,9 +66,8 @@ def update(device_id: uuid.UUID, data: DeviceUpdate, session: Session) -> Device
 
 
 def _count_device_connections(device_id: uuid.UUID, session: Session) -> int:
-    """Count active connections for a device. Returns 0 until connections table exists (HT-004)."""
-    # TODO(HT-004): Replace with connection_repository.count_by_device()
-    return 0
+    """Count active connections for a device."""
+    return connection_repository.count_by_device(session, device_id)
 
 
 def delete(device_id: uuid.UUID, session: Session) -> None:

@@ -5,6 +5,19 @@ All notable changes to Hometower will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- HT-004: Device-to-device connections
+  - `src/models/connection.py` — `Connection`, `ConnectionCreate`, `ConnectionUpdate`, `ConnectionResponse` SQLModel models (UUID PK, FK to devices.id for source and target)
+  - `src/domain/connections.py` — pure function `validate_no_self_loop()` (raises ValueError on source==target)
+  - `src/repositories/connection_repository.py` — full CRUD + paginated/filtered `get_all()` + `count_by_device()` (counts where device is source OR target)
+  - `src/services/connection_service.py` — `create`, `get_by_id`, `get_all`, `update`, `delete` with self-loop and device-existence validation
+  - `src/api/routers/connections.py` — `GET/POST /api/connections/`, `GET/PATCH/DELETE /api/connections/{id}` (Contributor writes, Reader reads; source_id/target_id filter params)
+  - `alembic/versions/004_create_connections_table.py` — `connections` table with PG_UUID/PG_ENUM, FKs, no-self-loop CHECK constraint, indexes, `updated_at` trigger
+  - Wired `_count_device_connections()` in `device_service.py` to use `connection_repository.count_by_device()` — device with active connections now blocked from deletion (HTTP 400)
+  - `src/ui/pages/topology.py` — `_load_canvas_data()` now fetches connections from `GET /api/connections/` and builds Cytoscape edge elements
+  - `src/ui/components/canvas.py` — added `addEdgeToCanvas()` helper; shift+click two nodes to draw a connection (POST /api/connections/); right-click edge to delete
+  - `docker-compose.yml` — added `./tests` and `./alembic` bind mounts so new files are live-reflected without rebuilding
+  - 19 new tests (2 unit + 17 integration); all 109 tests pass; mypy zero errors; build clean
+
 - HT-003: Basic Topology Canvas with Drag-Drop
   - `src/models/diagram.py` — `DiagramLayout`, `DiagramLayoutCreate`, `DiagramLayoutResponse`, `DiagramLayoutSummary`, `PaginatedDiagramSummary` SQLModel models (UUID PK, JSON column for Cytoscape state)
   - `src/repositories/diagram_repository.py` — `create`, `get_by_id`, `get_all`, `delete`

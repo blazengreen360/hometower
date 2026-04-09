@@ -1,0 +1,80 @@
+"""Connection service — orchestrates domain logic and connection repository."""
+import uuid
+from datetime import datetime, timezone
+
+from fastapi import HTTPException
+from sqlmodel import Session
+
+from src.domain import connections as connection_domain
+from src.models.connection import Connection, ConnectionCreate, ConnectionUpdate
+from src.repositories import connection_repository, device_repository
+from src.utils.logger import logger
+
+
+def create(data: ConnectionCreate, session: Session) -> Connection:
+    """Validate and persist a new connection."""
+    try:
+        connection_domain.validate_no_self_loop(data.source_id, data.target_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if device_repository.get_by_id(session, data.source_id) is None:
+        raise HTTPException(status_code=400, detail="Source device not found")
+    if device_repository.get_by_id(session, data.target_id) is None:
+        raise HTTPException(status_code=400, detail="Target device not found")
+
+    conn = Connection(
+        source_id=data.source_id,
+        target_id=data.target_id,
+        type=data.type,
+        label=data.label,
+    )
+    result = connection_repository.create(session, conn)
+    logger.info(
+        "Connection created: id={} source={} target={}",
+        result.id, result.source_id, result.target_id,
+    )
+    return result
+
+
+def get_by_id(connection_id: uuid.UUID, session: Session) -> Connection:
+    """Return the connection or raise HTTP 404."""
+    conn = connection_repository.get_by_id(session, connection_id)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    return conn
+
+
+def get_all(
+    session: Session,
+    page: int,
+    limit: int,
+    source_id: uuid.UUID | None = None,
+    target_id: uuid.UUID | None = None,
+) -> tuple[list[Connection], int]:
+    """Return a paginated, filtered list of connections and total count."""
+    return connection_repository.get_all(session, page, limit, source_id, target_id)
+
+
+def update(connection_id: uuid.UUID, data: ConnectionUpdate, session: Session) -> Connection:
+    """Partially update a connection; raise HTTP 404 if not found."""
+    conn = connection_repository.get_by_id(session, connection_id)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    update_data = data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(conn, field, value)
+    conn.updated_at = datetime.now(timezone.utc)
+    result = connection_repository.update(session, conn)
+    logger.info("Connection updated: id={}", result.id)
+    return result
+
+
+def delete(connection_id: uuid.UUID, session: Session) -> None:
+    """Delete a connection; raise HTTP 404 if not found."""
+    conn = connection_repository.get_by_id(session, connection_id)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    connection_repository.delete(session, conn)
+    logger.info("Connection deleted: id={}", connection_id)

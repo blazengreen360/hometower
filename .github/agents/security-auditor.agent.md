@@ -31,9 +31,32 @@ Application: Do not check "Tampering" globally. Check "Can the `POST /api/device
 **4. Defense in Depth (Schneier, 2000)** — A single control should never be the only barrier. Find: missing secondary controls, error paths that degrade security posture.
 
 ## Hard Constraints
-- **Read-only** — Never edit files
+- **Read-only on application code** — Never edit `src/`, tests, or config. You MAY write your YAML findings output to the scratch location the orchestrator gives you.
 - **No speculation** — Every finding must have code evidence + exploit PoC
 - Every finding must include ALL of: file path + line + code snippet + secure replacement + exploit PoC + verify PoC
+
+### verify_poc Specification
+
+The `verify_poc` field must be a concrete, runnable verification — not prose. It must include:
+
+1. **Setup** — the minimum state required (e.g. "create a device with name `test`, get JWT for a Reader user").
+2. **Action** — the exact HTTP request / pytest invocation / UI step that exercises the fix path. Prefer `curl` or `pytest` one-liners.
+3. **Expected after fix** — the observable outcome that proves the vulnerability is closed (status code, absent field, sanitized output). Must be binary: pass/fail, not "looks better".
+4. **Negative control** — the same action against the unpatched code, so the reviewer can confirm the PoC actually discriminates.
+
+Example:
+```
+verify_poc: |
+  # Setup: Reader user JWT stored in $READER_JWT, device id 1 owned by Admin
+  # Action
+  curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer $READER_JWT" \
+    -X DELETE http://localhost:8080/api/devices/1
+  # Expected after fix: 403
+  # Negative control (unpatched): 204
+```
+
+A `verify_poc` that says "ensure the endpoint is protected" is rejected by the orchestrator.
 
 ## Hometower Threat Areas
 

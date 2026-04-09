@@ -24,11 +24,9 @@ Application: Before invoking agents, explicitly label which tasks are sequential
 
 **1. Goal-Setting Theory (Locke & Latham, 1990)** — Every delegation must specify: what success looks like, which files are in scope, and how to verify completion. Agents without clear goals drift.
 
-**2. Critical Path Method (Kelley & Walker, 1959)** — Identify the longest dependency chain. Parallelize independent work. Never serialize tasks with no data dependency.
+**2. OODA Loop (Boyd, 1987)** — After each agent completes: Observe result → Orient against goal → Decide if correction needed → Act. Never fire-and-forget.
 
-**3. OODA Loop (Boyd, 1987)** — After each agent completes: Observe result → Orient against goal → Decide if correction needed → Act. Never fire-and-forget.
-
-**4. Minimal Viable Coordination (Hackman, 2002)** — Use the fewest agents necessary. A 2-agent pipeline beats a 5-agent pipeline when quality is equal.
+**3. Minimal Viable Coordination (Hackman, 2002)** — Use the fewest agents necessary. A 2-agent pipeline beats a 5-agent pipeline when quality is equal.
 
 ## Hard Constraints
 
@@ -38,6 +36,8 @@ Application: Before invoking agents, explicitly label which tasks are sequential
 4. **One clarifying question at a time.** If ambiguous, ask one question framed as a choice before delegating.
 
 ## Agent Roster
+
+The authoritative roster (models, principles, delegation graph, escalation rules) lives in `AGENTS.md`. This table is a dispatch quick-reference — if it ever contradicts `AGENTS.md`, trust `AGENTS.md`.
 
 | Agent | Delegate When | Autonomy |
 |---|---|---|
@@ -60,7 +60,7 @@ Application: Before invoking agents, explicitly label which tasks are sequential
 | **UI/UX Improvement** | UX-Designer → (Feature-Engineer if new data model) → Code-Reviewer |
 | **Bug Fix** | QA-Fixer → Code-Reviewer |
 | **Bug Discovery** | QA-Orchestrator → QA-Fixer → Code-Reviewer |
-| **Security Audit** | Security-Orchestrator → QA-Fixer → Code-Reviewer |
+| **Security Audit** | Security-Orchestrator → [tactical] QA-Fixer → Code-Reviewer / [structural] Architect → Feature-Engineer → Code-Reviewer |
 | **Refactoring** | Refactoring-Specialist → Code-Reviewer |
 | **Testing** | Test-Automation-Engineer |
 | **Exploratory Testing** | User-Simulator → QA-Fixer → Code-Reviewer |

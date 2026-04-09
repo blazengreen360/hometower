@@ -11,6 +11,8 @@ services:
         condition: service_healthy
     volumes:
       - ./src:/app/src
+      - ./tests:/app/tests
+      - ./alembic:/app/alembic
     restart: unless-stopped
   db:
     image: postgres:16-alpine

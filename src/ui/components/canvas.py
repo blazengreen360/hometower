@@ -7,6 +7,7 @@ import json
 
 from nicegui import ui
 
+from src.ui.components.canvas_events import inject_canvas_events
 from src.ui.design.tokens import COLOR_PRIMARY, COLOR_SURFACE, COLOR_SURFACE_ALT, COLOR_TEXT, DEVICE_SHAPES
 
 _CYTOSCAPE_CDN = "https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"
@@ -119,90 +120,10 @@ _CANVAS_INIT_JS = """
         window._cy.add({ data: nodeData, position: { x: nodeData.x || 200, y: nodeData.y || 200 } });
     };
 
-    window._htInitEventHandlers = function(deviceShapes) {
-        // Palette drop → create device via API and add node to canvas
-        document.addEventListener('ht:palette-drop', function(evt) {
-            var d = evt.detail;
-            var token = sessionStorage.getItem('access_token');
-            if (!token || !window._cy) return;
-            fetch('/api/devices/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + token
-                },
-                body: JSON.stringify({ name: 'New ' + d.deviceType, type: d.deviceType })
-            }).then(function(r) { return r.ok ? r.json() : null; })
-              .then(function(device) {
-                if (!device) return;
-                window._cy.add({
-                    data: {
-                        id: String(device.id), label: device.name,
-                        shape: deviceShapes[device.type] || 'rectangle',
-                        device_type: device.type, ip: device.ip || '',
-                        mac: device.mac || '', os: device.os || '', notes: device.notes || ''
-                    },
-                    position: { x: d.x, y: d.y }
-                });
-            });
-        });
-
-        // Node delete → remove device via API and from canvas
-        document.addEventListener('ht:node-delete', function(evt) {
-            var d = evt.detail;
-            var token = sessionStorage.getItem('access_token');
-            if (!token || !window._cy) return;
-            fetch('/api/devices/' + d.id, {
-                method: 'DELETE',
-                headers: { 'Authorization': 'Bearer ' + token }
-            }).then(function(r) {
-                if (r.ok || r.status === 404) {
-                    window._cy.getElementById(d.id).remove();
-                }
-            });
-        });
-
-        // Node duplicate → clone device via API and add offset node
-        document.addEventListener('ht:node-duplicate', function(evt) {
-            var d = evt.detail;
-            var token = sessionStorage.getItem('access_token');
-            if (!token || !window._cy) return;
-            var srcData = d.data || {};
-            fetch('/api/devices/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + token
-                },
-                body: JSON.stringify({
-                    name: (srcData.label || 'Device') + ' (copy)',
-                    type: srcData.device_type || 'Server'
-                })
-            }).then(function(r) { return r.ok ? r.json() : null; })
-              .then(function(device) {
-                if (!device) return;
-                var srcNode = window._cy.getElementById(d.id);
-                var pos = srcNode.length ? srcNode.position() : { x: 200, y: 200 };
-                window._cy.add({
-                    data: {
-                        id: String(device.id), label: device.name,
-                        shape: deviceShapes[device.type] || 'rectangle',
-                        device_type: device.type, ip: device.ip || '',
-                        mac: device.mac || '', os: device.os || '', notes: device.notes || ''
-                    },
-                    position: { x: pos.x + 50, y: pos.y + 50 }
-                });
-            });
-        });
-
-        // Node edit → select node and open detail panel
-        document.addEventListener('ht:node-edit', function(evt) {
-            var d = evt.detail;
-            if (window._cy) { window._cy.getElementById(d.id).select(); }
-            document.dispatchEvent(
-                new CustomEvent('ht:node-selected', { detail: d.data || d })
-            );
-        });
+    window.addEdgeToCanvas = function(edgeData) {
+        if (!window._cy) return;
+        if (window._cy.getElementById(edgeData.id).length > 0) return;
+        window._cy.add({ group: 'edges', data: edgeData });
     };
 })();
 """
@@ -218,6 +139,9 @@ def render_canvas(elements: list[dict[str, object]], saved_layout: dict[str, obj
     ui.add_head_html(
         f'<script src="{_CYTOSCAPE_CDN}" crossorigin="anonymous"></script>'
     )
+
+    # Event handlers (extracted to canvas_events.py)
+    inject_canvas_events()
 
     # Canvas init logic (only once per page load)
     ui.add_body_html(f"<script>{_CANVAS_INIT_JS}</script>")

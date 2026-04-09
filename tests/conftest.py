@@ -25,6 +25,7 @@ from sqlmodel import Session, SQLModel, create_engine  # noqa: E402
 from src.models.user import User  # noqa: E402, F401 — registers User with SQLModel.metadata
 from src.models.device import Device  # noqa: E402, F401 — registers Device with SQLModel.metadata
 from src.models.diagram import DiagramLayout  # noqa: E402, F401 — registers DiagramLayout with SQLModel.metadata
+from src.models.connection import Connection  # noqa: E402, F401 — registers Connection with SQLModel.metadata
 from src.models.types import Role  # noqa: E402
 from src.utils.auth import create_jwt, hash_password  # noqa: E402
 
@@ -82,6 +83,17 @@ def contributor_token() -> str:
 def reader_token() -> str:
     """Signed JWT for a Reader user."""
     return create_jwt({"sub": str(uuid4()), "role": "Reader"})
+
+
+@pytest.fixture
+def two_devices(client: TestClient, contributor_token: str) -> tuple[int, int]:
+    """Create two devices and return their IDs."""
+    headers = {"Authorization": f"Bearer {contributor_token}"}
+    d1 = client.post("/api/devices/", json={"name": "Dev-1", "type": "Server"}, headers=headers)
+    d2 = client.post("/api/devices/", json={"name": "Dev-2", "type": "Switch"}, headers=headers)
+    assert d1.status_code == 201
+    assert d2.status_code == 201
+    return d1.json()["id"], d2.json()["id"]
 
 
 @pytest.fixture
