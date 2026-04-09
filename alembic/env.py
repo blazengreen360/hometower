@@ -7,6 +7,7 @@ from sqlmodel import SQLModel
 
 # Register all models with SQLModel.metadata
 from src.models.user import User  # noqa: F401
+from src.models.device import Device  # noqa: F401
 from src.utils.settings import settings
 
 config = context.config

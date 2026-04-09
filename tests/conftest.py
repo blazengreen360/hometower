@@ -23,6 +23,7 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 from sqlmodel import Session, SQLModel, create_engine  # noqa: E402
 
 from src.models.user import User  # noqa: E402, F401 — registers User with SQLModel.metadata
+from src.models.device import Device  # noqa: E402, F401 — registers Device with SQLModel.metadata
 from src.models.types import Role  # noqa: E402
 from src.utils.auth import create_jwt, hash_password  # noqa: E402
 

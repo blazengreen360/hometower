@@ -5,6 +5,15 @@ All notable changes to Hometower will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- HT-002: Device CRUD operations (backend)
+  - `src/models/device.py` — `Device`, `DeviceCreate`, `DeviceUpdate`, `DeviceResponse` SQLModel models (UUID PK, MAC format validator)
+  - `src/domain/devices.py` — pure functions: `validate_mac()`, `validate_ip()`, `validate_device_deletable()`
+  - `src/repositories/device_repository.py` — full CRUD + paginated `get_all()` + `count()`
+  - `src/services/device_service.py` — `create`, `get_by_id`, `get_all`, `update`, `delete` with domain validation
+  - `src/api/routers/devices.py` — `POST/GET/PATCH/DELETE /api/devices/` with RBAC (Contributor writes, Reader reads)
+  - `alembic/versions/002_create_devices_table.py` — `devices` table + `device_type` enum + indexes + `updated_at` trigger
+  - 31 new tests (17 unit + 14 integration); all 69 tests pass
+
 - HT-001: User authentication and session management
   - First-boot admin creation from `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars
   - JWT login via `POST /api/auth/login` (HS256, 24h expiry)

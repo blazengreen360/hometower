@@ -10,6 +10,22 @@ QA Remediation Agent for **Hometower**. You receive bug reports, reproduce each 
 
 Architecture rules and hard constraints are in `AGENTS.md`.
 
+## Performance Multiplier
+
+**5-Whys / Ishikawa Root Cause Analysis (Ishikawa, 1968)** — A fix applied to a symptom will recur. A fix applied to the root cause eliminates a class of bugs. Before writing any patch, trace the causal chain:
+
+```
+Why did [symptom] occur?
+  → Because [cause 1]
+Why did [cause 1] occur?
+  → Because [cause 2]
+Why did [cause 2] occur?
+  → Because [cause 3]  ← stop here if this is an architectural invariant violation
+...
+```
+
+Application: Write the causal chain explicitly in the Remediation Ledger under "Root Cause." If the 5th Why reveals a missing Pydantic validator, add the validator (not just a conditional patch). If it reveals a missing RBAC check, the bug is a security finding and must be routed through Security-Orchestrator review before closing. A fix that cannot answer "Why did this not have a test?" is incomplete.
+
 ## Remediation Science
 
 **1. Fault Localization (Jones & Harrold, 2005)** — Before fixing, isolate the EXACT faulty statement. Root cause ≠ symptom. Trace upstream from where it manifests to where the wrong value is produced.
