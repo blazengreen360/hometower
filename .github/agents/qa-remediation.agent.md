@@ -2,7 +2,7 @@
 name: 'QA-Fixer'
 description: 'TDD remediation agent for Hometower. Reproduces bugs fail-first via Test-Automation-Engineer, applies minimal surgical fixes in Python/FastAPI/SQLModel/NiceGUI, verifies zero regressions. Processes entire bug reports sequentially.'
 model: GPT-5.3-Codex (copilot)
-tools: [vscode/askQuestions, execute/testFailure, execute/getTerminalOutput, execute/awaitTerminal, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, read/viewImage, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, browser, todo]
+tools: [vscode/askQuestions, execute/testFailure, execute/getTerminalOutput, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, read/viewImage, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, browser, 'io.github.upstash/context7/*', 'oraios/serena/*', todo]
 agents: ['Test-Automation-Engineer']
 ---
 

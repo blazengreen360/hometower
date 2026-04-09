@@ -10,12 +10,10 @@ from starlette.responses import JSONResponse, Response
 
 from src.utils.auth import decode_jwt
 
-# Paths that bypass JWT authentication entirely
-EXCLUDED_PATHS: frozenset[str] = frozenset(
+# /api/ paths that bypass JWT authentication entirely
+EXCLUDED_API_PATHS: frozenset[str] = frozenset(
     {
         "/api/auth/login",
-        "/login",
-        "/health",
         "/docs",
         "/openapi.json",
         "/redoc",
@@ -29,8 +27,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         path = request.url.path
 
-        # Allow NiceGUI internal routes and explicitly excluded paths
-        if path in EXCLUDED_PATHS or path.startswith("/_nicegui"):
+        # Only /api/ paths require JWT; NiceGUI pages and static assets pass through
+        if (
+            not path.startswith("/api/")
+            or path in EXCLUDED_API_PATHS
+            or path.startswith("/_nicegui")
+        ):
             return await call_next(request)
 
         auth_header = request.headers.get("Authorization", "")

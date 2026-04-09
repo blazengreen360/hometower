@@ -8,7 +8,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, ENUM as PG_ENUM
 
 revision: str = "002"
 down_revision: Union[str, None] = "001"
@@ -17,13 +17,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # PostgreSQL native enum type for device types
-    op.execute(
-        "CREATE TYPE device_type AS ENUM ("
-        "'Server', 'Switch', 'Router', 'NAS', 'UPS', 'SBC', "
-        "'Workstation', 'VM', 'LXC', 'Docker', 'Application', 'VLAN', 'Subnet'"
-        ")"
-    )
+    # PostgreSQL native enum type for device types (idempotent)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE device_type AS ENUM (
+                'Server', 'Switch', 'Router', 'NAS', 'UPS', 'SBC',
+                'Workstation', 'VM', 'LXC', 'Docker', 'Application', 'VLAN', 'Subnet'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
 
     op.create_table(
         "devices",
@@ -36,10 +40,11 @@ def upgrade() -> None:
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column(
             "type",
-            sa.Enum(
+            PG_ENUM(
                 "Server", "Switch", "Router", "NAS", "UPS", "SBC",
                 "Workstation", "VM", "LXC", "Docker", "Application", "VLAN", "Subnet",
                 name="device_type",
+                create_type=False,
             ),
             nullable=False,
         ),

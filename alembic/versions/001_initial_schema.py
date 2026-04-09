@@ -8,7 +8,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, ENUM as PG_ENUM
 
 revision: str = "001"
 down_revision: Union[str, None] = None
@@ -17,8 +17,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # PostgreSQL native enum type for user roles
-    op.execute("CREATE TYPE user_role AS ENUM ('Admin', 'Contributor', 'Reader')")
+    # PostgreSQL native enum type for user roles (idempotent)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE user_role AS ENUM ('Admin', 'Contributor', 'Reader');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
 
     op.create_table(
         "users",
@@ -33,7 +39,7 @@ def upgrade() -> None:
         sa.Column("password_hash", sa.String(255), nullable=False),
         sa.Column(
             "role",
-            sa.Enum("Admin", "Contributor", "Reader", name="user_role"),
+            PG_ENUM("Admin", "Contributor", "Reader", name="user_role", create_type=False),
             nullable=False,
             server_default="Contributor",
         ),

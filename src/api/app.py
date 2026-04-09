@@ -15,6 +15,7 @@ from sqlmodel import Session
 from src.api.middleware.auth import AuthMiddleware
 from src.api.routers.auth import router as auth_router
 from src.api.routers.devices import router as devices_router
+from src.api.routers.diagrams import router as diagrams_router
 from src.services.auth_service import create_first_admin_if_needed
 from src.utils.db import engine
 from src.utils.logger import logger
@@ -54,6 +55,7 @@ app = FastAPI(
 app.add_middleware(AuthMiddleware)
 app.include_router(auth_router, prefix="/api")
 app.include_router(devices_router, prefix="/api")
+app.include_router(diagrams_router, prefix="/api")
 
 
 @app.get("/health")

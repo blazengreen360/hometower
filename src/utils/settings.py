@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     admin_password: str
     jwt_expire_hours: int = 24
     log_level: str = "INFO"
+    api_base_url: str = "http://127.0.0.1:8080"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

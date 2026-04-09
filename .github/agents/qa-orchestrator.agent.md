@@ -2,7 +2,7 @@
 name: 'QA-Orchestrator'
 description: 'Bug discovery orchestrator for Hometower. Launches 10 parallel Bug-Finder lanes across the Python/FastAPI/NiceGUI/Cytoscape codebase, deduplicates findings by evidence strength, and produces a single prioritized report.'
 model: Claude Haiku 4.5 (copilot)
-tools: [vscode/askQuestions, read/readFile, agent, edit/createFile, edit/editFiles, edit/rename, search, web, browser, todo]
+tools: [vscode/askQuestions, read/readFile, agent, edit/createFile, edit/editFiles, edit/rename, search, web, browser, 'io.github.upstash/context7/*', 'oraios/serena/*', todo]
 agents: ['Bug-Finder']
 ---
 

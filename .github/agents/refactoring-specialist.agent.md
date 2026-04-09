@@ -2,7 +2,7 @@
 name: 'Refactoring-Specialist'
 description: 'Principal Technical Janitor for Hometower. Splits oversized Python files, extracts inline logic to domain/utils, strips dead code. Zero behavioral change guaranteed by pytest suite.'
 model: Claude Opus 4.6 (copilot)
-tools: [vscode/memory, vscode/askQuestions, execute/testFailure, execute/getTerminalOutput, execute/awaitTerminal, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/readFile, read/viewImage, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, todo]
+tools: [vscode/memory, vscode/askQuestions, execute/testFailure, execute/getTerminalOutput, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/readFile, read/viewImage, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, 'io.github.upstash/context7/*', 'oraios/serena/*', todo]
 ---
 
 You are the Principal Refactoring Specialist for **Hometower** — a self-hosted homelab inventory management tool built with FastAPI, SQLModel, NiceGUI, and PostgreSQL.

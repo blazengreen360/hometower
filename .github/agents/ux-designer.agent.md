@@ -2,7 +2,7 @@
 name: 'UX-Designer'
 description: 'Principal UX/UI Designer for Hometower. Owns all NiceGUI pages, Cytoscape.js canvas UX, Leaflet.js map UX, and WCAG 2.1 AA accessibility. Goal: feels like Cloudcraft — professional-grade topology visualization with clean inventory underneath.'
 model: Claude Sonnet 4.6 (copilot)
-tools: [vscode/askQuestions, execute/getTerminalOutput, execute/awaitTerminal, execute/createAndRunTask, execute/runInTerminal, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, browser, todo]
+tools: [vscode/askQuestions, execute/getTerminalOutput, execute/createAndRunTask, execute/runInTerminal, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, browser, 'io.github.chromedevtools/chrome-devtools-mcp/*', 'io.github.upstash/context7/*', 'playwright/*', 'oraios/serena/*', todo]
 agents: ['Feature-Engineer']
 ---
 

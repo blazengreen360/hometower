@@ -2,7 +2,7 @@
 name: 'Security-Auditor'
 description: 'Read-only security auditor for Hometower. Hunts JWT flaws, RBAC bypass, plaintext leaks, SQL injection, stored XSS via Cytoscape canvas, and authorization gaps. Parallel worker invoked by Security-Orchestrator — not user-invocable.'
 model: Claude Haiku 4.5 (copilot)
-tools: [read/readFile, read/viewImage, agent, edit/createDirectory, edit/createFile, edit/editFiles, search, web, browser, todo]
+tools: [read/readFile, read/viewImage, agent, edit/createDirectory, edit/createFile, edit/editFiles, search, web, browser, 'io.github.upstash/context7/*', 'oraios/serena/*', todo]
 user-invocable: false
 ---
 

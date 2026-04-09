@@ -5,7 +5,20 @@ All notable changes to Hometower will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- HT-002: Device CRUD operations (backend)
+- HT-003: Basic Topology Canvas with Drag-Drop
+  - `src/models/diagram.py` — `DiagramLayout`, `DiagramLayoutCreate`, `DiagramLayoutResponse`, `DiagramLayoutSummary`, `PaginatedDiagramSummary` SQLModel models (UUID PK, JSON column for Cytoscape state)
+  - `src/repositories/diagram_repository.py` — `create`, `get_by_id`, `get_all`, `delete`
+  - `src/services/diagram_service.py` — orchestrates diagram CRUD with HTTP 404 guards
+  - `src/api/routers/diagrams.py` — `GET/POST /api/diagrams/`, `GET/DELETE /api/diagrams/{id}` (Contributor creates, Reader reads, Admin deletes)
+  - `alembic/versions/003_create_diagram_layouts_table.py` — `diagram_layouts` table with JSONB column
+  - `src/ui/components/canvas.py` — Cytoscape.js 3.28.1 canvas component (CDN), drag events, context menu, palette drop handler, preset/cose layout
+  - `src/ui/components/device_palette.py` — HTML5 drag-and-drop palette sidebar with all DeviceType cards
+  - `src/ui/components/device_detail.py` — right-side detail panel, listens for `ht:node-selected` custom event
+  - `src/ui/pages/topology.py` — NiceGUI `/topology` page with auth guard, three-column layout, Save Layout button
+  - `src/ui/design/tokens.py` — added `DEVICE_SHAPES` mapping all 13 `DeviceType` values → Cytoscape shape strings
+  - 13 new integration tests; all 90 tests pass; mypy zero errors
+
+
   - `src/models/device.py` — `Device`, `DeviceCreate`, `DeviceUpdate`, `DeviceResponse` SQLModel models (UUID PK, MAC format validator)
   - `src/domain/devices.py` — pure functions: `validate_mac()`, `validate_ip()`, `validate_device_deletable()`
   - `src/repositories/device_repository.py` — full CRUD + paginated `get_all()` + `count()`

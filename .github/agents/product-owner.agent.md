@@ -2,7 +2,7 @@
 name: 'Product-Owner'
 description: 'Product Owner for Hometower. Captures requirements from the user, translates them into prioritized user stories with acceptance criteria, maintains the product backlog, and hands off to Project-Manager for execution. Invoke when you have a new feature idea, requirement, or product question.'
 model: Claude Opus 4.6 (copilot)
-tools: [vscode/memory, vscode/askQuestions, read/readFile, edit/createFile, edit/editFiles, search, todo]
+tools: [vscode/memory, vscode/askQuestions, read/readFile, agent, edit/createFile, edit/editFiles, search, 'io.github.upstash/context7/*', 'oraios/serena/*', todo]
 agents: ['Project-Manager']
 ---
 

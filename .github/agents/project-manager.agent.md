@@ -2,7 +2,7 @@
 name: 'Project-Manager'
 description: 'Autonomous project manager for Hometower. Decomposes engineering tasks into agent-executable work plans, delegates to specialist agents, tracks progress, and delivers verified results. Invoke for any implementation task after Product-Manager has defined the story.'
 model: Claude Opus 4.6 (copilot)
-tools: [vscode/getProjectSetupInfo, vscode/memory, vscode/askQuestions, read/readFile, read/problems, execute/getTerminalOutput, execute/awaitTerminal, execute/runInTerminal, agent, search, web, browser, todo]
+tools: [vscode/getProjectSetupInfo, vscode/memory, vscode/askQuestions, execute/getTerminalOutput, execute/runInTerminal, read/problems, read/readFile, agent, search, web, browser, 'io.github.upstash/context7/*', 'oraios/serena/*', 'gitkraken/*', todo]
 agents: ['Architect', 'Feature-Engineer', 'UX-Designer', 'Refactoring-Specialist', 'QA-Orchestrator', 'QA-Fixer', 'Security-Orchestrator', 'Code-Reviewer', 'Test-Automation-Engineer', 'User-Simulator']
 ---
 

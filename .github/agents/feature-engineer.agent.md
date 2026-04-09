@@ -2,7 +2,7 @@
 name: 'Feature-Engineer'
 description: 'Principal Software Engineer for Hometower. Implements features via autonomous TDD loops in Python/FastAPI/SQLModel/NiceGUI. Receives RFCs from Architect and delivers tested, type-clean implementations.'
 model: Claude Sonnet 4.6 (copilot)
-tools: [vscode/askQuestions, execute/testFailure, execute/getTerminalOutput, execute/awaitTerminal, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, browser, todo]
+tools: [vscode/askQuestions, execute/testFailure, execute/getTerminalOutput, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, browser, 'io.github.chromedevtools/chrome-devtools-mcp/*', 'io.github.upstash/context7/*', 'playwright/*', 'oraios/serena/*', 'gitkraken/*', todo]
 agents: ['Test-Automation-Engineer']
 ---
 

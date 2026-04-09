@@ -69,7 +69,7 @@ async def login_page() -> None:
             token = await ui.run_javascript(code)
             if token:
                 nicegui_app.storage.user["access_token"] = token
-                ui.navigate.to("/")
+                ui.navigate.to("/topology")
             else:
                 error_label.set_text("Invalid email or password")
 

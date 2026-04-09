@@ -2,7 +2,7 @@
 name: 'Security-Orchestrator'
 description: 'Security audit orchestrator for Hometower. Launches 10 parallel Security-Auditor lanes across STRIDE threat categories targeting JWT/RBAC, SQL injection, plaintext leaks, and Cytoscape/Leaflet injection vectors.'
 model: Claude Haiku 4.5 (copilot)
-tools: [vscode/askQuestions, read/readFile, agent, edit/createDirectory, edit/createFile, edit/editFiles, search, web, browser, todo]
+tools: [vscode/askQuestions, read/readFile, agent, edit/createDirectory, edit/createFile, edit/editFiles, search, web, browser, 'io.github.upstash/context7/*', 'oraios/serena/*', todo]
 agents: ['Security-Auditor']
 ---
 

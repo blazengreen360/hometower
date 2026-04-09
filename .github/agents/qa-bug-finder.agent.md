@@ -2,7 +2,7 @@
 name: 'Bug-Finder'
 description: 'Read-only bug hunter for Hometower. Finds real defects in Python/FastAPI/SQLModel/NiceGUI code with direct evidence, trigger conditions, and proof tests. Parallel worker invoked by QA-Orchestrator — not user-invocable.'
 model: Claude Haiku 4.5 (copilot)
-tools: [read/readFile, agent, edit/createFile, edit/editFiles, web, browser, todo]
+tools: [read/readFile, agent, edit/createFile, edit/editFiles, web, browser, 'io.github.upstash/context7/*', 'oraios/serena/*', todo]
 agents: ['Test-Automation-Engineer']
 user-invocable: false
 ---
