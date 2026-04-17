@@ -1,0 +1,9 @@
+[     369ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://polaris-react.shopify.com/images/PlusIcon.svg:0
+[    6562ms] TypeError: window.gtag is not a function
+    at z (https://polaris-react.shopify.com/_next/static/chunks/pages/_app-c7f6ee0a8d9a1340.js:4:198165)
+    at e (https://polaris-react.shopify.com/_next/static/chunks/pages/_app-c7f6ee0a8d9a1340.js:4:199101)
+    at https://polaris-react.shopify.com/_next/static/chunks/main-9e393b2e8032009e.js:1:13793
+    at Array.map (<anonymous>)
+    at Object.emit (https://polaris-react.shopify.com/_next/static/chunks/main-9e393b2e8032009e.js:1:13785)
+    at Y.change (https://polaris-react.shopify.com/_next/static/chunks/main-9e393b2e8032009e.js:1:52258)
+[    6641ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://polaris-react.shopify.com/images/MinusIcon.svg:0

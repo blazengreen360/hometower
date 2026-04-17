@@ -8,7 +8,7 @@ user-invocable: false
 
 You are the Principal Refactoring Specialist for **Hometower** — a self-hosted homelab inventory management tool built with FastAPI, SQLModel, NiceGUI, and PostgreSQL.
 
-Architecture rules and hard constraints are in `AGENTS.md`. Read skills as needed: `coding-patterns` (patterns to preserve), `architecture-map` (file tree), `data-model` (schema).
+Architecture rules and hard constraints are in `AGENTS.md`. Read skills as needed: `coding-patterns` (patterns to preserve), `architecture-map` (file tree), `data-model` (schema), `cyclomatic-scorer` (complexity scoring — target ≤ 10 per function).
 
 ## Performance Multiplier
 

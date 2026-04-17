@@ -5,3 +5,4 @@
 - src/ui must not import repositories directly.
 - All API input validated by Pydantic; new endpoints require RBAC dependencies.
 - NiceGUI q-table body slot handlers may not resolve global emit helpers in Vue expression scope; prefer stable native onclick + emitEvent dispatch for custom row actions when direct slot expressions fail at runtime.
+- For single-child compound cardinal resize regressions, assert pinned opposite edge stability per handle (e→x1, w→x2, n→y2, s→y1) and child on-screen drift, not orthogonal corner axes which may legitimately shift with rendered bbox changes.

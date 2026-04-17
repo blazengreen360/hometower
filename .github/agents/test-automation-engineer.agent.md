@@ -44,94 +44,9 @@ Follow the caller's contract precisely:
 4. Before using any model or enum: read `src/models/types.py` and the relevant model file — use actual field names and valid enum values
 5. After writing tests: read them back and verify every import path exists
 
-## Existing Test Patterns (match these exactly)
+## Existing Test Patterns
 
-These are the **actual conventions** used in this codebase. Match them — don't introduce new patterns.
-
-### Test File Structure
-```python
-"""Unit tests for src/domain/devices.py pure functions."""
-import uuid
-from uuid import uuid4
-
-import pytest
-from src.domain.devices import validate_ip, validate_mac
-
-class TestValidateIp:
-    def test_validate_ip_valid(self) -> None:
-        assert validate_ip("192.168.1.1") == "192.168.1.1"
-
-    def test_validate_ip_invalid_raises(self) -> None:
-        with pytest.raises(ValueError):
-            validate_ip("not-an-ip")
-
-    def test_validate_ip_none_returns_none(self) -> None:
-        assert validate_ip(None) is None
-```
-
-**Key conventions:**
-- Classes named `TestXxx` grouping related tests
-- Methods named `test_<function>_<scenario>` describing the behavior
-- Return type `-> None` on every test method
-- One assertion per test (or closely related assertions)
-- `pytest.raises` for expected exceptions, with `match=` when the message matters
-
-### Integration Test Structure (conftest fixtures)
-```python
-"""Integration tests for /api/devices/ CRUD endpoints."""
-from uuid import uuid4
-import pytest
-from fastapi.testclient import TestClient
-
-DEVICE_PAYLOAD: dict[str, str] = {"name": "test-server", "type": "Server"}
-
-class TestCreateDevice:
-    def test_create_device_as_contributor_returns_201(
-        self, client: TestClient, contributor_token: str
-    ) -> None:
-        response = client.post(
-            "/api/devices/",
-            json=DEVICE_PAYLOAD,
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert response.status_code == 201
-        data = response.json()
-        assert data["name"] == "test-server"
-        assert "id" in data
-```
-
-**Key conventions:**
-- Use conftest fixtures: `session`, `client`, `admin_token`, `contributor_token`, `reader_token`, `two_devices`, `admin_user`
-- Auth headers: `{"Authorization": f"Bearer {token}"}`
-- Use `uuid4()` for unique test data names to prevent cross-test collisions
-- Never create your own session or client — always use the conftest fixtures
-- The `client` fixture is a sync `TestClient`, not an async `AsyncClient`
-
-### RBAC Parametrization Pattern
-```python
-class TestDeviceRBAC:
-    def test_create_as_reader_returns_403(
-        self, client: TestClient, reader_token: str
-    ) -> None:
-        response = client.post(
-            "/api/devices/",
-            json={"name": "x", "type": "Server"},
-            headers={"Authorization": f"Bearer {reader_token}"},
-        )
-        assert response.status_code == 403
-
-    def test_unauthenticated_returns_401(self, client: TestClient) -> None:
-        response = client.get("/api/devices/")
-        assert response.status_code == 401
-```
-
-**Rules for every endpoint test suite:**
-1. Happy path with correct role → expected status
-2. Forbidden role → 403
-3. No token → 401
-4. Not found → 404
-5. Invalid input → 422
-6. Conflict (if applicable) → 409
+Read the `testing-conventions` skill for the full test file structure, conftest fixtures, RBAC parametrization patterns, mock boundaries, and test file locations. You MUST match those patterns exactly — don't introduce new conventions.
 
 ## Testing Science
 
@@ -147,29 +62,9 @@ class TestDeviceRBAC:
 
 **4. Mock Boundary Principle (Freeman & Pryce, 2009)** — Mock at architectural boundaries only.
 
-## Mock Boundaries
+## Mock Boundaries & Test Locations
 
-**ALWAYS mock:**
-- External HTTP calls (future integrations)
-- File system operations in export tests (use `tmp_path` fixture)
-- Time-dependent operations (use `freezegun` or `monkeypatch`)
-- Specific service functions when testing routers in isolation (use `monkeypatch.setattr`)
-
-**NEVER mock:**
-- Domain functions in `src/domain/` — test them directly, they're pure
-- Pydantic validation — let it run, it's the test subject
-- SQLModel models — use the real in-memory SQLite from conftest
-- Conftest fixtures — use them as-is
-
-## Test Categories & File Locations
-
-| Category | Location | What It Tests | DB Required |
-|---|---|---|---|
-| Domain unit | `tests/unit/test_domain_*.py` | Pure functions in `src/domain/` | No |
-| Model unit | `tests/unit/test_*_model.py` | SQLModel validators, field defaults | SQLite (via conftest) |
-| Service unit | `tests/unit/test_*_service.py` | Service orchestration, error handling | SQLite (via conftest) |
-| Integration | `tests/integration/test_*.py` | Full API endpoint CRUD + RBAC | SQLite (via conftest) |
-| E2E | `tests/e2e/test_*.py` | Playwright browser flows | Full stack |
+See the `testing-conventions` skill for mock boundaries (what to always/never mock) and test file location conventions.
 
 ## Test Quality Checklist
 

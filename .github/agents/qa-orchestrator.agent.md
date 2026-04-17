@@ -24,18 +24,22 @@ Application: The 10-lane structure below maps exactly to ODC categories. Before 
 
 ## Required Fan-Out (Exactly 10 Lanes)
 
-| Lane | ODC Focus | Target Scope & Specificity |
-|---|---|---|
-| lane-1 | **Function** (Input/Output) | `src/models/`, Pydantic validators, IP/MAC/Enum edge cases, boundary values |
-| lane-2 | **Assignment** (State) | `src/repositories/`, SQLModel session lifecycle, transaction bounds, DB constraints |
-| lane-3 | **Checking** (Errors) | `src/services/`, missing `try/except IntegrityError`, silent swallows, 500 leaks |
-| lane-4 | **Timing/Serialization** | TOCTOU races, sync-in-async blocking, last-write-wins diagram saves |
-| lane-5 | **Function** (Auth/RBAC) | `src/api/middleware/auth.py`, JWT decode bypass, missing `require_role()` |
-| lane-6 | **Function** (Integrity) | Device/Connection orphaned records, missing cascading deletes, export/import data loss |
-| lane-7 | **Documentation** (Logs) | Sensitive PII in `logger.*` (emails, IPs, passwords), misleading error messages |
-| lane-8 | **Interface** (Architecture) | Layer boundary drift: routers executing DB queries, UI importing from repositories |
-| lane-9 | **Algorithm** (Canvas UI) | `src/ui/components/canvas*.py`, Cytoscape event duplication, layout persistence loss |
-| lane-10| **Algorithm** (Domain) | `src/domain/`, pure domain logic invariants, falsiness traps (`or ""` on `0.0`) |
+Read the `qa-bug-patterns` skill for the full ODC lane-to-file mapping table. The 10 lanes are:
+
+| Lane | ODC Focus |
+|---|---|
+| lane-1 | Function (Input/Output) |
+| lane-2 | Assignment (State) |
+| lane-3 | Checking (Errors) |
+| lane-4 | Timing/Serialization |
+| lane-5 | Function (Auth/RBAC) |
+| lane-6 | Function (Integrity) |
+| lane-7 | Documentation (Logs) |
+| lane-8 | Interface (Architecture) |
+| lane-9 | Algorithm (Canvas UI) |
+| lane-10 | Algorithm (Domain) |
+
+Use the `qa-bug-patterns` skill's detailed lane table for exact `scope_files` when composing dispatch envelopes.
 
 ## Lane Dispatch Envelope
 

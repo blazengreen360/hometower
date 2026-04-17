@@ -3,7 +3,7 @@
 Items discovered during execution that need attention but don't belong in the product backlog.
 Project-Manager reads this at the start of every session. Items graduate to stories (`doc/stories/`), bugs (`doc/bugs/`), or RFCs (`doc/rfc/`) when clarified.
 
-Last updated: 17 April 2026 — resolved T-008 after gate-failure triage and closeout; updated T-007 after current-head gate repair.
+Last updated: 17 April 2026 — resolved T-008 after gate-failure triage and closeout; added T-009 for edit-mode race follow-up; updated T-007 after current-head gate repair; added T-010 for residual HT-050 deep-proof warm-run flake.
 
 ## Open
 
@@ -13,6 +13,8 @@ Last updated: 17 April 2026 — resolved T-008 after gate-failure triage and clo
 | T-005 | HT-031 code-review residual | tech-debt | `src/ui/pages/inventory_page_controller.py` remains high-complexity at 379 lines after cap fix. Schedule targeted decomposition of orchestration methods before next bulk-feature expansion. | — | MEDIUM | 0 |
 | T-006 | BUG-HUNT-14-04-26.1 | test-gap | Add a real Postgres concurrent import contention integration test to validate ordered DELETE clear-path behavior under lock pressure; current BUG-001 proof is unit-level only. | — | MEDIUM | 0 |
 | T-007 | HT-071 / HT-044 / current-head closeout | infra | Current-head closeout repaired the live gate runtime and restored a full green canonical gate, but the underlying drift risk remains: `requirements.txt` does not declare `passlib`, `Dockerfile` applies ownership before `COPY`, and there is no `.dockerignore`, so rebuild/recreate can likely reintroduce missing `passlib` and root-owned `.mypy_cache`. Fix this as a dedicated infra-hardening pass. | — | MEDIUM | 1 |
+| T-009 | HT-050 browser validation | follow-up | In browser validation, `HT_READONLY` sometimes flips back to `true` shortly after entering edit mode, likely due to a canvas re-init/personal-draft load race. It did not block the final production-path resize fix, but it is worth a separate targeted investigation because it can interfere with tooling/devtools sessions. | — | LOW | 0 |
+| T-010 | HT-050 follow-up closeout | test-gap | `tests/e2e/test_topology_canvas_deep.py` now has the auth race fixed and recoverable Playwright evaluation retries, but repeated warm runs still show an intermittent resize-proof timing failure (`nested container valid resize did not produce a measurable change (after wait)`). Product behavior and the canonical gate are currently green, so stabilize this as a separate deep-proof hardening pass rather than reopening the resize bug itself. | — | LOW | 0 |
 |---|---|---|---|---|---|---|
 
 ## Resolved

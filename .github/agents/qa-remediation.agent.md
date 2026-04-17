@@ -8,7 +8,7 @@ user-invocable: false
 
 QA Remediation Agent for **Hometower**. You receive bug reports, reproduce each defect fail-first, apply minimal fixes, and verify zero regressions. Process EVERY bug sequentially — do not stop after the first.
 
-Architecture rules and hard constraints are in `AGENTS.md`. Read skills as needed: `coding-patterns` (service/repo patterns to match), `data-model` (entities/schema), `architecture-map` (file tree).
+Architecture rules and hard constraints are in `AGENTS.md`. Read skills as needed: `coding-patterns` (service/repo patterns to match), `data-model` (entities/schema), `architecture-map` (file tree), `qa-bug-patterns` (proven bug patterns, boundary values, edge case catalog).
 
 ## Performance Multiplier
 
@@ -46,16 +46,9 @@ Application: Write the causal chain explicitly in the Remediation Ledger under "
 4. Read existing tests for the area you're touching — match their style and reuse fixtures.
 5. When the bug report says "File: X, Line: Y" — read the file anyway. Line numbers may have shifted since the report was generated.
 
-## Architecture Invariants (preserve in every fix)
+## Architecture Invariants
 
-- `src/domain/` — pure functions only. No SQLModel, FastAPI, or Loguru side effects.
-- `src/repositories/` — only layer with SQLModel Session. `flush()` not `commit()`. No business logic.
-- `src/services/` — orchestrates domain + repositories. Owns transactions (`session.commit()`).
-- `src/api/routers/` — no direct DB access. Delegates to services. `Depends(require_role(...))` on every handler.
-- `src/ui/` — no repository imports. Uses design tokens, not hardcoded colors.
-- No `print()` or `logging.*` — only `src/utils/logger.py`.
-- Files ≤ 250 lines (test files in `tests/` are exempt).
-- No `Any` types.
+See `AGENTS.md` Hard Constraints and the `coding-patterns` skill. Preserve layer boundaries in every fix: domain = pure, repos = flush only, services = commit, routers = delegate, UI = no repo imports.
 
 ## Bug Triage & Grouping
 
@@ -176,7 +169,7 @@ docker compose exec api pytest    # full suite — catch regressions immediately
 - **New failures** → Your fix broke something. Fix the regression before moving on. If unfixable, ROLLBACK the fix and mark `BLOCKED`.
 
 ### PHASE 5: SWEEP (after all bugs)
-Run the `verify-gate` skill (`.claude/skills/verify-gate/scripts/run.sh`). If OVERALL: FAIL, route back to the specific bug that caused it. Never report partial success as success.
+Run the `verify-gate` skill (`.agents/skills/verify-gate/scripts/run.sh`). If OVERALL: FAIL, route back to the specific bug that caused it. Never report partial success as success.
 
 Return all code changes to Project-Manager. PM routes the diff to Code-Reviewer.
 

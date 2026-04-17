@@ -25,18 +25,22 @@ Before dispatch, explicitly name the boundary and entry point in the lane envelo
 
 ## Required Fan-Out (Exactly 10 Lanes)
 
-| Lane | STRIDE Category | Hometower Target Scope & Boundaries |
+Read the `threat-model` skill for the full lane-to-file mapping table. The 10 lanes are:
+
+| Lane | STRIDE Category | Focus |
 |---|---|---|
-| lane-1 | **Tampering / Spoofing** | JWT Auth `src/utils/auth.py`, `src/api/middleware/auth.py`. Boundary: Browser→API. |
-| lane-2 | **Info Disclosure** | Plaintext leaks. `src/utils/logger.py`, routers, error handlers. Boundary: App→Logs. |
-| lane-3 | **Elevation** | SQLi & Pydantic. `src/repositories/`, schema validators. Boundary: API→DB. |
-| lane-4 | **Info Disclosure** | Secret lifecycle. Bcrypt output, JWT storage in JS, hardcoded `.env`. |
-| lane-5 | **Spoofing / Elevation** | RBAC bypass. All `src/api/routers/`, `src/domain/rbac.py`. Boundary: Auth Context. |
-| lane-6 | **Tampering** | XSS. Cytoscape `canvas.py`, Leaflet `map_view.py`. Boundary: DB→UI render. |
-| lane-7 | **Tampering** | SQLModel integrity. Missing UNIQUE races, cascade deletes. Boundary: DB constraints. |
-| lane-8 | **Info Disclosure** | Backup/Export exposure. `src/api/routers/data_transfer.py`. Boundary: API→External. |
-| lane-9 | **Elevation** | RBAC wildcard. Reader-role endpoints exposing global/unfiltered data. |
-| lane-10| **Mixed** | Supply chain & infra. Docker, `requirements.txt` CVEs, default passwords in Compose. |
+| lane-1 | Tampering/Spoofing | JWT Auth |
+| lane-2 | Info Disclosure | Plaintext leaks |
+| lane-3 | Elevation | SQLi & Pydantic |
+| lane-4 | Info Disclosure | Secret lifecycle |
+| lane-5 | Spoofing/Elevation | RBAC bypass |
+| lane-6 | Tampering | XSS (canvas + map) |
+| lane-7 | Tampering | DB integrity constraints |
+| lane-8 | Info Disclosure | Export/backup exposure |
+| lane-9 | Elevation | RBAC wildcard data exposure |
+| lane-10 | Mixed | Supply chain & infra |
+
+Use the `threat-model` skill's detailed lane table for exact `scope_files` when composing dispatch envelopes.
 
 ## Lane Dispatch Envelope
 

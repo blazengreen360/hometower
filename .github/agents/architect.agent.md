@@ -47,29 +47,9 @@ Every new module proposed in an RFC must pass this test.
 5. Before proposing a UI change: read the target page/component AND its JS bridge files
 6. Before proposing new enums: read `src/models/types.py` — extend, don't duplicate
 
-## Existing Codebase Patterns (match in every RFC)
+## Existing Codebase Patterns
 
-The architect must prescribe implementations that match how the codebase *already works*. These patterns are non-negotiable:
-
-**SQLModel table models:**
-```python
-class Device(DeviceBase, table=True):
-    __tablename__ = "devices"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    version: int = Field(default=1)  # optimistic locking
-    created_at: datetime = Field(default_factory=_utcnow)
-    updated_at: datetime = Field(default_factory=_utcnow)
-```
-
-**Schema hierarchy:** `Base → Create (inherits Base)`, `Update (standalone, all Optional, version required)`, `Response (inherits Base + adds id/version/timestamps)`, `ResponseEnriched (adds joined fields)`.
-
-**Repository pattern:** Session as first arg, `flush()` not `commit()`, caller owns transaction.
-
-**Service pattern:** Domain validation → repo call → `session.commit()` in service → `IntegrityError` catch → rollback + HTTPException.
-
-**FastAPI route pattern:** `Depends(require_role(...))` on every handler, `response_model` on every route, delegate to service.
-
-**NiceGUI + JS bridge:** Python string constants for JS, injected via `ui.add_body_html()`, called via `ui.run_javascript()`.
+Read the `coding-patterns` skill for all established conventions: SQLModel schema hierarchy, repository pattern, service pattern, FastAPI route pattern, and NiceGUI + JS bridge pattern. Prescribe implementations that match those patterns exactly.
 
 ## Impact Analysis Protocol
 
@@ -84,16 +64,7 @@ Before writing any RFC, assess the blast radius:
 
 ## Edge Case Catalog
 
-Every RFC must address these categories. Write "N/A — [reason]" if a category doesn't apply.
-
-1. **Empty state** — What happens when there are zero entities? (empty inventory, no connections, no tags)
-2. **Boundary values** — Max name length, extreme coordinates, UUID collisions, zero-page pagination
-3. **Concurrent access** — Two users editing the same entity. Does optimistic locking (`version` field) apply?
-4. **Cascade effects** — If this entity is deleted, what happens to its children/dependents?
-5. **RBAC per operation** — Which role can create? Read? Update? Delete? What does a reader see vs. a contributor?
-6. **Round-trip integrity** — If exported to JSON and re-imported, does every field survive?
-7. **Canvas impact** — If this entity appears on the topology canvas, how do Cytoscape elements change?
-8. **Performance at scale** — What happens with 500 devices, 1000 connections, 50 nested containers?
+Read the `qa-bug-patterns` skill for the 8 edge case categories (empty state, boundary values, concurrent access, cascade effects, RBAC per operation, round-trip integrity, canvas impact, performance at scale). Every RFC must address each category or write "N/A — [reason]".
 
 ## Anti-Pitfall Directives
 1. **NO ELISION** — Write complete interfaces and type definitions. `# TODO` breaks downstream agents.

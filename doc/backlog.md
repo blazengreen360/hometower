@@ -1,6 +1,6 @@
 # Hometower Product Backlog
 
-Last updated: 17 April 2026 — HT-050 shipped. 4 stories in Ready.
+Last updated: 17 April 2026 — Quick wins added. 16 stories in Ready.
 
 ## In Progress
 | ID | Story | MoSCoW | Assigned |
@@ -90,10 +90,22 @@ Last updated: 17 April 2026 — HT-050 shipped. 4 stories in Ready.
 ## Ready for Development
 | # | ID | Story | MoSCoW | Size | Depends on |
 |---|---|---|---|---|---|
-| 1 | HT-065 | Canvas visual polish and edge-case cleanup | Could | M | — |
-| 2 | HT-037 | Connection port / interface mapping | Could | S | HT-030 |
-| 3 | HT-043 | QR code labels for devices | Could | S | — |
-| 4 | HT-014 | Export canvas to PNG/SVG | Could | S | — |
+| 1 | HT-087 | Quick Wins (Auto-Layout, Markdown Notes, CSV, Quick-Links) | Must | S | — |
+| 2 | HT-080 | UI Premiumization & Component Consistency | Must | L | — |
+| 3 | HT-081 | Data Table Enhancements & Pagination (Workspaces/Topologies/IAM) | Must | M | HT-080 |
+| 4 | HT-082 | Dashboard Revamp & Power Widgets | Must | L | HT-080 |
+| 5 | HT-086 | Deep Execution Environments (UML-Style Deployment Modeling) | Should | L | HT-077 |
+| 6 | HT-085 | Financial Power Management (Cost Tracking via Locations) | Should | M | HT-082 |
+| 7 | HT-083 | Beautiful Empty States & Minimalist Onboarding | Should | S | HT-080 |
+| 8 | HT-084 | Taxi-cab (Orthogonal) Edge Routing Styles | Should | M | HT-030 |
+| 9 | HT-078 | Inventory stencils panel — fix empty device list | Must | S | — |
+| 2 | HT-076 | Canvas full-screen layout & panel consolidation | Must | L | HT-078 |
+| 3 | HT-077 | Container behavior overhaul — un-parent, resize, icon watermark | Must | L | — |
+| 4 | HT-079 | Canvas minimap navigation overview | Should | M | HT-076 |
+| 5 | HT-065 | Canvas visual polish and edge-case cleanup | Could | M | — |
+| 6 | HT-037 | Connection port / interface mapping | Could | S | HT-030 |
+| 7 | HT-043 | QR code labels for devices | Could | S | — |
+| 8 | HT-014 | Export canvas to PNG/SVG | Could | S | — |
 
 ## Defined (needs refinement)
 | ID | Story | MoSCoW | Blocker |

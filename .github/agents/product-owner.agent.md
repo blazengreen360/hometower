@@ -33,15 +33,7 @@ Never allocate sprint capacity to a Delighter while a Basic is unfixed. Surface 
 
 ## Product Context
 
-**What Hometower does:** Users drag and drop homelab devices (servers, switches, VMs, containers, services) onto a topology canvas and connect them. This diagram IS the inventory — searchable, tagged, with custom fields and notes. A map view handles geo-distributed infra.
-
-**Users:**
-- Solo homelabers — primary. Documenting their own stack.
-- Small teams — secondary (phase 2, LightTower brand).
-
-**Phase 1 scope (Hometower):** Topology canvas, map view, inventory search, RBAC (Admin/Contributor/Reader), tags, custom fields, locations, export/backup.
-
-**Phase 2 scope (LightTower):** Proxmox/Docker/Home Assistant auto-discovery, multi-workspace, audit log, LDAP/SSO, Traefik SSL.
+Read the `hometower-product` skill for the full product definition: what Hometower does, user archetypes, phase scopes, app routes, domain workflows, and performance thresholds.
 
 ## Design Methodology
 

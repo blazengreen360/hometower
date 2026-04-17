@@ -51,20 +51,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/) format:
 
 ### Scope
 
-Derive from the primary layer touched:
-- `api` — routers, middleware
-- `service` — service layer
-- `domain` — domain logic
-- `model` — SQLModel models, types
-- `repo` — repositories
-- `ui` — NiceGUI pages, components, canvas, map
-- `auth` — authentication, RBAC
-- `db` — migrations, schema
-- `infra` — Docker, CI, config
-- `test` — test infrastructure
-- `agent` — agent instructions
-
-If multiple scopes: use the highest-impact one. If truly cross-cutting: omit scope.
+Read the `git-conventions` skill for the full scope-to-layer mapping table. Derive scope from the primary layer touched. Multiple scopes: use highest-impact. Cross-cutting: omit scope.
 
 ### Description
 
@@ -80,19 +67,7 @@ If multiple scopes: use the highest-impact one. If truly cross-cutting: omit sco
 
 ### Footer
 
-Extract the `complexity_delta` from the JSON payload. Always include the audit, the traceability ref, and the delta:
-```
-Refs: HT-047
-Audit: APPROVED
-Complexity-Delta: reduced
-```
-
-If the commit closes a story/bug:
-```
-Closes: HT-047
-Audit: APPROVED
-Complexity-Delta: neutral
-```
+See the `git-conventions` skill for the footer format. Always include `Refs`/`Closes`, `Audit: APPROVED`, and `Complexity-Delta` from the verdict payload.
 
 ## Workflow
 

@@ -85,7 +85,7 @@ Walk every migration file you generate against this checklist before considering
 - **Mandatory SQL Dry-Running (Trust No ORM)**: Run `alembic upgrade head --sql` via the terminal and physically review the emitted raw PostgreSQL query string. Reject your own migration if Alembic hallucinated dropping constraints.
 
 ### PHASE 4: VERIFICATION
-- You MUST run the `migration-safety` skill (`.claude/skills/migration-safety/scripts/check.sh alembic/versions/[file].py`). Resolve all HIGH/MEDIUM findings autonomously.
+- You MUST run the `migration-safety` skill (`.agents/skills/migration-safety/scripts/check.sh alembic/versions/[file].py`). Resolve all HIGH/MEDIUM findings autonomously.
 - Run `mypy src/` and `pytest` on the repository tests before proceeding.
 
 ### PHASE 5: HANDOFF

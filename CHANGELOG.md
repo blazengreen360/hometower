@@ -10,6 +10,16 @@ All notable changes to Hometower will be documented in this file.
 - Persisted resized dimensions through existing topology autosave/save/history flows by serializing inline Cytoscape `style.width` and `style.height` into the existing canvas JSON path and restoring them on reload and history restore.
 - Fixed the topology history restore dialog flow so the restore confirmation is no longer blocked by an overlapping history-dialog backdrop, and added focused unit, integration, and browser proof coverage for resize persistence and restore behavior.
 
+### Fixed — HT-050 nested container clamp regression
+
+- Corrected compound/container minimum-size enforcement when resizing a nested container or a parent container with children, so shrink attempts now clamp against child bounds plus directional padding instead of allowing undersized persisted layouts.
+- Tightened the resize baseline to prefer persisted inline `style.width` / `style.height` values for compound nodes, and added focused unit plus deep browser-proof coverage for nested-container clamp behavior.
+
+### Fixed — HT-050 container child-drift during resize
+
+- Corrected compound/container one-sided resize math so the non-dragged interior edge remains visually pinned and child nodes no longer slide with the container during expand or shrink operations.
+- Added focused browser-proof coverage for the exact user-reported case: one container with one child node now resizes cleanly across all four axes and remains sane after refresh.
+
 ### Fixed — HT-068 reliable JSON export from Settings
 
 - Settings -> Data export now completes successfully for authenticated Admin and Contributor users through the existing credentialed `/api/export` download path, without redirecting to `/login` or showing stale-session failure copy on successful exports.
