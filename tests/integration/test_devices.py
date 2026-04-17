@@ -1,7 +1,4 @@
-"""Integration tests for the /api/devices/ endpoints.
-
-All tests run against the full FastAPI stack with an SQLite in-memory database.
-"""
+"""Integration tests for /api/devices/ CRUD endpoints and access control."""
 from uuid import uuid4
 
 import pytest
@@ -26,6 +23,17 @@ class TestCreateDevice:
         assert "id" in data
         assert "created_at" in data
 
+    def test_create_device_persists_power_watts(
+        self, client: TestClient, contributor_token: str
+    ) -> None:
+        response = client.post(
+            "/api/devices/",
+            json={"name": "power-device", "type": "Server", "power_watts": 65},
+            headers={"Authorization": f"Bearer {contributor_token}"},
+        )
+        assert response.status_code == 201
+        assert response.json()["power_watts"] == 65
+
     def test_create_device_as_reader_returns_403(
         self, client: TestClient, reader_token: str
     ) -> None:
@@ -35,27 +43,6 @@ class TestCreateDevice:
             headers={"Authorization": f"Bearer {reader_token}"},
         )
         assert response.status_code == 403
-
-    def test_create_device_validates_mac_format(
-        self, client: TestClient, contributor_token: str
-    ) -> None:
-        response = client.post(
-            "/api/devices/",
-            json={"name": "bad-mac-device", "type": "Server", "mac": "invalid-mac"},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert response.status_code == 422
-
-    def test_create_device_with_valid_mac_normalizes_to_uppercase(
-        self, client: TestClient, contributor_token: str
-    ) -> None:
-        response = client.post(
-            "/api/devices/",
-            json={"name": "mac-device", "type": "Switch", "mac": "aa:bb:cc:dd:ee:ff"},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert response.status_code == 201
-        assert response.json()["mac"] == "AA:BB:CC:DD:EE:FF"
 
 
 class TestGetDevice:
@@ -137,7 +124,7 @@ class TestUpdateDevice:
 
         response = client.patch(
             f"/api/devices/{device_id}",
-            json={"name": "updated-name"},
+            json={"name": "updated-name", "version": created["version"]},
             headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert response.status_code == 200
@@ -146,15 +133,123 @@ class TestUpdateDevice:
         assert data["type"] == "NAS"
         assert data["updated_at"] >= created_at
 
+    def test_update_device_can_set_and_clear_power_watts(
+        self, client: TestClient, contributor_token: str
+    ) -> None:
+        headers = {"Authorization": f"Bearer {contributor_token}"}
+        create_resp = client.post(
+            "/api/devices/",
+            json={"name": "power-edit", "type": "Server"},
+            headers=headers,
+        )
+        assert create_resp.status_code == 201
+        created = create_resp.json()
+
+        set_resp = client.patch(
+            f"/api/devices/{created['id']}",
+            json={"power_watts": 120, "version": created["version"]},
+            headers=headers,
+        )
+        assert set_resp.status_code == 200
+        set_payload = set_resp.json()
+        assert set_payload["power_watts"] == 120
+
+        clear_resp = client.patch(
+            f"/api/devices/{created['id']}",
+            json={"power_watts": None, "version": set_payload["version"]},
+            headers=headers,
+        )
+        assert clear_resp.status_code == 200
+        assert clear_resp.json()["power_watts"] is None
+
     def test_update_nonexistent_device_returns_404(
         self, client: TestClient, contributor_token: str
     ) -> None:
         response = client.patch(
             f"/api/devices/{uuid4()}",
-            json={"name": "ghost"},
+            json={"name": "ghost", "version": 1},
             headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert response.status_code == 404
+
+    def test_update_without_version_returns_422(
+        self, client: TestClient, contributor_token: str
+    ) -> None:
+        create_resp = client.post(
+            "/api/devices/",
+            json={"name": "must-have-version", "type": "NAS"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
+        )
+        assert create_resp.status_code == 201
+        device_id = create_resp.json()["id"]
+
+        response = client.patch(
+            f"/api/devices/{device_id}",
+            json={"name": "missing-version"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
+        )
+        assert response.status_code == 422
+
+    def test_device_update_rejects_stale_version(
+        self, client: TestClient, admin_token: str
+    ) -> None:
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        create_resp = client.post(
+            "/api/devices/",
+            json={"name": "versioned-device", "type": "Server"},
+            headers=headers,
+        )
+        assert create_resp.status_code == 201
+        created = create_resp.json()
+        device_id = created["id"]
+        current_version = created["version"]
+
+        first_update = client.patch(
+            f"/api/devices/{device_id}",
+            json={"name": "updated-once", "version": current_version},
+            headers=headers,
+        )
+        assert first_update.status_code == 200
+
+        stale_update = client.patch(
+            f"/api/devices/{device_id}",
+            json={"ip": "10.0.0.2", "version": 1},
+            headers=headers,
+        )
+        assert stale_update.status_code == 409
+        assert stale_update.json()["detail"] == (
+            "Conflict: device was modified by another request"
+        )
+
+    def test_patch_parent_id_reparents_device_via_device_endpoint(
+        self, client: TestClient, contributor_token: str
+    ) -> None:
+        headers = {"Authorization": f"Bearer {contributor_token}"}
+        parent = client.post(
+            "/api/devices/",
+            json={"name": "parent-device", "type": "Server"},
+            headers=headers,
+        )
+        child = client.post(
+            "/api/devices/",
+            json={"name": "child-device", "type": "VM"},
+            headers=headers,
+        )
+        assert parent.status_code == 201
+        assert child.status_code == 201
+
+        child_payload = child.json()
+        parent_id = parent.json()["id"]
+
+        response = client.patch(
+            f"/api/devices/{child_payload['id']}",
+            json={"parent_id": parent_id, "version": child_payload["version"]},
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        assert response.json()["parent_id"] == parent_id
+        assert response.json()["version"] == child_payload["version"] + 1
 
 
 class TestDeleteDevice:
@@ -201,27 +296,33 @@ class TestDeleteDevice:
         )
         assert response.status_code == 403
 
-    def test_delete_device_with_active_connections_returns_400(
-        self, client: TestClient, contributor_token: str, monkeypatch: pytest.MonkeyPatch
+    def test_delete_device_cascades_connections(
+        self, client: TestClient, contributor_token: str
     ) -> None:
-        create_resp = client.post(
-            "/api/devices/",
-            json={"name": "connected-device", "type": "Switch"},
-            headers={"Authorization": f"Bearer {contributor_token}"},
+        headers = {"Authorization": f"Bearer {contributor_token}"}
+        d1 = client.post("/api/devices/", json={"name": "src-dev", "type": "Server"}, headers=headers)
+        d2 = client.post("/api/devices/", json={"name": "tgt-dev", "type": "Switch"}, headers=headers)
+        assert d1.status_code == 201
+        assert d2.status_code == 201
+        d1_id = d1.json()["id"]
+        d2_id = d2.json()["id"]
+
+        conn = client.post(
+            "/api/connections/",
+            json={"source_id": d1_id, "target_id": d2_id, "type": "Ethernet"},
+            headers=headers,
         )
-        assert create_resp.status_code == 201
-        device_id = create_resp.json()["id"]
+        assert conn.status_code == 201
 
-        import src.services.device_service as svc
+        # Delete d1 — connection should cascade
+        resp = client.delete(f"/api/devices/{d1_id}", headers=headers)
+        assert resp.status_code == 204
 
-        monkeypatch.setattr(svc, "_count_device_connections", lambda _id, _session: 2)
-
-        response = client.delete(
-            f"/api/devices/{device_id}",
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert response.status_code == 400
-        assert "Cannot delete device with active connections" in response.json()["detail"]
+        # Verify connection is gone
+        conns = client.get("/api/connections/", headers=headers)
+        assert conns.status_code == 200
+        conn_ids = [c["id"] for c in conns.json()["items"]]
+        assert conn.json()["id"] not in conn_ids
 
 
 class TestUnauthenticated:

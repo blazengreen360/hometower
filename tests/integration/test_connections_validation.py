@@ -28,7 +28,7 @@ class TestCreateConnectionValidation:
         )
         assert resp.status_code == 401
 
-    def test_self_loop_returns_400(
+    def test_self_loop_returns_422(
         self, client: TestClient, contributor_token: str, two_devices: tuple[int, int]
     ) -> None:
         src, _ = two_devices
@@ -37,8 +37,9 @@ class TestCreateConnectionValidation:
             json={"source_id": src, "target_id": src, "type": CONNECTION_TYPE},
             headers={"Authorization": f"Bearer {contributor_token}"},
         )
-        assert resp.status_code == 400
-        assert "itself" in resp.json()["detail"]
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert any("different devices" in issue.get("msg", "") for issue in detail)
 
     def test_nonexistent_source_returns_400(
         self, client: TestClient, contributor_token: str, two_devices: tuple[int, int]
@@ -64,6 +65,27 @@ class TestCreateConnectionValidation:
         assert resp.status_code == 400
         assert "Target" in resp.json()["detail"]
 
+    def test_duplicate_connection_between_same_pair_returns_409(
+        self, client: TestClient, contributor_token: str, two_devices: tuple[int, int]
+    ) -> None:
+        src, tgt = two_devices
+        headers = {"Authorization": f"Bearer {contributor_token}"}
+        payload = {"source_id": src, "target_id": tgt, "type": CONNECTION_TYPE}
+
+        first = client.post("/api/connections/", json=payload, headers=headers)
+        assert first.status_code == 201
+
+        duplicate = client.post("/api/connections/", json=payload, headers=headers)
+        assert duplicate.status_code == 409
+        assert "already exists" in duplicate.json()["detail"]
+
+        reverse = client.post(
+            "/api/connections/",
+            json={"source_id": tgt, "target_id": src, "type": CONNECTION_TYPE},
+            headers=headers,
+        )
+        assert reverse.status_code == 409
+
 
 class TestUpdateConnectionPermissions:
     def test_reader_cannot_update_returns_403(
@@ -88,6 +110,29 @@ class TestUpdateConnectionPermissions:
         assert resp.status_code == 403
 
 
+class TestUpdateConnectionValidation:
+    def test_nonexistent_source_returns_400(
+        self, client: TestClient, contributor_token: str, two_devices: tuple[int, int]
+    ) -> None:
+        src, tgt = two_devices
+        headers = {"Authorization": f"Bearer {contributor_token}"}
+        create_resp = client.post(
+            "/api/connections/",
+            json={"source_id": src, "target_id": tgt, "type": CONNECTION_TYPE},
+            headers=headers,
+        )
+        assert create_resp.status_code == 201
+
+        conn_id = create_resp.json()["id"]
+        resp = client.patch(
+            f"/api/connections/{conn_id}",
+            json={"source_id": str(uuid4())},
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "Source" in resp.json()["detail"]
+
+
 class TestDeleteConnectionPermissions:
     def test_reader_cannot_delete_returns_403(
         self,
@@ -109,10 +154,10 @@ class TestDeleteConnectionPermissions:
         )
         assert resp.status_code == 403
 
-    def test_delete_device_with_connections_returns_400(
+    def test_delete_device_with_connections_cascades(
         self, client: TestClient, contributor_token: str, two_devices: tuple[int, int]
     ) -> None:
-        """Deleting a device that has active connections must be blocked."""
+        """HT-052: Deleting a device with active connections cascade-deletes them."""
         src, tgt = two_devices
         headers = {"Authorization": f"Bearer {contributor_token}"}
         create_resp = client.post(
@@ -123,5 +168,4 @@ class TestDeleteConnectionPermissions:
         assert create_resp.status_code == 201
 
         resp = client.delete(f"/api/devices/{src}", headers=headers)
-        assert resp.status_code == 400
-        assert "connection" in resp.json()["detail"].lower()
+        assert resp.status_code == 204

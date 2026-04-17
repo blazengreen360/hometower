@@ -23,7 +23,7 @@ from src.utils.settings import settings
 # ---------------------------------------------------------------------------
 
 class TestLogin:
-    def test_valid_credentials_returns_200_with_token(
+    def test_valid_credentials_returns_200_with_login_response(
         self, client: TestClient, admin_user: User
     ) -> None:
         response = client.post(
@@ -32,8 +32,21 @@ class TestLogin:
         )
         assert response.status_code == 200
         data = response.json()
+        assert "user_id" in data
+        assert "role" in data
+        assert "token_exp" in data
+        assert data["token_type"] == "cookie"
         assert "access_token" in data
-        assert data["token_type"] == "bearer"
+
+    def test_valid_credentials_sets_httponly_cookie(
+        self, client: TestClient, admin_user: User
+    ) -> None:
+        response = client.post(
+            "/api/auth/login",
+            json={"email": admin_user.email, "password": "testadminpass123"},
+        )
+        assert response.status_code == 200
+        assert "ht_access_token" in response.cookies
 
     def test_invalid_password_returns_401(
         self, client: TestClient, admin_user: User
@@ -52,18 +65,19 @@ class TestLogin:
         )
         assert response.status_code == 401
 
-    def test_valid_login_token_is_decodable(
+    def test_valid_login_cookie_token_is_decodable(
         self, client: TestClient, admin_user: User
     ) -> None:
         response = client.post(
             "/api/auth/login",
             json={"email": admin_user.email, "password": "testadminpass123"},
         )
-        token = response.json()["access_token"]
+        token = response.cookies["ht_access_token"]
         payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
         assert payload["role"] == Role.Admin.value
         assert "sub" in payload
         assert "exp" in payload
+        assert "version" in payload
 
     def test_login_endpoint_accessible_without_auth_header(
         self, client: TestClient, admin_user: User
@@ -73,8 +87,7 @@ class TestLogin:
             "/api/auth/login",
             json={"email": admin_user.email, "password": "testadminpass123"},
         )
-        # 200 = success, 401 (if any) must only be from invalid credentials not middleware
-        assert response.status_code != 403
+        assert response.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -145,15 +158,36 @@ class TestAuthMiddleware:
     def test_health_endpoint_accessible_without_token(
         self, client: TestClient
     ) -> None:
-        response = client.get("/health")
+        response = client.get("/api/health")
         assert response.status_code == 200
 
+    
+
     def test_missing_bearer_prefix_returns_401(self, client: TestClient) -> None:
-        token = create_jwt({"sub": str(uuid4()), "role": "Admin"})
+        # Token itself is never decoded — rejected for missing "Bearer " prefix
+        token = create_jwt({"sub": str(uuid4()), "role": "Admin", "version": 1})
         response = client.post(
             "/api/auth/logout",
             headers={"Authorization": token},  # no "Bearer " prefix
         )
+        assert response.status_code == 401
+
+    def test_signed_token_missing_sub_claim_returns_401(
+        self, client: TestClient
+    ) -> None:
+        malformed_payload: dict[str, str | int] = {
+            "role": "Admin",
+            "exp": int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()),
+        }
+        malformed_token = jwt.encode(
+            malformed_payload, settings.secret_key, algorithm="HS256"
+        )
+
+        response = client.post(
+            "/api/auth/logout",
+            headers={"Authorization": f"Bearer {malformed_token}"},
+        )
+
         assert response.status_code == 401
 
 
@@ -196,3 +230,20 @@ class TestFirstBootAdmin:
         user = session.exec(select(User)).one()
         assert user.password_hash != settings.admin_password
         assert user.password_hash.startswith("$2b$")
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting — SEC-002
+# ---------------------------------------------------------------------------
+
+class TestLoginRateLimit:
+    def test_sixth_rapid_login_attempt_returns_429(self, client: TestClient) -> None:
+        """POST /api/auth/login must be rate-limited to 5 requests per minute per IP."""
+        payload = {"email": "nobody@example.com", "password": "badpassword"}
+        for i in range(5):
+            resp = client.post("/api/auth/login", json=payload)
+            assert resp.status_code != 429, (
+                f"Request {i + 1} was unexpectedly rate-limited"
+            )
+        sixth = client.post("/api/auth/login", json=payload)
+        assert sixth.status_code == 429

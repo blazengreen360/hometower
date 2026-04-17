@@ -1,0 +1,149 @@
+{
+  "report_id": "ht044-validation-report-17-04-26",
+  "story": "HT-044",
+  "story_title": "Power Usage Tracking",
+  "validation_date": "2026-04-17",
+  "validator": "User-Simulator (GOMS-driven browser validation)",
+  "app_url": "http://localhost:8080",
+  "auth": "admin@hometower.local / Admin role",
+
+  "executive_summary": {
+    "verdict": "BLOCKED",
+    "root_cause": "HT-044 code is NOT active in the running container. The uvicorn process was started before migration 026 and the power source files were committed. The ./src volume is mounted but uvicorn was launched without --reload; it loaded the pre-HT-044 snapshot at startup. The running process has zero HT-044 Python objects in memory. A container restart (docker compose restart api) is required to deploy HT-044 into the live app.",
+    "impact": "All five validation scenarios are blocked — Settings/Power (404), device Power (W) field (absent), API /api/power/* routes (404), dashboard Power Usage card (absent), map location power total (absent).",
+    "migration_status": "Unknown from browser alone. Migration 026 (add power_watts + power_settings table) may or may not have been applied; Alembic runs at each startup so it would apply on next container restart."
+  },
+
+  "findings": [
+    {
+      "id": 1,
+      "severity": "Critical",
+      "title": "Settings → Power page returns NiceGUI 404 — route not registered",
+      "scenario": "Scenario 1 — Settings Power",
+      "page": "/settings/power",
+      "action": "Navigate directly to http://localhost:8080/settings/power",
+      "observed": "NiceGUI 404 page: 'This page doesn't exist. HTTPException: 404: Not Found'",
+      "expected": "Admin electricity rate form with cost-per-kWh and currency inputs",
+      "steps_to_reproduce": "1. Log in as admin. 2. Navigate to /settings/power.",
+      "root_cause": "settings_power NiceGUI page is defined in src/ui/pages/settings_power.py and imported in src/main.py, but the running uvicorn process was started before this file existed in the volume. Route is not registered in the running app.",
+      "visual_proof_path": "/Users/jayharry28/Projects/hometower/doc/bugs/ht044-screenshots/05-settings-power-404.png"
+    },
+    {
+      "id": 2,
+      "severity": "Critical",
+      "title": "API /api/power/summary and /api/power/settings return 404 — router not registered",
+      "scenario": "API surface",
+      "page": "/api/power/summary",
+      "action": "GET /api/power/summary with valid Bearer token",
+      "observed": "NiceGUI 404 HTML response (status 200 content-type text/html); /openapi.json contains zero paths matching 'power'",
+      "expected": "JSON power summary with total_watts, estimated_monthly_cost, by_location[]",
+      "steps_to_reproduce": "1. POST /api/auth/login to get token. 2. GET /api/power/summary with Authorization: Bearer <token>. 3. Observe 404 HTML.",
+      "root_cause": "power router (src/api/routers/power.py) is registered in app.py with app.include_router(power_router, prefix='/api'), but the running uvicorn process pre-dates this registration.",
+      "visual_proof_path": null,
+      "supporting_evidence": "openapi.json inspection: 52 paths total, none containing 'power'. /api/health returns 200 JSON, confirming API is up."
+    },
+    {
+      "id": 3,
+      "severity": "Critical",
+      "title": "Device edit page has no Power (W) field",
+      "scenario": "Scenario 2 — Device power editing",
+      "page": "/inventory/edit/{device_id}",
+      "action": "Open device edit for any existing device",
+      "observed": "Fields shown: Name, Type, Status, IP, MAC, OS, Notes. No 'Power (W)' input.",
+      "expected": "A numeric 'Power (W)' input field per HT-044 AC",
+      "steps_to_reproduce": "1. Navigate to /inventory/edit/d82ba911-0373-4b30-b592-c7b276a71458. 2. Inspect form fields.",
+      "root_cause": "Device edit page is rendered by the pre-HT-044 code snapshot; power_watts was not yet in DeviceBase at startup.",
+      "visual_proof_path": "/Users/jayharry28/Projects/hometower/doc/bugs/ht044-screenshots/03-device-edit-no-power-field.png"
+    },
+    {
+      "id": 4,
+      "severity": "High",
+      "title": "Dashboard shows no Power Usage card",
+      "scenario": "Scenario 4 — Dashboard",
+      "page": "/",
+      "action": "Load dashboard",
+      "observed": "Dashboard cards: Devices (21), Connections (5), Locations (2), Tags (0), Recent Activity. No 'Power Usage' card.",
+      "expected": "Power Usage card showing total watts and estimated monthly cost",
+      "steps_to_reproduce": "1. Navigate to /. 2. Observe dashboard cards.",
+      "root_cause": "Dashboard component not updated with power card in running process.",
+      "visual_proof_path": "/Users/jayharry28/Projects/hometower/doc/bugs/ht044-screenshots/04-dashboard-no-power-card.png"
+    },
+    {
+      "id": 5,
+      "severity": "High",
+      "title": "Inventory table has no Power (W) column or toggle",
+      "scenario": "Scenario 3 — Inventory surface",
+      "page": "/inventory",
+      "action": "Open inventory, inspect column headers",
+      "observed": "Columns: Name, Type, Status, IP, Tags, Location, Services, Networks, Updated, Actions. No Power (W) column or column-visibility toggle for it.",
+      "expected": "Optional Power (W) column available (hidden by default, toggleable)",
+      "steps_to_reproduce": "1. Navigate to /inventory. 2. Inspect column headers.",
+      "root_cause": "Inventory page component pre-dates HT-044.",
+      "visual_proof_path": "/Users/jayharry28/Projects/hometower/doc/bugs/ht044-screenshots/02-inventory-no-power-column.png"
+    },
+    {
+      "id": 6,
+      "severity": "Medium",
+      "title": "Map location drawer has no Total power line",
+      "scenario": "Scenario 5 — Map location detail",
+      "page": "/map",
+      "action": "Click location marker 'HT008 Geo 16584a', inspect drawer",
+      "observed": "Drawer shows: location name, '1 device', device button. No 'Total power: XW' line.",
+      "expected": "Location drawer shows 'Total power: {sum}W ({count} devices)' when devices have power values",
+      "steps_to_reproduce": "1. Navigate to /map. 2. Click the map marker. 3. Observe drawer content.",
+      "root_cause": "Map component pre-dates HT-044; also no devices have power_watts values in the running app.",
+      "visual_proof_path": "/Users/jayharry28/Projects/hometower/doc/bugs/ht044-screenshots/07-map-location-drawer-no-power.png"
+    },
+    {
+      "id": 7,
+      "severity": "Medium",
+      "title": "Settings sidebar missing 'Power' nav item",
+      "scenario": "Sidebar navigation",
+      "page": "All pages (sidebar)",
+      "action": "Expand Settings section in left sidebar",
+      "observed": "Settings sub-items: Locations, Networks, Users, Data, Profile, About. 'Power' is absent.",
+      "expected": "'Power' link (admin-only) pointing to /settings/power",
+      "steps_to_reproduce": "1. Log in as admin. 2. Observe sidebar Settings items.",
+      "root_cause": "sidebar.py has Power entry defined (line 28), but the running NiceGUI process loaded the pre-HT-044 sidebar.",
+      "visual_proof_path": "/Users/jayharry28/Projects/hometower/doc/bugs/ht044-screenshots/01-dashboard.png"
+    }
+  ],
+
+  "coverage_summary": {
+    "directly_validated": [
+      "Authentication — PASS (admin login successful)",
+      "Settings /settings/power route — FAIL (404)",
+      "/api/power/summary endpoint — FAIL (404, not in OpenAPI schema)",
+      "/api/power/settings endpoint — FAIL (404, not in OpenAPI schema)",
+      "Device edit Power (W) field — FAIL (field absent)",
+      "Inventory Power (W) column — FAIL (column absent)",
+      "Dashboard Power Usage card — FAIL (absent)",
+      "Map location drawer power total — FAIL (absent)",
+      "Sidebar Power settings link — FAIL (absent)"
+    ],
+    "not_testable": [
+      "Electricity rate save/clear flow — blocked by 404 on settings page",
+      "Device power_watts save validation (negative number rejection) — blocked by missing field",
+      "Power summary calculation correctness — blocked by missing API",
+      "Cost formula verification — blocked by missing API",
+      "Null rate fallback text — blocked by missing settings page"
+    ],
+    "deployment_status": "HT-044 code exists in source tree (src/api/routers/power.py, src/ui/pages/settings_power.py, alembic/versions/026_add_device_power_and_power_settings.py, etc.) but the running uvicorn process was started before these files were committed. Container restart required: docker compose restart api"
+  },
+
+  "action_log": [
+    {"step": 1, "action": "Navigate to /", "result": "Login redirect"},
+    {"step": 2, "action": "Login as admin@hometower.local", "result": "Dashboard loaded"},
+    {"step": 3, "action": "Observed dashboard cards", "result": "No Power Usage card"},
+    {"step": 4, "action": "Navigate to /settings via sidebar click", "result": "No navigation — click had no effect"},
+    {"step": 5, "action": "Navigate directly to /settings/power", "result": "NiceGUI 404"},
+    {"step": 6, "action": "Navigate to /settings/profile (control check)", "result": "200 OK — confirms other settings pages work"},
+    {"step": 7, "action": "GET /openapi.json", "result": "52 paths, zero 'power' matches"},
+    {"step": 8, "action": "GET /api/power/summary with Bearer token", "result": "NiceGUI 404 HTML"},
+    {"step": 9, "action": "GET /api/devices/ with Bearer token", "result": "200 JSON — device fields: name, type, status, ip, mac, os, notes. No power_watts."},
+    {"step": 10, "action": "Navigate to /inventory", "result": "Columns: Name, Type, Status, IP, Tags, Location, Services, Networks, Updated, Actions — no Power column"},
+    {"step": 11, "action": "Navigate to device edit page", "result": "Form fields: Name, Type, Status, IP, MAC, OS, Notes — no Power (W)"},
+    {"step": 12, "action": "Navigate to /map", "result": "Map rendered with 1 marker"},
+    {"step": 13, "action": "Click map marker", "result": "Location drawer opened — no power total line"}
+  ]
+}

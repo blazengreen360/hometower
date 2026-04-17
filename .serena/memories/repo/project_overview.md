@@ -1,0 +1,4 @@
+- Hometower is a self-hosted homelab inventory manager with topology canvas/map UI where diagram state is the inventory.
+- Stack: NiceGUI + FastAPI + Pydantic, SQLModel + Alembic, PostgreSQL, Cytoscape.js, Leaflet.js, Loguru, Docker Compose.
+- Layering: UI -> API routers -> services -> repositories -> DB; domain layer is pure Python no I/O.
+- Auth: JWT via python-jose, bcrypt via passlib, RBAC roles Admin/Contributor/Reader.

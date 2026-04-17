@@ -1,0 +1,110 @@
+{
+  "report_id": "ht008-validation-report-16-04-26-final",
+  "story": "HT-008 — Geographic Map View with Leaflet.js",
+  "validation_date": "2026-04-16",
+  "validator": "user-simulator — LIVE BROWSER (Playwright MCP)",
+  "session_type": "FINAL FOCUSED VALIDATION — post-BUG-001-fix verification",
+  "prior_report": "ht008-validation-report-16-04-26-retry",
+
+  "fix_verification": {
+    "bug_id": "BUG-001",
+    "prior_status": "OPEN — Critical. map.getSize()={x:0,y:0}; tile max-width clamped to 0px by Tailwind @layer base.",
+    "current_status": "CONFIRMED FIXED",
+    "evidence": {
+      "map_size": "getSize()={x:1642, y:722} on fresh load (was {x:0,y:0})",
+      "tile_max_width": "computed max-width: none (Tailwind override neutralised)",
+      "tile_computed_width": "256px (was 0px)",
+      "tile_count": 32,
+      "visual": "Dark CartoDB tiles and blue marker fully visible on initial page load — no black canvas",
+      "screenshot": "doc/bugs/ht008-screenshots/ht008-retry2-map-onload.png"
+    }
+  },
+
+  "acceptance_criteria_verdicts": [
+    {
+      "ac": "AC1 — /map renders a usable full-viewport map surface on fresh load",
+      "verdict": "PASS",
+      "evidence": "Dark CartoDB tiles visible immediately on navigation to /map. Zoom controls present. Leaflet/OSM/CARTO attribution rendered. getSize()={x:1642,y:722}. BUG-001 is resolved.",
+      "live_verified": true,
+      "screenshot": "doc/bugs/ht008-screenshots/ht008-retry2-map-onload.png"
+    },
+    {
+      "ac": "AC2 — Geo-location markers with tooltip showing location name and device count",
+      "verdict": "PASS",
+      "evidence": "Hover on marker: a11y description updates to 'HT008 Geo 16584a • 1 device'. Tooltip StaticText confirmed in DOM snapshot. Non-geo location (rack type, null lat/lng) correctly absent from map.",
+      "live_verified": true,
+      "screenshot": "doc/bugs/ht008-screenshots/ht008-retry2-tooltip.png"
+    },
+    {
+      "ac": "AC3 — Marker click opens right-side panel with location name and device list",
+      "verdict": "PASS",
+      "evidence": "Native click on marker element opened 'Location details' complementary panel. Panel contents: location name 'HT008 Geo 16584a', '1 device' count, device button 'HT008 DEVICE 961E9C' (Server), 'Close location details' button. All correct.",
+      "live_verified": true,
+      "screenshot": "doc/bugs/ht008-screenshots/ht008-retry2-panel-open.png"
+    },
+    {
+      "ac": "AC4 — Device click from panel navigates to topology with device selected and detail panel open",
+      "verdict": "PARTIAL",
+      "evidence": {
+        "navigation": "PASS — clicking device button navigated to /topology?device_id=40cb4767-97a5-4c9a-b669-919713db5197 correctly.",
+        "device_pre_selection": "NOT IMPLEMENTED — window._cy.getElementById(device_id) returns 0 elements. Target device is not placed on the default topology canvas. No device detail panel opened. The story notes explicitly acknowledge this: 'HT-003 topology page must honour the device_id query param and pre-select that node (add this to HT-003 follow-up if missing)'. This is a known HT-003 dependency, not a regression introduced by the BUG-001 fix.",
+        "total_nodes_on_canvas": 1,
+        "node_present": false
+      },
+      "live_verified": "partial",
+      "screenshot": "doc/bugs/ht008-screenshots/ht008-retry2-topology-nav.png"
+    },
+    {
+      "ac": "AC5 — Empty state when no geo locations exist",
+      "verdict": "PARTIALLY TESTED",
+      "evidence": "Rack-type location (null lat/lng) correctly produces no map marker — filter logic verified. Full empty-state card ('No geographic locations yet — add a location…') not testable without a data-less environment.",
+      "live_verified": "partial"
+    },
+    {
+      "ac": "AC6 — Marker clustering with >10 nearby locations",
+      "verdict": "NOT TESTED",
+      "evidence": "Only 1 geo marker in DB. MarkerCluster JS loads HTTP 200. Clustering cannot be exercised with current data. Not a blocker for story closure.",
+      "live_verified": false
+    }
+  ],
+
+  "remaining_bugs": [],
+
+  "informational_notes": [
+    {
+      "id": "NOTE-001",
+      "severity": "Low / UX",
+      "title": "Map starts at zoom=19 (max) when only 1 geo marker exists — zoom-in button disabled",
+      "detail": "fitBounds on a single point causes Leaflet to zoom to max level (19). This is expected Leaflet behaviour for single-point bounds. Zoom-out works. Not a defect — will self-correct once >1 geo markers are present.",
+      "status": "Informational — no action required"
+    },
+    {
+      "id": "NOTE-002",
+      "severity": "Informational",
+      "title": "AC4 device pre-selection is an unimplemented HT-003 dependency",
+      "detail": "The /topology page does not honour device_id query param for auto-select + panel open. This was explicitly scoped as a HT-003 follow-up in the HT-008 story notes. Not a HT-008 defect.",
+      "status": "Track as HT-003 follow-up item"
+    }
+  ],
+
+  "story_verdict": "READY TO CLOSE",
+  "verdict_rationale": "The sole critical blocker (BUG-001: black map on fresh load) is definitively resolved. AC1 now passes on a fresh browser load. AC2 and AC3 pass with live interaction. AC4 navigation passes; the device pre-selection sub-requirement is a known HT-003 dependency explicitly noted in the story as a follow-up, not a HT-008 regression. AC5 and AC6 are not testable with current data but are not blocking criteria given the story's scope. No new bugs introduced by the fix.",
+
+  "action_log": [
+    { "step": 1, "action": "Navigate to http://localhost:8080", "outcome": "Already authenticated as admin@hometower.local. Dashboard shows 21 devices, 2 locations." },
+    { "step": 2, "action": "Navigate to /map", "outcome": "Map loaded immediately with dark CartoDB tiles, zoom controls, and blue marker visible. No black canvas. BUG-001 confirmed fixed." },
+    { "step": 3, "action": "JS eval: getSize(), tile CSS, zoom, center", "outcome": "mapSize={x:1642,y:722}, tileCount=32, firstTileMaxWidth='none', firstTileComputedWidth='256px', zoom=19, center=SF (37.77/-122.42). Both fix paths (invalidateSize timing + CSS scope guard) confirmed active." },
+    { "step": 4, "action": "Hover on marker", "outcome": "a11y snapshot: button description updates to 'HT008 Geo 16584a • 1 device'. AC2 confirmed." },
+    { "step": 5, "action": "Click marker", "outcome": "Complementary panel opened: 'Location details', 'HT008 Geo 16584a', '1 device', 'HT008 DEVICE 961E9C' (Server), close button. AC3 confirmed." },
+    { "step": 6, "action": "Click device button in panel", "outcome": "Navigated to /topology?device_id=40cb4767-97a5-4c9a-b669-919713db5197. AC4 navigation pass." },
+    { "step": 7, "action": "JS eval: check device_id on Cytoscape canvas", "outcome": "Total nodes: 1 (HT075-DeviceLive-Z only). Target device not on canvas. Panel not opened. AC4 pre-selection: HT-003 follow-up (known)." }
+  ],
+
+  "screenshots": [
+    "doc/bugs/ht008-screenshots/ht008-retry2-map-onload.png",
+    "doc/bugs/ht008-screenshots/ht008-retry2-tooltip.png",
+    "doc/bugs/ht008-screenshots/ht008-retry2-panel-open.png",
+    "doc/bugs/ht008-screenshots/ht008-retry2-topology-nav.png",
+    "doc/bugs/ht008-screenshots/ht008-retry2-topology-fitall.png"
+  ]
+}

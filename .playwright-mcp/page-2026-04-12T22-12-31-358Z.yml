@@ -1,0 +1,15 @@
+- main [ref=e5]:
+  - generic [ref=e7]:
+    - generic [ref=e8]: Hometower
+    - separator [ref=e9]
+    - generic [ref=e13]:
+      - generic: Email
+      - textbox "Email" [ref=e14]:
+        - /placeholder: admin@hometower.local
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - generic: Password
+        - textbox "Password" [ref=e19]
+      - generic [ref=e21] [cursor=pointer]: visibility_off
+    - button "Log in" [ref=e22] [cursor=pointer]:
+      - generic [ref=e24]: Log in

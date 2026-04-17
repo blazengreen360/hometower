@@ -1,0 +1,494 @@
+# API Contracts — Part 2: Connections, Locations, Tags, Custom Fields
+# Merge with api-contracts-part1.yaml (components section) for a valid OpenAPI document.
+# All paths assume securitySchemes.bearerAuth and shared Error schemas from Part 1.
+
+paths:
+
+  # ── CONNECTIONS ─────────────────────────────────────────────────────────────
+  /api/connections:
+    get:
+      summary: List all connections
+      operationId: listConnections
+      tags: [ Connections ]
+      parameters:
+      - { name: source_id, in: query, schema: { type: string, format: uuid } }
+      - { name: target_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Connection list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/ConnectionResponse' } }
+                  total: { type: integer }
+                  page: { type: integer, description: 'Current page (1-based)' }
+                  limit: { type: integer, description: 'Items per page (max 100)' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Create a connection (Contributor+)
+      operationId: createConnection
+      tags: [ Connections ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConnectionCreate' }
+      responses:
+        '201':
+          description: Connection created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConnectionResponse' }
+        '400':
+          description: Self-loop or missing device
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /api/connections/{connection_id}:
+    parameters:
+    - { name: connection_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Get connection by ID
+      operationId: getConnection
+      tags: [ Connections ]
+      responses:
+        '200':
+          description: Connection record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConnectionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update connection (Contributor+)
+      operationId: updateConnection
+      tags: [ Connections ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConnectionUpdate' }
+      responses:
+        '200':
+          description: Updated connection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConnectionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Delete connection (Contributor+)
+      operationId: deleteConnection
+      tags: [ Connections ]
+      responses:
+        '204': { description: Connection deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── LOCATIONS ───────────────────────────────────────────────────────────────
+  /api/locations:
+    get:
+      summary: List locations
+      operationId: listLocations
+      tags: [ Locations ]
+      parameters:
+      - { name: type, in: query, schema: { $ref: '#/components/schemas/LocationType' } }
+      responses:
+        '200':
+          description: Location list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/LocationResponse' } }
+                  total: { type: integer }
+                  page: { type: integer, description: 'Current page (1-based)' }
+                  limit: { type: integer, description: 'Items per page (max 100)' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Create location (Contributor+)
+      operationId: createLocation
+      tags: [ Locations ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LocationCreate' }
+      responses:
+        '201':
+          description: Location created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationResponse' }
+        '400':
+          description: Geo location missing lat/lng
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /api/locations/{location_id}:
+    parameters:
+    - { name: location_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Get location by ID
+      operationId: getLocation
+      tags: [ Locations ]
+      responses:
+        '200':
+          description: Location record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update location (Contributor+)
+      operationId: updateLocation
+      tags: [ Locations ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LocationUpdate' }
+      responses:
+        '200':
+          description: Updated location
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Delete location (Contributor+) — sets location_id=NULL on devices
+      operationId: deleteLocation
+      tags: [ Locations ]
+      responses:
+        '204': { description: Location deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── TAGS ────────────────────────────────────────────────────────────────────
+  /api/tags:
+    get:
+      summary: List all tags
+      operationId: listTags
+      tags: [ Tags ]
+      responses:
+        '200':
+          description: Tag list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/TagResponse' } }
+                  total: { type: integer }
+                  page: { type: integer, description: 'Current page (1-based)' }
+                  limit: { type: integer, description: 'Items per page (max 100)' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Create tag (Contributor+)
+      operationId: createTag
+      tags: [ Tags ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TagCreate' }
+      responses:
+        '201':
+          description: Tag created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TagResponse' }
+        '400':
+          description: Invalid hex color
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /api/tags/{tag_id}:
+    parameters:
+    - { name: tag_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Get tag by ID
+      operationId: getTag
+      tags: [ Tags ]
+      responses:
+        '200':
+          description: Tag record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TagResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update tag (Contributor+)
+      operationId: updateTag
+      tags: [ Tags ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TagUpdate' }
+      responses:
+        '200':
+          description: Updated tag
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TagResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Delete tag (Contributor+) — removes all device_tag assignments
+      operationId: deleteTag
+      tags: [ Tags ]
+      responses:
+        '204': { description: Tag deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/devices/{device_id}/tags:
+    parameters:
+    - { name: device_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Assign tag to device (Contributor+)
+      operationId: assignTag
+      tags: [ Tags ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ tag_id ]
+              properties:
+                tag_id: { type: string, format: uuid }
+      responses:
+        '204': { description: Tag assigned }
+        '400':
+          description: Tag already assigned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/devices/{device_id}/tags/{tag_id}:
+    parameters:
+    - { name: device_id, in: path, required: true, schema: { type: string, format: uuid } }
+    - { name: tag_id, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      summary: Remove tag from device (Contributor+)
+      operationId: removeTag
+      tags: [ Tags ]
+      responses:
+        '204': { description: Tag removed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── CUSTOM FIELDS ───────────────────────────────────────────────────────────
+  /api/devices/{device_id}/fields:
+    parameters:
+    - { name: device_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: List custom fields for a device
+      operationId: listCustomFields
+      tags: [ CustomFields ]
+      responses:
+        '200':
+          description: Custom field list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/CustomFieldResponse' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Add custom field to device (Contributor+)
+      operationId: createCustomField
+      tags: [ CustomFields ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomFieldCreate' }
+      responses:
+        '201':
+          description: Custom field created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomFieldResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /api/devices/{device_id}/fields/{field_id}:
+    parameters:
+    - { name: device_id, in: path, required: true, schema: { type: string, format: uuid } }
+    - { name: field_id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      summary: Update custom field value (Contributor+)
+      operationId: updateCustomField
+      tags: [ CustomFields ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomFieldUpdate' }
+      responses:
+        '200':
+          description: Updated field
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomFieldResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Delete custom field (Contributor+)
+      operationId: deleteCustomField
+      tags: [ CustomFields ]
+      responses:
+        '204': { description: Custom field deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+# ── SCHEMAS (extend Part 1 components) ─────────────────────────────────────────
+components:
+  schemas:
+
+    ConnectionCreate:
+      type: object
+      required: [ source_id, target_id, type ]
+      properties:
+        source_id: { type: string, format: uuid, example: "3fa85f64-5717-4562-b3fc-2c963f66afa6" }
+        target_id: { type: string, format: uuid, example: "8fa91265-1234-4562-c4de-3d074g77bfb7" }
+        type: { $ref: '#/components/schemas/ConnectionType' }
+        label: { type: string, maxLength: 255, nullable: true, example: "uplink" }
+
+    ConnectionUpdate:
+      type: object
+      properties:
+        type: { $ref: '#/components/schemas/ConnectionType' }
+        label: { type: string, nullable: true, example: "wifi-bridge" }
+
+    ConnectionResponse:
+      type: object
+      required: [ id, source_id, target_id, type, created_at, updated_at ]
+      properties:
+        id: { type: string, format: uuid, example: "1a2b3c4d-5e6f-7890-abcd-ef1234567890" }
+        source_id: { type: string, format: uuid, example: "3fa85f64-5717-4562-b3fc-2c963f66afa6" }
+        target_id: { type: string, format: uuid, example: "8fa91265-1234-4562-c4de-3d074g77bfb7" }
+        type: { $ref: '#/components/schemas/ConnectionType' }
+        label: { type: string, nullable: true, example: "uplink" }
+        created_at: { type: string, format: date-time, example: "2026-01-15T10:30:00Z" }
+        updated_at: { type: string, format: date-time, example: "2026-01-15T10:30:00Z" }
+
+    LocationCreate:
+      type: object
+      required: [ name, type ]
+      properties:
+        name: { type: string, maxLength: 255, example: "Rack-A-1" }
+        type: { $ref: '#/components/schemas/LocationType' }
+        lat: { type: number, minimum: -90, maximum: 90, nullable: true, example: 37.7749 }
+        lng: { type: number, minimum: -180, maximum: 180, nullable: true, example: -122.4194 }
+        rack: { type: string, maxLength: 100, nullable: true, example: "A" }
+        row: { type: string, maxLength: 100, nullable: true, example: "1" }
+        parent_id: { type: string, format: uuid, nullable: true, example: null }
+
+    LocationUpdate:
+      type: object
+      properties:
+        name: { type: string, example: "Rack-A-2" }
+        lat: { type: number, nullable: true, example: 37.7749 }
+        lng: { type: number, nullable: true, example: -122.4194 }
+        rack: { type: string, nullable: true, example: "A" }
+        row: { type: string, nullable: true, example: "2" }
+        parent_id: { type: string, format: uuid, nullable: true, example: null }
+
+    LocationResponse:
+      type: object
+      required: [ id, name, type, created_at, updated_at ]
+      properties:
+        id: { type: string, format: uuid, example: "c1d2e3f4-g5h6-7890-ijkl-mn1234567890" }
+        name: { type: string, example: "Rack-A-1" }
+        type: { $ref: '#/components/schemas/LocationType' }
+        lat: { type: number, nullable: true, example: null }
+        lng: { type: number, nullable: true, example: null }
+        rack: { type: string, nullable: true, example: "A" }
+        row: { type: string, nullable: true, example: "1" }
+        parent_id: { type: string, format: uuid, nullable: true, example: null }
+        created_at: { type: string, format: date-time, example: "2026-01-15T10:30:00Z" }
+        updated_at: { type: string, format: date-time, example: "2026-01-15T10:30:00Z" }
+
+    TagCreate:
+      type: object
+      required: [ name ]
+      properties:
+        name: { type: string, maxLength: 100, example: "production" }
+        color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$', default: '#6366f1', example: "#6366f1" }
+
+    TagUpdate:
+      type: object
+      properties:
+        name: { type: string, example: "staging" }
+        color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$', example: "#f59e0b" }
+
+    TagResponse:
+      type: object
+      required: [ id, name, color, created_at ]
+      properties:
+        id: { type: string, format: uuid, example: "d4e5f6a7-b8c9-0123-defg-hi4567890123" }
+        name: { type: string, example: "production" }
+        color: { type: string, example: "#6366f1" }
+        created_at: { type: string, format: date-time, example: "2026-01-15T10:30:00Z" }
+
+    CustomFieldCreate:
+      type: object
+      required: [ key, value ]
+      properties:
+        key: { type: string, maxLength: 100, example: "serial_number" }
+        value: { type: string, example: "SN-20240001" }
+
+    CustomFieldUpdate:
+      type: object
+      required: [ value ]
+      properties:
+        value: { type: string, example: "SN-20240002" }
+
+    CustomFieldResponse:
+      type: object
+      required: [ id, device_id, key, value, created_at ]
+      properties:
+        id: { type: string, format: uuid, example: "e5f6a7b8-c9d0-1234-efgh-ij5678901234" }
+        device_id: { type: string, format: uuid, example: "3fa85f64-5717-4562-b3fc-2c963f66afa6" }
+        key: { type: string, example: "serial_number" }
+        value: { type: string, example: "SN-20240001" }
+        created_at: { type: string, format: date-time, example: "2026-01-15T10:30:00Z" }

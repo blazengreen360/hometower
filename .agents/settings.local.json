@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ln:*)",
+      "Bash(grep:*)",
+      "Bash(sed -i '' 's/^model: claude-opus-4-6$/model: opus/' product-owner.agent.md project-manager.agent.md refactoring-specialist.agent.md user-simulator.agent.md)",
+      "Bash(sed -i '' 's/^model: claude-sonnet-4-6$/model: sonnet/' architect.agent.md feature-engineer.agent.md qa-remediation.agent.md test-automation-engineer.agent.md ux-designer.agent.md)",
+      "Bash(sed -i '' 's/^model: claude-haiku-4-5-20251001$/model: haiku/' code-reviewer.agent.md qa-bug-finder.agent.md qa-orchestrator.agent.md security-auditor.agent.md security-orchestrator.agent.md)",
+      "Bash(sed -i '' 's/^model: opus$/model: Claude Opus 4.6 \\(copilot\\)/' product-owner.agent.md project-manager.agent.md refactoring-specialist.agent.md user-simulator.agent.md)",
+      "Bash(sed -i '' 's/^model: sonnet$/model: Claude Sonnet 4.6 \\(copilot\\)/' architect.agent.md feature-engineer.agent.md qa-remediation.agent.md test-automation-engineer.agent.md ux-designer.agent.md)",
+      "Bash(sed -i '' 's/^model: haiku$/model: Claude Haiku 4.5 \\(copilot\\)/' code-reviewer.agent.md qa-bug-finder.agent.md qa-orchestrator.agent.md security-auditor.agent.md security-orchestrator.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Write, Edit, Glob, Grep\\\\]$|tools: [vscode/memory, vscode/askQuestions, read/readFile, edit/createFile, edit/editFiles, search, todo]|' product-owner.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Write, Edit, Glob, Grep, Bash, Agent\\\\]$|tools: [vscode/getProjectSetupInfo, vscode/memory, vscode/askQuestions, read/readFile, read/problems, execute/getTerminalOutput, execute/awaitTerminal, execute/runInTerminal, agent, search, web, browser, todo]|' project-manager.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Write, Edit, Glob, Grep, WebFetch\\\\]$|tools: [vscode/getProjectSetupInfo, vscode/memory, vscode/askQuestions, read/readFile, read/viewImage, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, agent, search, web, browser, todo]|' architect.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Write, Edit, Glob, Grep, Bash, Agent\\\\]$|tools: [vscode/askQuestions, execute/testFailure, execute/getTerminalOutput, execute/awaitTerminal, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, browser, todo]|' feature-engineer.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Write, Edit, Glob, Grep, Bash, Agent\\\\]$|tools: [vscode/askQuestions, execute/getTerminalOutput, execute/awaitTerminal, execute/createAndRunTask, execute/runInTerminal, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, browser, todo]|' ux-designer.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Write, Edit, Glob, Grep, Bash\\\\]$|tools: [vscode/memory, vscode/askQuestions, execute/testFailure, execute/getTerminalOutput, execute/awaitTerminal, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/readFile, read/viewImage, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, todo]|' refactoring-specialist.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Write, Edit, Glob, Grep, Bash, Agent\\\\]$|tools: [vscode/askQuestions, execute/testFailure, execute/getTerminalOutput, execute/awaitTerminal, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, read/viewImage, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, browser, todo]|' qa-remediation.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Write, Edit, Glob, Grep, Bash, Agent\\\\]$|tools: [vscode/askQuestions, execute/testFailure, execute/getTerminalOutput, execute/awaitTerminal, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, read/viewImage, agent, edit/createFile, edit/editFiles, edit/rename, search, web, browser, todo]|' test-automation-engineer.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Glob, Grep, Bash\\\\]$|tools: [vscode/askQuestions, execute/testFailure, execute/getTerminalOutput, execute/awaitTerminal, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, agent, search, todo]|' code-reviewer.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Glob, Grep, Agent, Write\\\\]$|tools: [vscode/askQuestions, read/readFile, agent, edit/createFile, edit/editFiles, edit/rename, search, web, browser, todo]|' qa-orchestrator.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Glob, Grep, Agent, Write\\\\]$|tools: [vscode/askQuestions, read/readFile, agent, edit/createDirectory, edit/createFile, edit/editFiles, search, web, browser, todo]|' security-orchestrator.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Glob, Grep, Agent, Write, agent\\\\]$|tools: [read/readFile, agent, edit/createFile, edit/editFiles, web, browser, todo]|' qa-bug-finder.agent.md)",
+      "Bash(sed -i '' 's|^tools: \\\\[Read, Glob, Grep, Write\\\\]$|tools: [read/readFile, read/viewImage, agent, edit/createDirectory, edit/createFile, edit/editFiles, search, web, browser, todo]|' security-auditor.agent.md)",
+      "Bash(python3:*)",
+      "Bash(xargs basename:*)",
+      "Bash(git log:*)",
+      "Bash(chmod +x /Users/jayharry28/Projects/hometower/.claude/skills/verify-gate/run.sh /Users/jayharry28/Projects/hometower/.claude/skills/migration-safety/check.sh)",
+      "Bash(ls -la /Users/jayharry28/Projects/hometower/.claude/skills/*/)"
+    ]
+  }
+}

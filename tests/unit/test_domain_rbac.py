@@ -1,4 +1,4 @@
-"""Unit tests for src/domain/rbac.py.
+"""Unit tests for src/domain/rbac.py and src/api/dependencies/rbac.py.
 
 No database, no mocks — pure function calls only.
 """
@@ -6,7 +6,8 @@ import pytest
 from fastapi import HTTPException
 from starlette.requests import Request
 
-from src.domain.rbac import ROLE_HIERARCHY, can_perform, require_role
+from src.domain.rbac import ROLE_HIERARCHY, can_perform
+from src.api.dependencies.rbac import require_role
 from src.models.types import Role
 
 
@@ -125,3 +126,15 @@ class TestRequireRole:
         with pytest.raises(HTTPException) as exc_info:
             dep(_make_request("Reader"))
         assert exc_info.value.detail == "Insufficient permissions"
+
+    def test_invalid_role_claim_returns_403(self) -> None:
+        dep = require_role(Role.Admin)
+        with pytest.raises(HTTPException) as exc_info:
+            dep(_make_request("NotARole"))
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == "Insufficient permissions"
+
+    def test_require_role_dependency_has_marker(self) -> None:
+        """HT-011: require_role closure must carry _rbac_protected=True."""
+        dep = require_role(Role.Reader)
+        assert getattr(dep, "_rbac_protected", False) is True

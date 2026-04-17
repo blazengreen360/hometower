@@ -1,0 +1,2 @@
+- `docker compose exec api alembic upgrade head --sql` fails at migration 015 (`sa.inspect` on MockConnection in offline mode).
+- For reviewing newer migration SQL safely, use bounded offline range, e.g. `alembic upgrade 025:026 --sql`.

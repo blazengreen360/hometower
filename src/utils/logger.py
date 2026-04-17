@@ -1,4 +1,4 @@
-"""Loguru singleton — import this everywhere instead of stdlib logging or print()."""
+"""Loguru singleton — import this everywhere instead of stdlib logging or print statements."""
 import sys
 
 from loguru import logger

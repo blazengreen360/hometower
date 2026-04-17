@@ -1,0 +1,36 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "Hometower" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e7]: Workspaces
+    - button "Expand \"admin@hometower.local\"" [ref=e8] [cursor=pointer]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: admin@hometower.local
+        - generic [ref=e11]: arrow_drop_down
+  - main [ref=e13]:
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - link "Workspaces" [ref=e17] [cursor=pointer]:
+          - /url: /workspaces
+        - generic [ref=e18]: /
+        - generic [ref=e19]: Bug-Hunt-WS
+      - generic [ref=e20]:
+        - generic [ref=e21]: Bug-Hunt-WS
+        - button "+ New Topology" [ref=e22] [cursor=pointer]:
+          - generic [ref=e24]: + New Topology
+      - generic [ref=e25]:
+        - table [ref=e27]:
+          - rowgroup [ref=e28]:
+            - row "Name Tags Last Modified Actions" [ref=e29]:
+              - columnheader "Name" [ref=e30] [cursor=pointer]:
+                - generic [ref=e31]: arrow_upward
+                - text: Name
+              - columnheader "Tags" [ref=e32]
+              - columnheader "Last Modified" [ref=e33] [cursor=pointer]:
+                - generic [ref=e34]: arrow_upward
+                - text: Last Modified
+              - columnheader "Actions" [ref=e35]
+          - rowgroup
+        - generic [ref=e36]:
+          - generic [ref=e37]: warning
+          - text: No data available

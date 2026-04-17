@@ -6,27 +6,11 @@ device type string; the canvas drop handler reads it to create a new node.
 from nicegui import ui
 
 from src.models.types import DeviceType
+from src.ui.components.device_type_options import get_creatable_device_types
 from src.ui.design.tokens import (
-    COLOR_PRIMARY,
-    COLOR_SURFACE_ALT,
-    COLOR_TEXT,
-    COLOR_TEXT_MUTED,
-    DEVICE_SHAPES,
-    SPACING_SM,
-    SPACING_XS,
-    FONT_SM,
+    DEVICE_TYPE_COLORS,
+    DEVICE_TYPE_ICONS,
 )
-
-# Map Cytoscape shape names to simple Unicode glyphs for visual hint
-_SHAPE_GLYPHS: dict[str, str] = {
-    "rectangle": "▬",
-    "diamond": "◆",
-    "triangle": "▲",
-    "hexagon": "⬡",
-    "round-rectangle": "▭",
-    "ellipse": "●",
-    "barrel": "⌗",
-}
 
 _DRAG_SCRIPT = """
 function htPaletteCardDrag(el, deviceType) {
@@ -34,39 +18,94 @@ function htPaletteCardDrag(el, deviceType) {
     el.addEventListener('dragstart', function(e) {
         e.dataTransfer.setData('deviceType', deviceType);
         e.dataTransfer.effectAllowed = 'copy';
+        el.style.opacity = '0.5';
+    });
+    el.addEventListener('dragend', function() {
+        el.style.opacity = '1';
     });
 }
 """
+
+_PALETTE_WIDTH = "184px"
 
 
 def render_palette() -> None:
     """Render the device type palette sidebar."""
     ui.add_body_html(f"<script>{_DRAG_SCRIPT}</script>")
+    _inject_palette_hover_style()
 
     with ui.column().style(
-        f"width: 160px; gap: {SPACING_SM}; padding: {SPACING_SM}; overflow-y: auto;"
+        f"width: {_PALETTE_WIDTH}; background: var(--ht-bg-sidebar);"
+        " border-right: 1px solid var(--ht-border);"
+        " padding: 12px 10px; gap: 6px; overflow-y: auto;"
     ):
-        ui.label("Devices").style(
-            f"color: {COLOR_TEXT}; font-size: {FONT_SM}; font-weight: 600; text-transform: uppercase;"
+        # Header
+        with ui.row().style(
+            "align-items: center; gap: 6px; padding: 2px 4px; margin-bottom: 2px;"
+        ):
+            ui.icon("drag_indicator").style(
+                "color: var(--ht-text-secondary); font-size: 1rem;"
+            )
+            ui.label("Device Tools").style(
+                "color: var(--ht-text-primary); font-size: 0.875rem;"
+                " font-weight: 600; letter-spacing: 0.03em;"
+            )
+
+        # Hint text
+        ui.label("Drag onto canvas").style(
+            "color: var(--ht-text-secondary); font-size: 0.7rem;"
+            " padding: 0 4px; margin-bottom: 4px;"
         )
 
-        for device_type in DeviceType:
-            shape = DEVICE_SHAPES.get(device_type, "rectangle")
-            glyph = _SHAPE_GLYPHS.get(shape, "■")
-            _render_palette_card(device_type, glyph)
+        for device_type in get_creatable_device_types():
+            _render_palette_card(device_type)
 
 
-def _render_palette_card(device_type: DeviceType, glyph: str) -> None:
-    """Render a single draggable palette card."""
+def _render_palette_card(device_type: DeviceType) -> None:
+    """Render a single draggable palette card with icon and accent color."""
     card_id = f"palette-{device_type.value.lower()}"
+    accent = DEVICE_TYPE_COLORS.get(device_type, "#4f46e5")
+    icon_name = DEVICE_TYPE_ICONS.get(device_type, "devices")
+
     with ui.element("div").props(f'id="{card_id}"').style(
-        f"display: flex; align-items: center; gap: {SPACING_XS}; "
-        f"padding: {SPACING_XS} {SPACING_SM}; border-radius: 6px; cursor: grab; "
-        f"background-color: {COLOR_SURFACE_ALT}; user-select: none;"
-    ):
-        ui.label(glyph).style(f"color: {COLOR_PRIMARY}; font-size: 1rem; min-width: 1.25rem;")
-        ui.label(device_type.value).style(f"color: {COLOR_TEXT}; font-size: {FONT_SM};")
+        "display: flex; align-items: center; gap: 8px;"
+        " padding: 6px 8px; border-radius: var(--ht-radius-input); cursor: grab;"
+        " background: var(--ht-bg-surface-raised);"
+        " border: 1px solid var(--ht-border);"
+        " user-select: none; transition: all var(--ht-transition-fast);"
+    ).classes("ht-palette-card"):
+        # Icon chip
+        with ui.element("div").style(
+            f"width: 28px; height: 28px; border-radius: 6px;"
+            f" background: {accent}18; display: flex;"
+            " align-items: center; justify-content: center; flex-shrink: 0;"
+        ):
+            ui.icon(icon_name).style(
+                f"color: {accent}; font-size: 1rem;"
+            )
+        ui.label(device_type.value).style(
+            "color: var(--ht-text-primary); font-size: 0.875rem;"
+            " font-weight: 500; white-space: nowrap;"
+        )
 
     ui.run_javascript(
         f"htPaletteCardDrag(document.getElementById('{card_id}'), '{device_type.value}')"
     )
+
+
+# Inject hover style once (scoped via class)
+_HOVER_CSS = """
+<style>
+.ht-palette-card:hover {
+    border-color: var(--ht-accent) !important;
+    background: var(--ht-bg-surface-raised) !important;
+    transform: translateX(2px);
+    box-shadow: var(--ht-shadow-sm);
+}
+</style>
+"""
+
+
+def _inject_palette_hover_style() -> None:
+    """Inject palette card hover CSS into the page head."""
+    ui.add_head_html(_HOVER_CSS)

@@ -1,11 +1,12 @@
-version: "3.9"
 services:
   api:
     build: .
     ports: ["8080:8080"]
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://hometower:${DB_PASSWORD:-secret}@db:5432/hometower
+      DATABASE_URL: postgresql://hometower:${DB_PASSWORD}@db:5432/hometower
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
     depends_on:
       db:
         condition: service_healthy
@@ -13,13 +14,28 @@ services:
       - ./src:/app/src
       - ./tests:/app/tests
       - ./alembic:/app/alembic
+      - attachments_data:/data/attachments
+      - pytest_tmp:/tmp/pytest
+      - pytest_cache:/app/.pytest_cache
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          cpus: "4.0"
+          memory: 2G
+    shm_size: 1gb
   db:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: hometower
       POSTGRES_USER: hometower
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -28,5 +44,14 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          cpus: "1.0"
+          memory: 512M
+    shm_size: 256mb
 volumes:
   postgres_data:
+  attachments_data:
+  pytest_tmp:
+  pytest_cache:

@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, SQLModel
 
-from src.domain.rbac import require_role
+from src.api.dependencies.rbac import require_role
 from src.models.connection import ConnectionCreate, ConnectionResponse, ConnectionUpdate
 from src.models.types import Role
 from src.services import connection_service
@@ -26,7 +26,7 @@ class PaginatedConnectionResponse(SQLModel):
     response_model=PaginatedConnectionResponse,
     dependencies=[Depends(require_role(Role.Reader))],
 )
-async def list_connections(
+def list_connections(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=100),
     source_id: Optional[uuid.UUID] = Query(default=None),
@@ -49,7 +49,7 @@ async def list_connections(
     response_model=ConnectionResponse,
     dependencies=[Depends(require_role(Role.Contributor))],
 )
-async def create_connection(
+def create_connection(
     data: ConnectionCreate,
     session: Session = Depends(get_session),
 ) -> ConnectionResponse:
@@ -63,7 +63,7 @@ async def create_connection(
     response_model=ConnectionResponse,
     dependencies=[Depends(require_role(Role.Reader))],
 )
-async def get_connection(
+def get_connection(
     connection_id: uuid.UUID,
     session: Session = Depends(get_session),
 ) -> ConnectionResponse:
@@ -77,7 +77,7 @@ async def get_connection(
     response_model=ConnectionResponse,
     dependencies=[Depends(require_role(Role.Contributor))],
 )
-async def update_connection(
+def update_connection(
     connection_id: uuid.UUID,
     data: ConnectionUpdate,
     session: Session = Depends(get_session),
@@ -92,7 +92,7 @@ async def update_connection(
     status_code=204,
     dependencies=[Depends(require_role(Role.Contributor))],
 )
-async def delete_connection(
+def delete_connection(
     connection_id: uuid.UUID,
     session: Session = Depends(get_session),
 ) -> None:

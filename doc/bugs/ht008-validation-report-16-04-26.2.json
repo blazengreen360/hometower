@@ -1,0 +1,177 @@
+{
+  "report_id": "ht008-validation-report-16-04-26.2",
+  "story": "HT-008",
+  "title": "Geographic Map View (Leaflet.js) — Live Browser Validation (Second Run)",
+  "validated_at": "2026-04-16T00:00:00Z",
+  "validated_by": "user-simulator / Playwright MCP",
+  "base_url": "http://127.0.0.1:8080",
+  "overall_verdict": "PASS",
+
+  "bug_001_status": {
+    "verdict": "FIXED",
+    "evidence": "window._htMapInstance.getSize() returned {x:1642, y:722} on first load and again after hard reload (Ctrl+F5). Tile images rendered at offsetWidth=256px (naturalWidth=256px). No manual invalidateSize() call was issued. The prior black-render and Tailwind img max-width interference are no longer present."
+  },
+
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "title": "Map surface visually usable on first load, non-zero size",
+      "verdict": "PASS",
+      "evidence": {
+        "map_size_on_load": {"x": 1642, "y": 722},
+        "tile_count": 28,
+        "sample_tile_widths_px": [256, 256, 256],
+        "invalidate_size_required": false,
+        "post_hard_reload_size": {"x": 1642, "y": 722},
+        "screenshot": "doc/bugs/ht008-screenshots/ac1-map-initial-load.png",
+        "screenshot_post_reload": "doc/bugs/ht008-screenshots/ac1-post-reload-check.png"
+      }
+    },
+    {
+      "id": "AC2",
+      "title": "Primary geo marker present with correct tooltip; rack location absent",
+      "verdict": "PASS",
+      "evidence": {
+        "primary_marker_found": true,
+        "primary_marker_lat_lng": [37.7749, -122.4194],
+        "tooltip_text_on_hover": "HT008 Geo Validation \u2022 1 device",
+        "server_room_1_in_map_dom": false,
+        "screenshot": "doc/bugs/ht008-screenshots/ac2-marker-hover-tooltip.png"
+      }
+    },
+    {
+      "id": "AC3",
+      "title": "Click primary marker opens right-side details panel with device list",
+      "verdict": "PASS",
+      "evidence": {
+        "panel_opened": true,
+        "panel_location_name": "HT008 Geo Validation",
+        "panel_device_count_text": "1 device",
+        "device_listed": "HT008 DEVICE VALIDATION",
+        "device_type": "Server",
+        "screenshot": "doc/bugs/ht008-screenshots/ac3-details-panel.png"
+      }
+    },
+    {
+      "id": "AC4",
+      "title": "Device button in panel navigates to /topology?device_id=<id>",
+      "verdict": "PASS",
+      "evidence": {
+        "destination_url": "http://127.0.0.1:8080/topology?device_id=d0ffff6c-3dd3-47e2-9172-bbb8333e071b",
+        "topology_page_loaded": true,
+        "device_detail_panel_opened": true,
+        "device_name_in_panel": "HT008 Device Validation",
+        "location_in_panel": "HT008 Geo Validation",
+        "live_status_text": "Loaded HT008 Device Validation",
+        "screenshot": "doc/bugs/ht008-screenshots/ac4-topology-device-panel.png"
+      }
+    },
+    {
+      "id": "AC5",
+      "title": "Non-geo locations absent from map",
+      "verdict": "PARTIAL",
+      "evidence": {
+        "server_room_1_in_dom": false,
+        "total_markers_visible": 12,
+        "expected_geo_locations": 12,
+        "note": "Verified Server Room 1 (rack location, no lat/lng) is absent from the map container DOM. Fully-empty-map state cannot be tested without destructive changes to the seeded database."
+      }
+    },
+    {
+      "id": "AC6",
+      "title": "Nearby markers cluster at low zoom; expand/split on zoom-in",
+      "verdict": "PASS",
+      "evidence": {
+        "zoom_progression": [
+          {"zoom": 19, "individual_markers": 10, "clusters": 1, "cluster_counts": ["2"]},
+          {"zoom": 17, "individual_markers": 10, "clusters": 4, "cluster_counts": ["2","3","4","5"]},
+          {"zoom": 15, "individual_markers": 0,  "clusters": 4, "cluster_counts": ["3","4","5","12"]},
+          {"zoom": 9,  "individual_markers": 0,  "clusters": 1, "cluster_counts": ["12"]}
+        ],
+        "cluster_click_expands": true,
+        "cluster_click_spiderfies_at_max_zoom": true,
+        "zoom_out_button_3_clicks": "2 clusters (3+9=12 total)",
+        "screenshot_zoomed_out": "doc/bugs/ht008-screenshots/ac6-cluster-zoomed-out.png",
+        "screenshot_expanded": "doc/bugs/ht008-screenshots/ac6-cluster-expanded.png",
+        "screenshot_intermediate": "doc/bugs/ht008-screenshots/ac6-intermediate-zoom-clusters.png"
+      }
+    }
+  ],
+
+  "additional_findings": [
+    {
+      "id": "FIND-001",
+      "severity": "Medium",
+      "category": "Security / Reliability",
+      "title": "Leaflet.js and leaflet.markercluster.js loaded from external CDN without SRI",
+      "detail": "Both scripts fetched from cdnjs.cloudflare.com at runtime. No integrity= attribute. Risks: (1) CDN unavailability silently breaks the map. (2) CDN compromise could inject malicious JS with no tamper-detection. (3) Every map page visit sends the user IP to Cloudflare, undermining self-hosted privacy posture.",
+      "affected_files": ["src/ui/components/map_view.py"],
+      "recommendation": "Bundle both libraries under the app's static files, or add integrity= SRI hashes if CDN is retained.",
+      "script_srcs": [
+        "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"
+      ]
+    },
+    {
+      "id": "FIND-002",
+      "severity": "Low",
+      "category": "Developer Experience",
+      "title": "CSP connect-src blocks Leaflet/MarkerCluster source map fetches in browser console",
+      "detail": "The HTTP CSP header sets connect-src 'self' ws: wss:, which correctly blocks .js.map files from CDN. Not functional, but adds noise to the error console on every map page load.",
+      "recommendation": "Resolved automatically if FIND-001 is addressed (local hosting eliminates CDN sourcemap URLs)."
+    },
+    {
+      "id": "FIND-003",
+      "severity": "UX",
+      "category": "Interaction",
+      "title": "Two-click spiderfy required to reach primary marker when co-located with another at max zoom",
+      "detail": "At zoom 19, HT008 Geo Validation and HT008 Cluster 01 share close coordinates and appear as a sub-cluster badge '2'. Reaching the primary marker requires: click sub-cluster to spiderfy, then click spiderfied primary marker. After the spiderfy click, the spider collapses. This is inherent Leaflet.markercluster behavior but may be disorienting for first-time users with many co-located locations.",
+      "recommendation": "Consider offsetting demo/seed coordinates or adjusting cluster radius. Not a code defect."
+    }
+  ],
+
+  "action_log": [
+    "Navigated to http://127.0.0.1:8080 — redirected to /login",
+    "Authenticated with admin@hometower.local — landed on Dashboard (12 devices, 13 locations)",
+    "Navigated to /map — markers visible immediately in a11y tree",
+    "Evaluated window._htMapInstance.getSize() → {x:1642, y:722} — BUG-001 FIXED",
+    "28 tiles rendered at offsetWidth=256px — tile sizing normal",
+    "Confirmed 12 geo markers present; Server Room 1 absent from map DOM",
+    "Hovered HT008 Geo Validation — tooltip: 'HT008 Geo Validation • 1 device' (AC2 PASS)",
+    "Spiderfied cluster-2, clicked primary marker — details panel opened (AC3 PASS)",
+    "Clicked 'HT008 DEVICE VALIDATION' button — navigated to /topology?device_id=d0ffff6c-...",
+    "Topology loaded; device panel auto-opened: 'Loaded HT008 Device Validation' (AC4 PASS)",
+    "Returned to /map — tested zoom from z19 to z9: clustering progression correct (AC6 PASS)",
+    "Used Zoom Out button 3× — confirmed 2 clusters (3+9) at intermediate zoom",
+    "Hard reload (Ctrl+F5) — map re-rendered: {x:1642, y:722}, 28 tiles. No regression.",
+    "Inspected network: Leaflet/MarkerCluster served from external CDN without SRI (FIND-001)",
+    "Inspected console: 2 CSP source-map blocks, non-functional (FIND-002)"
+  ],
+
+  "screenshots_produced": [
+    "doc/bugs/ht008-screenshots/ac1-map-initial-load.png",
+    "doc/bugs/ht008-screenshots/ac2-marker-hover-tooltip.png",
+    "doc/bugs/ht008-screenshots/ac3-details-panel.png",
+    "doc/bugs/ht008-screenshots/ac4-topology-device-panel.png",
+    "doc/bugs/ht008-screenshots/ac6-cluster-zoomed-out.png",
+    "doc/bugs/ht008-screenshots/ac6-cluster-expanded.png",
+    "doc/bugs/ht008-screenshots/ac6-intermediate-zoom-clusters.png",
+    "doc/bugs/ht008-screenshots/ac1-post-reload-check.png"
+  ],
+
+  "status": "SUCCESS",
+  "artifacts_produced": [
+    "doc/bugs/ht008-validation-report-16-04-26.2.json",
+    "doc/bugs/ht008-screenshots/ac1-map-initial-load.png",
+    "doc/bugs/ht008-screenshots/ac2-marker-hover-tooltip.png",
+    "doc/bugs/ht008-screenshots/ac3-details-panel.png",
+    "doc/bugs/ht008-screenshots/ac4-topology-device-panel.png",
+    "doc/bugs/ht008-screenshots/ac6-cluster-zoomed-out.png",
+    "doc/bugs/ht008-screenshots/ac6-cluster-expanded.png",
+    "doc/bugs/ht008-screenshots/ac6-intermediate-zoom-clusters.png",
+    "doc/bugs/ht008-screenshots/ac1-post-reload-check.png"
+  ],
+  "verified_against_gate": false,
+  "blocker_details": null,
+  "follow_up_required": false
+}

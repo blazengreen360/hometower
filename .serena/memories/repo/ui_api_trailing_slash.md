@@ -1,0 +1,3 @@
+- For internal UI httpx calls to FastAPI collection routers under /api, always use trailing slashes (e.g., /api/devices/, /api/connections/, /api/locations/, /api/tags/, /api/users/).
+- In this repo, missing collection slashes can hit NiceGUI catch-all routing and return 404 before FastAPI redirect_slashes.
+- Keep item endpoints slashless (e.g., /api/devices/{id}) and leave /api/health + /api/system/stats without trailing slash.

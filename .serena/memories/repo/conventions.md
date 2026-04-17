@@ -1,0 +1,7 @@
+- Do not use print() or logging.*; use src/utils/logger.py.
+- No Any types; use explicit typing.
+- Keep files <=250 lines (hard cap 400).
+- src/domain must remain pure functions with zero side effects.
+- src/ui must not import repositories directly.
+- All API input validated by Pydantic; new endpoints require RBAC dependencies.
+- NiceGUI q-table body slot handlers may not resolve global emit helpers in Vue expression scope; prefer stable native onclick + emitEvent dispatch for custom row actions when direct slot expressions fail at runtime.

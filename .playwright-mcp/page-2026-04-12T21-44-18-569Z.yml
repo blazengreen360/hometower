@@ -1,0 +1,104 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "Hometower" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e7]: Dashboard
+    - button "Expand \"admin@hometower.local\"" [ref=e8] [cursor=pointer]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: admin@hometower.local
+        - generic [ref=e11]: arrow_drop_down
+  - complementary [ref=e12]:
+    - generic [ref=e13]:
+      - button [ref=e15] [cursor=pointer]:
+        - img [ref=e17]: chevron_left
+      - generic [ref=e18] [cursor=pointer]:
+        - generic [ref=e19]: dashboard
+        - generic [ref=e20]: Dashboard
+      - generic [ref=e21] [cursor=pointer]:
+        - generic [ref=e22]: workspaces
+        - generic [ref=e23]: Workspaces
+      - generic [ref=e24] [cursor=pointer]:
+        - generic [ref=e25]: inventory_2
+        - generic [ref=e26]: Inventory
+      - generic [ref=e27] [cursor=pointer]:
+        - generic [ref=e28]: map
+        - generic [ref=e29]: Map
+        - status [ref=e30]: soon
+      - separator [ref=e31]
+      - generic [ref=e32]: Settings
+      - generic [ref=e33] [cursor=pointer]:
+        - generic [ref=e34]: location_on
+        - generic [ref=e35]: Locations
+      - generic [ref=e36] [cursor=pointer]:
+        - generic [ref=e37]: people
+        - generic [ref=e38]: Users
+      - generic [ref=e39] [cursor=pointer]:
+        - generic [ref=e40]: cloud_download
+        - generic [ref=e41]: Data
+      - generic [ref=e42] [cursor=pointer]:
+        - generic [ref=e43]: person
+        - generic [ref=e44]: Profile
+      - generic [ref=e45] [cursor=pointer]:
+        - generic [ref=e46]: info
+        - generic [ref=e47]: About
+  - main [ref=e49]:
+    - generic [ref=e52]:
+      - generic [ref=e53]: Dashboard
+      - generic [ref=e54]:
+        - generic [ref=e55]:
+          - generic [ref=e56]: "5"
+          - generic [ref=e57]: Devices
+        - generic [ref=e58]:
+          - generic [ref=e59]: "2"
+          - generic [ref=e60]: Connections
+        - generic [ref=e61]:
+          - generic [ref=e62]: "0"
+          - generic [ref=e63]: Locations
+        - generic [ref=e64]:
+          - generic [ref=e65]: "0"
+          - generic [ref=e66]: Tags
+      - generic [ref=e68]:
+        - generic [ref=e69]: Recent Activity
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - generic [ref=e72]: dns
+            - generic [ref=e73]: test
+            - generic [ref=e74]: Switch
+          - generic [ref=e75]: 14m ago
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - generic [ref=e78]: dns
+            - generic [ref=e79]: Test
+            - generic [ref=e80]: Server
+          - generic [ref=e81]: 15m ago
+        - generic [ref=e82]:
+          - generic [ref=e83]:
+            - generic [ref=e84]: dns
+            - generic [ref=e85]: Test
+            - generic [ref=e86]: Router
+          - generic [ref=e87]: 15m ago
+        - generic [ref=e88]:
+          - generic [ref=e89]:
+            - generic [ref=e90]: dns
+            - generic [ref=e91]: Nas Server
+            - generic [ref=e92]: NAS
+          - generic [ref=e93]: 2h ago
+        - generic [ref=e94]:
+          - generic [ref=e95]:
+            - generic [ref=e96]: dns
+            - generic [ref=e97]: VM
+            - generic [ref=e98]: Server
+          - generic [ref=e99]: 2h ago
+      - generic [ref=e100]:
+        - button "Add Device" [ref=e101] [cursor=pointer]:
+          - generic [ref=e102]:
+            - img [ref=e103]: add
+            - generic [ref=e104]: Add Device
+        - button "View Inventory" [ref=e105] [cursor=pointer]:
+          - generic [ref=e106]:
+            - img [ref=e107]: list
+            - generic [ref=e108]: View Inventory
+        - button "Manage Locations" [ref=e109] [cursor=pointer]:
+          - generic [ref=e110]:
+            - img [ref=e111]: location_on
+            - generic [ref=e112]: Manage Locations

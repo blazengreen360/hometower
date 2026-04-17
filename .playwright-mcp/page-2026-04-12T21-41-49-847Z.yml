@@ -1,0 +1,87 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "Hometower" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e6]:
+      - generic [ref=e7]: Settings
+      - generic [ref=e8]: ›
+      - generic [ref=e9]: Users
+    - button "Expand \"admin@hometower.local\"" [ref=e10] [cursor=pointer]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: admin@hometower.local
+        - generic [ref=e13]: arrow_drop_down
+  - complementary [ref=e14]:
+    - generic [ref=e15]:
+      - button [ref=e17] [cursor=pointer]:
+        - img [ref=e19]: chevron_left
+      - generic [ref=e20] [cursor=pointer]:
+        - generic [ref=e21]: dashboard
+        - generic [ref=e22]: Dashboard
+      - generic [ref=e23] [cursor=pointer]:
+        - generic [ref=e24]: workspaces
+        - generic [ref=e25]: Workspaces
+      - generic [ref=e26] [cursor=pointer]:
+        - generic [ref=e27]: inventory_2
+        - generic [ref=e28]: Inventory
+      - generic [ref=e29] [cursor=pointer]:
+        - generic [ref=e30]: map
+        - generic [ref=e31]: Map
+        - status [ref=e32]: soon
+      - separator [ref=e33]
+      - generic [ref=e34]: Settings
+      - generic [ref=e35] [cursor=pointer]:
+        - generic [ref=e36]: location_on
+        - generic [ref=e37]: Locations
+      - generic [ref=e38] [cursor=pointer]:
+        - generic [ref=e39]: people
+        - generic [ref=e40]: Users
+      - generic [ref=e41] [cursor=pointer]:
+        - generic [ref=e42]: cloud_download
+        - generic [ref=e43]: Data
+      - generic [ref=e44] [cursor=pointer]:
+        - generic [ref=e45]: person
+        - generic [ref=e46]: Profile
+      - generic [ref=e47] [cursor=pointer]:
+        - generic [ref=e48]: info
+        - generic [ref=e49]: About
+  - main [ref=e51]:
+    - generic [ref=e53]:
+      - generic [ref=e54]:
+        - generic [ref=e55]: User Management
+        - button "+ Add User" [ref=e56] [cursor=pointer]:
+          - generic [ref=e58]: + Add User
+      - table [ref=e61]:
+        - rowgroup [ref=e62]:
+          - row "Username Email Role Active Actions" [ref=e63]:
+            - columnheader "Username" [ref=e64] [cursor=pointer]:
+              - generic [ref=e65]: arrow_upward
+              - text: Username
+            - columnheader "Email" [ref=e66] [cursor=pointer]:
+              - generic [ref=e67]: arrow_upward
+              - text: Email
+            - columnheader "Role" [ref=e68] [cursor=pointer]:
+              - generic [ref=e69]: arrow_upward
+              - text: Role
+            - columnheader "Active" [ref=e70]
+            - columnheader "Actions" [ref=e71]
+        - rowgroup [ref=e72]:
+          - row "admin admin@hometower.local Admin Yes" [ref=e73]:
+            - cell "admin" [ref=e74]
+            - cell "admin@hometower.local" [ref=e75]
+            - cell "Admin" [ref=e76]
+            - cell "Yes" [ref=e77]
+            - cell [ref=e78]:
+              - button [ref=e79] [cursor=pointer]:
+                - img [ref=e81]: edit
+              - button [disabled] [ref=e82]:
+                - img [ref=e84]: delete
+          - row "usr2_yboceq usr2_yboceq@test.local Contributor Yes" [ref=e85]:
+            - cell "usr2_yboceq" [ref=e86]
+            - cell "usr2_yboceq@test.local" [ref=e87]
+            - cell "Contributor" [ref=e88]
+            - cell "Yes" [ref=e89]
+            - cell [ref=e90]:
+              - button [ref=e91] [cursor=pointer]:
+                - img [ref=e93]: edit
+              - button [ref=e94] [cursor=pointer]:
+                - img [ref=e96]: delete

@@ -1,0 +1,7 @@
+- Setup venv: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+- Start stack: docker compose up -d
+- Run all tests: docker compose exec api pytest
+- Run one test file: docker compose exec api pytest tests/unit/test_ui_canvas.py -v
+- Type check: docker compose exec api mypy src/ --ignore-missing-imports
+- Build images: docker compose build
+- Migrations: docker compose exec api alembic upgrade head

@@ -1,0 +1,163 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "Hometower" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e7]: Topology
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e12] [cursor=pointer]:
+          - generic [ref=e13]:
+            - generic: Saved Layouts
+            - combobox "Saved Layouts" [ref=e15]
+          - generic [ref=e17]: arrow_drop_down
+        - button "Save Layout" [ref=e18] [cursor=pointer]:
+          - generic [ref=e20]: Save Layout
+        - button "Rename layout" [ref=e21] [cursor=pointer]:
+          - img [ref=e23]: drive_file_rename_outline
+        - button "Delete layout" [ref=e24] [cursor=pointer]:
+          - img [ref=e26]: delete_outline
+      - button "Stop Editing" [ref=e95] [cursor=pointer]:
+        - generic [ref=e28]:
+          - img [ref=e29]: edit_off
+          - generic [ref=e30]: Stop Editing
+    - button "Expand \"admin@hometower.local\"" [ref=e31] [cursor=pointer]:
+      - generic [ref=e32]:
+        - generic [ref=e33]: admin@hometower.local
+        - generic [ref=e34]: arrow_drop_down
+  - complementary [ref=e35]:
+    - generic [ref=e36]:
+      - button [ref=e38] [cursor=pointer]:
+        - img [ref=e40]: chevron_left
+      - generic [ref=e41] [cursor=pointer]:
+        - generic [ref=e42]: dashboard
+        - generic [ref=e43]: Dashboard
+      - generic [ref=e44] [cursor=pointer]:
+        - generic [ref=e45]: workspaces
+        - generic [ref=e46]: Workspaces
+      - generic [ref=e47] [cursor=pointer]:
+        - generic [ref=e48]: inventory_2
+        - generic [ref=e49]: Inventory
+      - generic [ref=e50] [cursor=pointer]:
+        - generic [ref=e51]: map
+        - generic [ref=e52]: Map
+        - status [ref=e53]: soon
+      - separator [ref=e54]
+      - generic [ref=e55]: Settings
+      - generic [ref=e56] [cursor=pointer]:
+        - generic [ref=e57]: location_on
+        - generic [ref=e58]: Locations
+      - generic [ref=e59] [cursor=pointer]:
+        - generic [ref=e60]: people
+        - generic [ref=e61]: Users
+      - generic [ref=e62] [cursor=pointer]:
+        - generic [ref=e63]: cloud_download
+        - generic [ref=e64]: Data
+      - generic [ref=e65] [cursor=pointer]:
+        - generic [ref=e66]: person
+        - generic [ref=e67]: Profile
+      - generic [ref=e68] [cursor=pointer]:
+        - generic [ref=e69]: info
+        - generic [ref=e70]: About
+  - main [ref=e72]:
+    - generic [ref=e74]:
+      - generic [ref=e75]:
+        - link "Workspaces" [ref=e76] [cursor=pointer]:
+          - /url: /workspaces
+        - generic [ref=e77]: /
+        - link "Default Workspace" [ref=e78] [cursor=pointer]:
+          - /url: /workspaces/8d876fd4-5c49-4cde-a0b5-d3ef503cdebf
+        - generic [ref=e79]: /
+        - generic [ref=e80]: Default Topology
+      - generic [ref=e81]:
+        - generic [ref=e96]:
+          - generic [ref=e97]:
+            - generic [ref=e98]:
+              - generic [ref=e99]: drag_indicator
+              - generic [ref=e100]: Device Tools
+            - generic [ref=e101]: Drag onto canvas
+            - generic [ref=e102]:
+              - generic [ref=e104]: dns
+              - generic [ref=e105]: Server
+            - generic [ref=e106]:
+              - generic [ref=e108]: device_hub
+              - generic [ref=e109]: Switch
+            - generic [ref=e110]:
+              - generic [ref=e112]: router
+              - generic [ref=e113]: Router
+            - generic [ref=e114]:
+              - generic [ref=e116]: storage
+              - generic [ref=e117]: NAS
+            - generic [ref=e118]:
+              - generic [ref=e120]: battery_full
+              - generic [ref=e121]: UPS
+            - generic [ref=e122]:
+              - generic [ref=e124]: developer_board
+              - generic [ref=e125]: SBC
+            - generic [ref=e126]:
+              - generic [ref=e128]: computer
+              - generic [ref=e129]: Workstation
+            - generic [ref=e130]:
+              - generic [ref=e132]: cloud
+              - generic [ref=e133]: VM
+            - generic [ref=e134]:
+              - generic [ref=e136]: view_in_ar
+              - generic [ref=e137]: LXC
+            - generic [ref=e138]:
+              - generic [ref=e140]: widgets
+              - generic [ref=e141]: Docker
+            - generic [ref=e142]:
+              - generic [ref=e144]: apps
+              - generic [ref=e145]: Application
+            - generic [ref=e146]:
+              - generic [ref=e148]: lan
+              - generic [ref=e149]: VLAN
+            - generic [ref=e150]:
+              - generic [ref=e152]: account_tree
+              - generic [ref=e153]: Subnet
+          - generic [ref=e154]:
+            - generic [ref=e155]:
+              - generic [ref=e156]: inventory_2
+              - generic [ref=e157]: Inventory
+              - button [ref=e158] [cursor=pointer]:
+                - img [ref=e160]: chevron_left
+            - generic [ref=e161]:
+              - textbox [ref=e166]:
+                - /placeholder: Search devices...
+              - generic [ref=e169] [cursor=pointer]:
+                - generic [ref=e170]:
+                  - generic: Filter by type
+                  - combobox "Filter by type" [ref=e172]
+                - generic [ref=e174]: arrow_drop_down
+              - generic [ref=e176]:
+                - generic [ref=e177]:
+                  - generic [ref=e179]: dns
+                  - generic [ref=e180]:
+                    - generic [ref=e182]: VM
+                    - generic [ref=e183]:
+                      - generic [ref=e184]: Server
+                      - generic [ref=e185]: 10.1.1.1
+                - generic [ref=e186]:
+                  - generic [ref=e188]: storage
+                  - generic [ref=e189]:
+                    - generic [ref=e191]: Nas Server
+                    - generic [ref=e193]: NAS
+                - generic [ref=e194]:
+                  - generic [ref=e196]: router
+                  - generic [ref=e197]:
+                    - generic [ref=e199]: Test
+                    - generic [ref=e201]: Router
+                - generic [ref=e202]:
+                  - generic [ref=e204]: dns
+                  - generic [ref=e205]:
+                    - generic [ref=e207]: Test
+                    - generic [ref=e209]: Server
+                - generic [ref=e210]:
+                  - generic [ref=e212]: device_hub
+                  - generic [ref=e213]:
+                    - generic [ref=e215]: test
+                    - generic [ref=e217]: Switch
+        - generic [ref=e89]:
+          - button "Zoom In" [ref=e90] [cursor=pointer]: +
+          - button "Zoom Out" [ref=e91] [cursor=pointer]: −
+          - button "Fit to Screen" [ref=e92] [cursor=pointer]: ⊝
+          - button "Help" [ref=e93] [cursor=pointer]: "?"

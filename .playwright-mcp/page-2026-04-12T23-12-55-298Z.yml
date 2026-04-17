@@ -1,0 +1,102 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - link "Hometower" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e6]:
+        - generic [ref=e7]: Settings
+        - generic [ref=e8]: ›
+        - generic [ref=e9]: Users
+      - button "Expand \"admin@hometower.local\"" [ref=e10] [cursor=pointer]:
+        - generic [ref=e11]:
+          - generic [ref=e12]: admin@hometower.local
+          - generic [ref=e13]: arrow_drop_down
+    - main [ref=e15]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]: User Management
+          - button "+ Add User" [ref=e20] [cursor=pointer]:
+            - generic [ref=e22]: + Add User
+        - table [ref=e25]:
+          - rowgroup [ref=e26]:
+            - row "Username Email Role Active Actions" [ref=e27]:
+              - columnheader "Username" [ref=e28] [cursor=pointer]:
+                - generic [ref=e29]: arrow_upward
+                - text: Username
+              - columnheader "Email" [ref=e30] [cursor=pointer]:
+                - generic [ref=e31]: arrow_upward
+                - text: Email
+              - columnheader "Role" [ref=e32] [cursor=pointer]:
+                - generic [ref=e33]: arrow_upward
+                - text: Role
+              - columnheader "Active" [ref=e34]
+              - columnheader "Actions" [ref=e35]
+          - rowgroup [ref=e36]:
+            - row "admin admin@hometower.local Admin Yes" [ref=e134]:
+              - cell "admin" [ref=e135]
+              - cell "admin@hometower.local" [ref=e136]
+              - cell "Admin" [ref=e137]
+              - cell "Yes" [ref=e138]
+              - cell [ref=e139]:
+                - button [ref=e140] [cursor=pointer]:
+                  - img [ref=e142]: edit
+                - button [disabled] [ref=e143]:
+                  - img [ref=e145]: delete
+            - row "usr2_yboceq usr2_yboceq@test.local Contributor Yes" [ref=e146]:
+              - cell "usr2_yboceq" [ref=e147]
+              - cell "usr2_yboceq@test.local" [ref=e148]
+              - cell "Contributor" [ref=e149]
+              - cell "Yes" [ref=e150]
+              - cell [ref=e151]:
+                - button [ref=e152] [cursor=pointer]:
+                  - img [ref=e154]: edit
+                - button [ref=e155] [cursor=pointer]:
+                  - img [ref=e157]: delete
+            - row "reader_0db07488 reader_73d76015@test.local Reader Yes" [ref=e158]:
+              - cell "reader_0db07488" [ref=e159]
+              - cell "reader_73d76015@test.local" [ref=e160]
+              - cell "Reader" [ref=e161]
+              - cell "Yes" [ref=e162]
+              - cell [ref=e163]:
+                - button [ref=e164] [cursor=pointer]:
+                  - img [ref=e166]: edit
+                - button [ref=e167] [cursor=pointer]:
+                  - img [ref=e169]: delete
+            - row "contrib_67ae46ed contrib_e6ca03cd@test.local Contributor Yes" [ref=e170]:
+              - cell "contrib_67ae46ed" [ref=e171]
+              - cell "contrib_e6ca03cd@test.local" [ref=e172]
+              - cell "Contributor" [ref=e173]
+              - cell "Yes" [ref=e174]
+              - cell [ref=e175]:
+                - button [ref=e176] [cursor=pointer]:
+                  - img [ref=e178]: edit
+                - button [ref=e179] [cursor=pointer]:
+                  - img [ref=e181]: delete
+  - generic:
+    - dialog:
+      - generic [ref=e183]:
+        - generic [ref=e184]: Create User
+        - generic [ref=e188]:
+          - generic: Username
+          - textbox "Username" [ref=e189]
+        - generic [ref=e193]:
+          - generic: Email
+          - textbox "Email" [ref=e194]
+        - generic [ref=e198]:
+          - generic: Password
+          - textbox "Password" [ref=e199]
+        - generic [ref=e202] [cursor=pointer]:
+          - generic [ref=e203]:
+            - generic: Role
+            - generic [ref=e204]:
+              - generic [ref=e205]: Contributor
+              - combobox "Role" [ref=e206]: Contributor
+          - generic [ref=e208]: arrow_drop_down
+        - checkbox "Active" [checked] [ref=e209] [cursor=pointer]:
+          - img [ref=e212]
+          - generic [ref=e214]: Active
+        - generic [ref=e215]:
+          - button "Cancel" [ref=e216] [cursor=pointer]:
+            - generic [ref=e218]: Cancel
+          - button "Save" [ref=e219] [cursor=pointer]:
+            - generic [ref=e221]: Save

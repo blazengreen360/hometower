@@ -1,0 +1,671 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "Hometower" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e7]: Inventory
+    - button "Expand \"admin@hometower.local\"" [ref=e8] [cursor=pointer]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: admin@hometower.local
+        - generic [ref=e11]: arrow_drop_down
+  - complementary [ref=e12]:
+    - generic [ref=e13]:
+      - button [ref=e15] [cursor=pointer]:
+        - img [ref=e17]: chevron_left
+      - generic [ref=e18] [cursor=pointer]:
+        - generic [ref=e19]: dashboard
+        - generic [ref=e20]: Dashboard
+      - generic [ref=e21] [cursor=pointer]:
+        - generic [ref=e22]: workspaces
+        - generic [ref=e23]: Workspaces
+      - generic [ref=e24] [cursor=pointer]:
+        - generic [ref=e25]: inventory_2
+        - generic [ref=e26]: Inventory
+      - generic [ref=e27] [cursor=pointer]:
+        - generic [ref=e28]: grid_view
+        - generic [ref=e29]: IPAM
+      - generic [ref=e30] [cursor=pointer]:
+        - generic [ref=e31]: map
+        - generic [ref=e32]: Map
+      - separator [ref=e33]
+      - generic [ref=e34]: Settings
+      - generic [ref=e35] [cursor=pointer]:
+        - generic [ref=e36]: location_on
+        - generic [ref=e37]: Locations
+      - generic [ref=e38] [cursor=pointer]:
+        - generic [ref=e39]: lan
+        - generic [ref=e40]: Networks
+      - generic [ref=e41] [cursor=pointer]:
+        - generic [ref=e42]: bolt
+        - generic [ref=e43]: Power
+      - generic [ref=e44] [cursor=pointer]:
+        - generic [ref=e45]: people
+        - generic [ref=e46]: Users
+      - generic [ref=e47] [cursor=pointer]:
+        - generic [ref=e48]: cloud_download
+        - generic [ref=e49]: Data
+      - generic [ref=e50] [cursor=pointer]:
+        - generic [ref=e51]: person
+        - generic [ref=e52]: Profile
+      - generic [ref=e53] [cursor=pointer]:
+        - generic [ref=e54]: info
+        - generic [ref=e55]: About
+  - main [ref=e57]:
+    - generic [ref=e59]:
+      - generic [ref=e60]: Inventory
+      - generic [ref=e61]: Use the Edit action to open the dedicated device editor page.
+      - textbox [ref=e66]:
+        - /placeholder: Search by name, IP, or notes...
+      - generic [ref=e67]:
+        - generic [ref=e68]: "Type:"
+        - generic [ref=e70] [cursor=pointer]: Server
+        - generic [ref=e72] [cursor=pointer]: Switch
+        - generic [ref=e74] [cursor=pointer]: Router
+        - generic [ref=e76] [cursor=pointer]: NAS
+        - generic [ref=e78] [cursor=pointer]: SBC
+        - generic [ref=e80] [cursor=pointer]: VM
+      - checkbox "Orphaned only" [ref=e81] [cursor=pointer]:
+        - img [ref=e84]
+        - generic [ref=e86]: Orphaned only
+      - checkbox "Show Power" [ref=e87] [cursor=pointer]:
+        - img [ref=e90]
+        - generic [ref=e92]: Show Power
+      - table [ref=e95]:
+        - rowgroup [ref=e96]:
+          - row "Name Type Status IP Tags Location Services Networks Updated Actions" [ref=e97]:
+            - columnheader [ref=e98]:
+              - checkbox [ref=e99] [cursor=pointer]:
+                - img [ref=e102]
+            - columnheader [ref=e104]
+            - columnheader "Name" [ref=e105] [cursor=pointer]:
+              - text: Name
+              - generic [ref=e106]: arrow_upward
+            - columnheader "Type" [ref=e107] [cursor=pointer]:
+              - text: Type
+              - generic [ref=e108]: arrow_upward
+            - columnheader "Status" [ref=e109] [cursor=pointer]:
+              - text: Status
+              - generic [ref=e110]: arrow_upward
+            - columnheader "IP" [ref=e111] [cursor=pointer]:
+              - text: IP
+              - generic [ref=e112]: arrow_upward
+            - columnheader "Tags" [ref=e113]
+            - columnheader "Location" [ref=e114] [cursor=pointer]:
+              - text: Location
+              - generic [ref=e115]: arrow_upward
+            - columnheader "Services" [ref=e116]
+            - columnheader "Networks" [ref=e117]
+            - columnheader "Updated" [ref=e118]
+            - columnheader "Actions" [ref=e119]
+        - rowgroup [ref=e120]:
+          - row "VM (restored) NAS Active — — 1 svc \\u2014 2d ago" [ref=e121]:
+            - cell [ref=e122]:
+              - checkbox [ref=e123] [cursor=pointer]:
+                - img [ref=e126]
+            - cell [ref=e128]:
+              - generic [ref=e129]: storage
+            - cell "VM (restored)" [ref=e130]:
+              - text: VM (restored)
+              - generic [ref=e131]: link_off
+            - cell "NAS" [ref=e132]
+            - cell "Active" [ref=e133]:
+              - status "Active" [ref=e134]
+            - cell "—" [ref=e135]
+            - cell "—" [ref=e136]
+            - cell [ref=e137]
+            - cell "1 svc" [ref=e138]:
+              - status "1 svc" [ref=e139]
+            - cell "\\u2014" [ref=e140]
+            - cell "2d ago" [ref=e141]
+            - cell [ref=e142]:
+              - link [ref=e143] [cursor=pointer]:
+                - /url: /inventory/edit/d82ba911-0373-4b30-b592-c7b276a71458
+                - img [ref=e145]: edit
+              - link [ref=e146] [cursor=pointer]:
+                - /url: /topology?device_id=d82ba911-0373-4b30-b592-c7b276a71458
+                - img [ref=e148]: account_tree
+              - button "Delete device from inventory" [ref=e149] [cursor=pointer]:
+                - img [ref=e151]: delete
+          - row "Test Server Active — — \\u2014 \\u2014 4d ago" [ref=e152]:
+            - cell [ref=e153]:
+              - checkbox [ref=e154] [cursor=pointer]:
+                - img [ref=e157]
+            - cell [ref=e159]:
+              - generic [ref=e160]: dns
+            - cell "Test" [ref=e161]:
+              - text: Test
+              - generic [ref=e162]: link_off
+            - cell "Server" [ref=e163]
+            - cell "Active" [ref=e164]:
+              - status "Active" [ref=e165]
+            - cell "—" [ref=e166]
+            - cell "—" [ref=e167]
+            - cell [ref=e168]
+            - cell "\\u2014" [ref=e169]
+            - cell "\\u2014" [ref=e170]
+            - cell "4d ago" [ref=e171]
+            - cell [ref=e172]:
+              - link [ref=e173] [cursor=pointer]:
+                - /url: /inventory/edit/ccea98f5-b9c1-4037-a680-3f47f4fda0f3
+                - img [ref=e175]: edit
+              - link [ref=e176] [cursor=pointer]:
+                - /url: /topology?device_id=ccea98f5-b9c1-4037-a680-3f47f4fda0f3
+                - img [ref=e178]: account_tree
+              - button "Delete device from inventory" [ref=e179] [cursor=pointer]:
+                - img [ref=e181]: delete
+          - row "test Switch Active — — \\u2014 \\u2014 4d ago" [ref=e182]:
+            - cell [ref=e183]:
+              - checkbox [ref=e184] [cursor=pointer]:
+                - img [ref=e187]
+            - cell [ref=e189]:
+              - generic [ref=e190]: device_hub
+            - cell "test" [ref=e191]:
+              - text: test
+              - generic [ref=e192]: link_off
+            - cell "Switch" [ref=e193]
+            - cell "Active" [ref=e194]:
+              - status "Active" [ref=e195]
+            - cell "—" [ref=e196]
+            - cell "—" [ref=e197]
+            - cell [ref=e198]
+            - cell "\\u2014" [ref=e199]
+            - cell "\\u2014" [ref=e200]
+            - cell "4d ago" [ref=e201]
+            - cell [ref=e202]:
+              - link [ref=e203] [cursor=pointer]:
+                - /url: /inventory/edit/91488bc4-b1db-44fc-af36-34fd13efc540
+                - img [ref=e205]: edit
+              - link [ref=e206] [cursor=pointer]:
+                - /url: /topology?device_id=91488bc4-b1db-44fc-af36-34fd13efc540
+                - img [ref=e208]: account_tree
+              - button "Delete device from inventory" [ref=e209] [cursor=pointer]:
+                - img [ref=e211]: delete
+          - row "tees2 NAS Active — — \\u2014 \\u2014 4d ago" [ref=e212]:
+            - cell [ref=e213]:
+              - checkbox [ref=e214] [cursor=pointer]:
+                - img [ref=e217]
+            - cell [ref=e219]:
+              - generic [ref=e220]: storage
+            - cell "tees2" [ref=e221]:
+              - text: tees2
+              - generic [ref=e222]: link_off
+            - cell "NAS" [ref=e223]
+            - cell "Active" [ref=e224]:
+              - status "Active" [ref=e225]
+            - cell "—" [ref=e226]
+            - cell "—" [ref=e227]
+            - cell [ref=e228]
+            - cell "\\u2014" [ref=e229]
+            - cell "\\u2014" [ref=e230]
+            - cell "4d ago" [ref=e231]
+            - cell [ref=e232]:
+              - link [ref=e233] [cursor=pointer]:
+                - /url: /inventory/edit/786ca56c-cae3-4428-8a8e-1b5a1c9e75cc
+                - img [ref=e235]: edit
+              - link [ref=e236] [cursor=pointer]:
+                - /url: /topology?device_id=786ca56c-cae3-4428-8a8e-1b5a1c9e75cc
+                - img [ref=e238]: account_tree
+              - button "Delete device from inventory" [ref=e239] [cursor=pointer]:
+                - img [ref=e241]: delete
+          - row "er VM Active — — \\u2014 \\u2014 4d ago" [ref=e242]:
+            - cell [ref=e243]:
+              - checkbox [ref=e244] [cursor=pointer]:
+                - img [ref=e247]
+            - cell [ref=e249]:
+              - generic [ref=e250]: cloud
+            - cell "er" [ref=e251]:
+              - text: er
+              - generic [ref=e252]: link_off
+            - cell "VM" [ref=e253]
+            - cell "Active" [ref=e254]:
+              - status "Active" [ref=e255]
+            - cell "—" [ref=e256]
+            - cell "—" [ref=e257]
+            - cell [ref=e258]
+            - cell "\\u2014" [ref=e259]
+            - cell "\\u2014" [ref=e260]
+            - cell "4d ago" [ref=e261]
+            - cell [ref=e262]:
+              - link [ref=e263] [cursor=pointer]:
+                - /url: /inventory/edit/c8f1abbc-3e26-43c3-b251-8a0639f766e5
+                - img [ref=e265]: edit
+              - link [ref=e266] [cursor=pointer]:
+                - /url: /topology?device_id=c8f1abbc-3e26-43c3-b251-8a0639f766e5
+                - img [ref=e268]: account_tree
+              - button "Delete device from inventory" [ref=e269] [cursor=pointer]:
+                - img [ref=e271]: delete
+          - row "draft-mcp-tgt Server Active — — \\u2014 \\u2014 4d ago" [ref=e272]:
+            - cell [ref=e273]:
+              - checkbox [ref=e274] [cursor=pointer]:
+                - img [ref=e277]
+            - cell [ref=e279]:
+              - generic [ref=e280]: dns
+            - cell "draft-mcp-tgt" [ref=e281]:
+              - text: draft-mcp-tgt
+              - generic [ref=e282]: link_off
+            - cell "Server" [ref=e283]
+            - cell "Active" [ref=e284]:
+              - status "Active" [ref=e285]
+            - cell "—" [ref=e286]
+            - cell "—" [ref=e287]
+            - cell [ref=e288]
+            - cell "\\u2014" [ref=e289]
+            - cell "\\u2014" [ref=e290]
+            - cell "4d ago" [ref=e291]
+            - cell [ref=e292]:
+              - link [ref=e293] [cursor=pointer]:
+                - /url: /inventory/edit/003bce6c-18c3-49ea-ab0d-aa62e969692e
+                - img [ref=e295]: edit
+              - link [ref=e296] [cursor=pointer]:
+                - /url: /topology?device_id=003bce6c-18c3-49ea-ab0d-aa62e969692e
+                - img [ref=e298]: account_tree
+              - button "Delete device from inventory" [ref=e299] [cursor=pointer]:
+                - img [ref=e301]: delete
+          - row "draft-mcp-src Server Active — — \\u2014 \\u2014 4d ago" [ref=e302]:
+            - cell [ref=e303]:
+              - checkbox [ref=e304] [cursor=pointer]:
+                - img [ref=e307]
+            - cell [ref=e309]:
+              - generic [ref=e310]: dns
+            - cell "draft-mcp-src" [ref=e311]:
+              - text: draft-mcp-src
+              - generic [ref=e312]: link_off
+            - cell "Server" [ref=e313]
+            - cell "Active" [ref=e314]:
+              - status "Active" [ref=e315]
+            - cell "—" [ref=e316]
+            - cell "—" [ref=e317]
+            - cell [ref=e318]
+            - cell "\\u2014" [ref=e319]
+            - cell "\\u2014" [ref=e320]
+            - cell "4d ago" [ref=e321]
+            - cell [ref=e322]:
+              - link [ref=e323] [cursor=pointer]:
+                - /url: /inventory/edit/33e7d449-b200-484f-abdf-980b8a49cdf8
+                - img [ref=e325]: edit
+              - link [ref=e326] [cursor=pointer]:
+                - /url: /topology?device_id=33e7d449-b200-484f-abdf-980b8a49cdf8
+                - img [ref=e328]: account_tree
+              - button "Delete device from inventory" [ref=e329] [cursor=pointer]:
+                - img [ref=e331]: delete
+          - row "Deep Probe Server Active — — \\u2014 \\u2014 4d ago" [ref=e332]:
+            - cell [ref=e333]:
+              - checkbox [ref=e334] [cursor=pointer]:
+                - img [ref=e337]
+            - cell [ref=e339]:
+              - generic [ref=e340]: dns
+            - cell "Deep Probe" [ref=e341]:
+              - text: Deep Probe
+              - generic [ref=e342]: link_off
+            - cell "Server" [ref=e343]
+            - cell "Active" [ref=e344]:
+              - status "Active" [ref=e345]
+            - cell "—" [ref=e346]
+            - cell "—" [ref=e347]
+            - cell [ref=e348]
+            - cell "\\u2014" [ref=e349]
+            - cell "\\u2014" [ref=e350]
+            - cell "4d ago" [ref=e351]
+            - cell [ref=e352]:
+              - link [ref=e353] [cursor=pointer]:
+                - /url: /inventory/edit/6439ea0b-78bd-4704-ae2b-c49a885e6481
+                - img [ref=e355]: edit
+              - link [ref=e356] [cursor=pointer]:
+                - /url: /topology?device_id=6439ea0b-78bd-4704-ae2b-c49a885e6481
+                - img [ref=e358]: account_tree
+              - button "Delete device from inventory" [ref=e359] [cursor=pointer]:
+                - img [ref=e361]: delete
+          - row "Deep Probe Server Active — — \\u2014 \\u2014 4d ago" [ref=e362]:
+            - cell [ref=e363]:
+              - checkbox [ref=e364] [cursor=pointer]:
+                - img [ref=e367]
+            - cell [ref=e369]:
+              - generic [ref=e370]: dns
+            - cell "Deep Probe" [ref=e371]:
+              - text: Deep Probe
+              - generic [ref=e372]: link_off
+            - cell "Server" [ref=e373]
+            - cell "Active" [ref=e374]:
+              - status "Active" [ref=e375]
+            - cell "—" [ref=e376]
+            - cell "—" [ref=e377]
+            - cell [ref=e378]
+            - cell "\\u2014" [ref=e379]
+            - cell "\\u2014" [ref=e380]
+            - cell "4d ago" [ref=e381]
+            - cell [ref=e382]:
+              - link [ref=e383] [cursor=pointer]:
+                - /url: /inventory/edit/fb80ff03-780e-4c3f-8fd0-50d8ba371db3
+                - img [ref=e385]: edit
+              - link [ref=e386] [cursor=pointer]:
+                - /url: /topology?device_id=fb80ff03-780e-4c3f-8fd0-50d8ba371db3
+                - img [ref=e388]: account_tree
+              - button "Delete device from inventory" [ref=e389] [cursor=pointer]:
+                - img [ref=e391]: delete
+          - row "test Server Active — — \\u2014 \\u2014 4d ago" [ref=e392]:
+            - cell [ref=e393]:
+              - checkbox [ref=e394] [cursor=pointer]:
+                - img [ref=e397]
+            - cell [ref=e399]:
+              - generic [ref=e400]: dns
+            - cell "test" [ref=e401]:
+              - text: test
+              - generic [ref=e402]: link_off
+            - cell "Server" [ref=e403]
+            - cell "Active" [ref=e404]:
+              - status "Active" [ref=e405]
+            - cell "—" [ref=e406]
+            - cell "—" [ref=e407]
+            - cell [ref=e408]
+            - cell "\\u2014" [ref=e409]
+            - cell "\\u2014" [ref=e410]
+            - cell "4d ago" [ref=e411]
+            - cell [ref=e412]:
+              - link [ref=e413] [cursor=pointer]:
+                - /url: /inventory/edit/fc9ed065-d3f8-4f2e-83ce-0374b49677b2
+                - img [ref=e415]: edit
+              - link [ref=e416] [cursor=pointer]:
+                - /url: /topology?device_id=fc9ed065-d3f8-4f2e-83ce-0374b49677b2
+                - img [ref=e418]: account_tree
+              - button "Delete device from inventory" [ref=e419] [cursor=pointer]:
+                - img [ref=e421]: delete
+          - row "nas NAS Active — — \\u2014 \\u2014 4d ago" [ref=e422]:
+            - cell [ref=e423]:
+              - checkbox [ref=e424] [cursor=pointer]:
+                - img [ref=e427]
+            - cell [ref=e429]:
+              - generic [ref=e430]: storage
+            - cell "nas" [ref=e431]:
+              - text: nas
+              - generic [ref=e432]: link_off
+            - cell "NAS" [ref=e433]
+            - cell "Active" [ref=e434]:
+              - status "Active" [ref=e435]
+            - cell "—" [ref=e436]
+            - cell "—" [ref=e437]
+            - cell [ref=e438]
+            - cell "\\u2014" [ref=e439]
+            - cell "\\u2014" [ref=e440]
+            - cell "4d ago" [ref=e441]
+            - cell [ref=e442]:
+              - link [ref=e443] [cursor=pointer]:
+                - /url: /inventory/edit/86ed542b-8171-4cad-97b4-13f7fb04830a
+                - img [ref=e445]: edit
+              - link [ref=e446] [cursor=pointer]:
+                - /url: /topology?device_id=86ed542b-8171-4cad-97b4-13f7fb04830a
+                - img [ref=e448]: account_tree
+              - button "Delete device from inventory" [ref=e449] [cursor=pointer]:
+                - img [ref=e451]: delete
+          - row "g NAS Active — — \\u2014 \\u2014 4d ago" [ref=e452]:
+            - cell [ref=e453]:
+              - checkbox [ref=e454] [cursor=pointer]:
+                - img [ref=e457]
+            - cell [ref=e459]:
+              - generic [ref=e460]: storage
+            - cell "g" [ref=e461]:
+              - text: g
+              - generic [ref=e462]: link_off
+            - cell "NAS" [ref=e463]
+            - cell "Active" [ref=e464]:
+              - status "Active" [ref=e465]
+            - cell "—" [ref=e466]
+            - cell "—" [ref=e467]
+            - cell [ref=e468]
+            - cell "\\u2014" [ref=e469]
+            - cell "\\u2014" [ref=e470]
+            - cell "4d ago" [ref=e471]
+            - cell [ref=e472]:
+              - link [ref=e473] [cursor=pointer]:
+                - /url: /inventory/edit/2da8fc21-38dd-43b4-8b51-1ff8e3615aa1
+                - img [ref=e475]: edit
+              - link [ref=e476] [cursor=pointer]:
+                - /url: /topology?device_id=2da8fc21-38dd-43b4-8b51-1ff8e3615aa1
+                - img [ref=e478]: account_tree
+              - button "Delete device from inventory" [ref=e479] [cursor=pointer]:
+                - img [ref=e481]: delete
+          - row "LXC SBC Active — — \\u2014 \\u2014 4d ago" [ref=e482]:
+            - cell [ref=e483]:
+              - checkbox [ref=e484] [cursor=pointer]:
+                - img [ref=e487]
+            - cell [ref=e489]:
+              - generic [ref=e490]: developer_board
+            - cell "LXC" [ref=e491]:
+              - text: LXC
+              - generic [ref=e492]: link_off
+            - cell "SBC" [ref=e493]
+            - cell "Active" [ref=e494]:
+              - status "Active" [ref=e495]
+            - cell "—" [ref=e496]
+            - cell "—" [ref=e497]
+            - cell [ref=e498]
+            - cell "\\u2014" [ref=e499]
+            - cell "\\u2014" [ref=e500]
+            - cell "4d ago" [ref=e501]
+            - cell [ref=e502]:
+              - link [ref=e503] [cursor=pointer]:
+                - /url: /inventory/edit/568c6bc0-150e-4e0f-883e-1157ba4d9f14
+                - img [ref=e505]: edit
+              - link [ref=e506] [cursor=pointer]:
+                - /url: /topology?device_id=568c6bc0-150e-4e0f-883e-1157ba4d9f14
+                - img [ref=e508]: account_tree
+              - button "Delete device from inventory" [ref=e509] [cursor=pointer]:
+                - img [ref=e511]: delete
+          - row "HT032-Undo-Edge-Source-1776137842761 Switch Active — — \\u2014 \\u2014 2d ago" [ref=e512]:
+            - cell [ref=e513]:
+              - checkbox [ref=e514] [cursor=pointer]:
+                - img [ref=e517]
+            - cell [ref=e519]:
+              - generic [ref=e520]: device_hub
+            - cell "HT032-Undo-Edge-Source-1776137842761" [ref=e521]:
+              - text: HT032-Undo-Edge-Source-1776137842761
+              - generic [ref=e522]: link_off
+            - cell "Switch" [ref=e523]
+            - cell "Active" [ref=e524]:
+              - status "Active" [ref=e525]
+            - cell "—" [ref=e526]
+            - cell "—" [ref=e527]
+            - cell [ref=e528]
+            - cell "\\u2014" [ref=e529]
+            - cell "\\u2014" [ref=e530]
+            - cell "2d ago" [ref=e531]
+            - cell [ref=e532]:
+              - link [ref=e533] [cursor=pointer]:
+                - /url: /inventory/edit/013b0de4-c57a-477f-bcaf-a518288e397e
+                - img [ref=e535]: edit
+              - link [ref=e536] [cursor=pointer]:
+                - /url: /topology?device_id=013b0de4-c57a-477f-bcaf-a518288e397e
+                - img [ref=e538]: account_tree
+              - button "Delete device from inventory" [ref=e539] [cursor=pointer]:
+                - img [ref=e541]: delete
+          - row "HT032-Undo-Edge-Target-1776137842761 Server Active — — \\u2014 IoT 2d ago" [ref=e542]:
+            - cell [ref=e543]:
+              - checkbox [ref=e544] [cursor=pointer]:
+                - img [ref=e547]
+            - cell [ref=e549]:
+              - generic [ref=e550]: dns
+            - cell "HT032-Undo-Edge-Target-1776137842761" [ref=e551]:
+              - text: HT032-Undo-Edge-Target-1776137842761
+              - generic [ref=e552]: link_off
+            - cell "Server" [ref=e553]
+            - cell "Active" [ref=e554]:
+              - status "Active" [ref=e555]
+            - cell "—" [ref=e556]
+            - cell "—" [ref=e557]
+            - cell [ref=e558]
+            - cell "\\u2014" [ref=e559]
+            - cell "IoT" [ref=e560]:
+              - generic [ref=e562]: IoT
+            - cell "2d ago" [ref=e563]
+            - cell [ref=e564]:
+              - link [ref=e565] [cursor=pointer]:
+                - /url: /inventory/edit/8cb8847a-84d2-48bc-898f-5ba22423e4c8
+                - img [ref=e567]: edit
+              - link [ref=e568] [cursor=pointer]:
+                - /url: /topology?device_id=8cb8847a-84d2-48bc-898f-5ba22423e4c8
+                - img [ref=e570]: account_tree
+              - button "Delete device from inventory" [ref=e571] [cursor=pointer]:
+                - img [ref=e573]: delete
+          - row "HT075-DeviceLive-Z NAS Active 10.75.1.3 — \\u2014 \\u2014 1d ago" [ref=e574]:
+            - cell [ref=e575]:
+              - checkbox [ref=e576] [cursor=pointer]:
+                - img [ref=e579]
+            - cell [ref=e581]:
+              - generic [ref=e582]: storage
+            - cell "HT075-DeviceLive-Z" [ref=e583]:
+              - text: HT075-DeviceLive-Z
+              - generic [ref=e584]: link_off
+            - cell "NAS" [ref=e585]
+            - cell "Active" [ref=e586]:
+              - status "Active" [ref=e587]
+            - cell "10.75.1.3" [ref=e588]:
+              - text: 10.75.1.3
+              - button [ref=e589] [cursor=pointer]:
+                - img [ref=e591]: content_copy
+            - cell "—" [ref=e592]
+            - cell [ref=e593]
+            - cell "\\u2014" [ref=e594]
+            - cell "\\u2014" [ref=e595]
+            - cell "1d ago" [ref=e596]
+            - cell [ref=e597]:
+              - link [ref=e598] [cursor=pointer]:
+                - /url: /inventory/edit/7b3669ae-5a69-42bb-8322-429e7f6c0bf6
+                - img [ref=e600]: edit
+              - link [ref=e601] [cursor=pointer]:
+                - /url: /topology?device_id=7b3669ae-5a69-42bb-8322-429e7f6c0bf6
+                - img [ref=e603]: account_tree
+              - button "Delete device from inventory" [ref=e604] [cursor=pointer]:
+                - img [ref=e606]: delete
+          - row "HT075-ToDelete-X Server Planned — — \\u2014 \\u2014 1d ago" [ref=e607]:
+            - cell [ref=e608]:
+              - checkbox [ref=e609] [cursor=pointer]:
+                - img [ref=e612]
+            - cell [ref=e614]:
+              - generic [ref=e615]: dns
+            - cell "HT075-ToDelete-X" [ref=e616]:
+              - text: HT075-ToDelete-X
+              - generic [ref=e617]: link_off
+            - cell "Server" [ref=e618]
+            - cell "Planned" [ref=e619]:
+              - status "Planned" [ref=e620]
+            - cell "—" [ref=e621]
+            - cell "—" [ref=e622]
+            - cell [ref=e623]
+            - cell "\\u2014" [ref=e624]
+            - cell "\\u2014" [ref=e625]
+            - cell "1d ago" [ref=e626]
+            - cell [ref=e627]:
+              - link [ref=e628] [cursor=pointer]:
+                - /url: /inventory/edit/7c848c90-109f-4c97-bc39-dacee9973f1d
+                - img [ref=e630]: edit
+              - link [ref=e631] [cursor=pointer]:
+                - /url: /topology?device_id=7c848c90-109f-4c97-bc39-dacee9973f1d
+                - img [ref=e633]: account_tree
+              - button "Delete device from inventory" [ref=e634] [cursor=pointer]:
+                - img [ref=e636]: delete
+          - row "HT075-ToDelete-X Server Planned — — \\u2014 \\u2014 1d ago" [ref=e637]:
+            - cell [ref=e638]:
+              - checkbox [ref=e639] [cursor=pointer]:
+                - img [ref=e642]
+            - cell [ref=e644]:
+              - generic [ref=e645]: dns
+            - cell "HT075-ToDelete-X" [ref=e646]:
+              - text: HT075-ToDelete-X
+              - generic [ref=e647]: link_off
+            - cell "Server" [ref=e648]
+            - cell "Planned" [ref=e649]:
+              - status "Planned" [ref=e650]
+            - cell "—" [ref=e651]
+            - cell "—" [ref=e652]
+            - cell [ref=e653]
+            - cell "\\u2014" [ref=e654]
+            - cell "\\u2014" [ref=e655]
+            - cell "1d ago" [ref=e656]
+            - cell [ref=e657]:
+              - link [ref=e658] [cursor=pointer]:
+                - /url: /inventory/edit/424939d6-e395-4b9f-b59c-cdb94ccd84c6
+                - img [ref=e660]: edit
+              - link [ref=e661] [cursor=pointer]:
+                - /url: /topology?device_id=424939d6-e395-4b9f-b59c-cdb94ccd84c6
+                - img [ref=e663]: account_tree
+              - button "Delete device from inventory" [ref=e664] [cursor=pointer]:
+                - img [ref=e666]: delete
+          - row "test Server Active — — \\u2014 \\u2014 1d ago" [ref=e667]:
+            - cell [ref=e668]:
+              - checkbox [ref=e669] [cursor=pointer]:
+                - img [ref=e672]
+            - cell [ref=e674]:
+              - generic [ref=e675]: dns
+            - cell "test" [ref=e676]:
+              - text: test
+              - generic [ref=e677]: link_off
+            - cell "Server" [ref=e678]
+            - cell "Active" [ref=e679]:
+              - status "Active" [ref=e680]
+            - cell "—" [ref=e681]
+            - cell "—" [ref=e682]
+            - cell [ref=e683]
+            - cell "\\u2014" [ref=e684]
+            - cell "\\u2014" [ref=e685]
+            - cell "1d ago" [ref=e686]
+            - cell [ref=e687]:
+              - link [ref=e688] [cursor=pointer]:
+                - /url: /inventory/edit/58f7c8a8-b084-45f1-999d-c35ce2ad68df
+                - img [ref=e690]: edit
+              - link [ref=e691] [cursor=pointer]:
+                - /url: /topology?device_id=58f7c8a8-b084-45f1-999d-c35ce2ad68df
+                - img [ref=e693]: account_tree
+              - button "Delete device from inventory" [ref=e694] [cursor=pointer]:
+                - img [ref=e696]: delete
+          - row "test1 Router Active — — \\u2014 \\u2014 1d ago" [ref=e697]:
+            - cell [ref=e698]:
+              - checkbox [ref=e699] [cursor=pointer]:
+                - img [ref=e702]
+            - cell [ref=e704]:
+              - generic [ref=e705]: router
+            - cell "test1" [ref=e706]:
+              - text: test1
+              - generic [ref=e707]: link_off
+            - cell "Router" [ref=e708]
+            - cell "Active" [ref=e709]:
+              - status "Active" [ref=e710]
+            - cell "—" [ref=e711]
+            - cell "—" [ref=e712]
+            - cell [ref=e713]
+            - cell "\\u2014" [ref=e714]
+            - cell "\\u2014" [ref=e715]
+            - cell "1d ago" [ref=e716]
+            - cell [ref=e717]:
+              - link [ref=e718] [cursor=pointer]:
+                - /url: /inventory/edit/44b948c0-3aad-4b6b-ac4d-60a840a9447a
+                - img [ref=e720]: edit
+              - link [ref=e721] [cursor=pointer]:
+                - /url: /topology?device_id=44b948c0-3aad-4b6b-ac4d-60a840a9447a
+                - img [ref=e723]: account_tree
+              - button "Delete device from inventory" [ref=e724] [cursor=pointer]:
+                - img [ref=e726]: delete
+          - row "HT008 Device 961e9c Server Active — — HT008 Geo 16584a \\u2014 \\u2014 15h ago" [ref=e727]:
+            - cell [ref=e728]:
+              - checkbox [ref=e729] [cursor=pointer]:
+                - img [ref=e732]
+            - cell [ref=e734]:
+              - generic [ref=e735]: dns
+            - cell "HT008 Device 961e9c" [ref=e736]:
+              - text: HT008 Device 961e9c
+              - generic [ref=e737]: link_off
+            - cell "Server" [ref=e738]
+            - cell "Active" [ref=e739]:
+              - status "Active" [ref=e740]
+            - cell "—" [ref=e741]
+            - cell "—" [ref=e742]
+            - cell "HT008 Geo 16584a" [ref=e743]
+            - cell "\\u2014" [ref=e744]
+            - cell "\\u2014" [ref=e745]
+            - cell "15h ago" [ref=e746]
+            - cell [ref=e747]:
+              - link [ref=e748] [cursor=pointer]:
+                - /url: /inventory/edit/40cb4767-97a5-4c9a-b669-919713db5197
+                - img [ref=e750]: edit
+              - link [ref=e751] [cursor=pointer]:
+                - /url: /topology?device_id=40cb4767-97a5-4c9a-b669-919713db5197
+                - img [ref=e753]: account_tree
+              - button "Delete device from inventory" [ref=e754] [cursor=pointer]:
+                - img [ref=e756]: delete

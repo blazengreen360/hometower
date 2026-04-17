@@ -1,0 +1,73 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "Hometower" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e6]:
+      - generic [ref=e7]: Settings
+      - generic [ref=e8]: ›
+      - generic [ref=e9]: Users
+    - button "Expand \"admin@hometower.local\"" [ref=e10] [cursor=pointer]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: admin@hometower.local
+        - generic [ref=e13]: arrow_drop_down
+  - main [ref=e15]:
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e19]: User Management
+        - button "+ Add User" [ref=e20] [cursor=pointer]:
+          - generic [ref=e22]: + Add User
+      - table [ref=e25]:
+        - rowgroup [ref=e26]:
+          - row "Username Email Role Active Actions" [ref=e27]:
+            - columnheader "Username" [ref=e28] [cursor=pointer]:
+              - generic [ref=e29]: arrow_upward
+              - text: Username
+            - columnheader "Email" [ref=e30] [cursor=pointer]:
+              - generic [ref=e31]: arrow_upward
+              - text: Email
+            - columnheader "Role" [ref=e32] [cursor=pointer]:
+              - generic [ref=e33]: arrow_upward
+              - text: Role
+            - columnheader "Active" [ref=e34]
+            - columnheader "Actions" [ref=e35]
+        - rowgroup [ref=e36]:
+          - row "admin admin@hometower.local Admin Yes" [ref=e222]:
+            - cell "admin" [ref=e223]
+            - cell "admin@hometower.local" [ref=e224]
+            - cell "Admin" [ref=e225]
+            - cell "Yes" [ref=e226]
+            - cell [ref=e227]:
+              - button [ref=e228] [cursor=pointer]:
+                - img [ref=e230]: edit
+              - button [disabled] [ref=e231]:
+                - img [ref=e233]: delete
+          - row "usr2_yboceq usr2_yboceq@test.local Contributor Yes" [ref=e234]:
+            - cell "usr2_yboceq" [ref=e235]
+            - cell "usr2_yboceq@test.local" [ref=e236]
+            - cell "Contributor" [ref=e237]
+            - cell "Yes" [ref=e238]
+            - cell [ref=e239]:
+              - button [ref=e240] [cursor=pointer]:
+                - img [ref=e242]: edit
+              - button [ref=e243] [cursor=pointer]:
+                - img [ref=e245]: delete
+          - row "reader_0db07488 reader_73d76015@test.local Reader Yes" [ref=e246]:
+            - cell "reader_0db07488" [ref=e247]
+            - cell "reader_73d76015@test.local" [ref=e248]
+            - cell "Reader" [ref=e249]
+            - cell "Yes" [ref=e250]
+            - cell [ref=e251]:
+              - button [ref=e252] [cursor=pointer]:
+                - img [ref=e254]: edit
+              - button [ref=e255] [cursor=pointer]:
+                - img [ref=e257]: delete
+          - row "contrib_67ae46ed contrib_e6ca03cd@test.local Contributor Yes" [ref=e258]:
+            - cell "contrib_67ae46ed" [ref=e259]
+            - cell "contrib_e6ca03cd@test.local" [ref=e260]
+            - cell "Contributor" [ref=e261]
+            - cell "Yes" [ref=e262]
+            - cell [ref=e263]:
+              - button [ref=e264] [cursor=pointer]:
+                - img [ref=e266]: edit
+              - button [ref=e267] [cursor=pointer]:
+                - img [ref=e269]: delete

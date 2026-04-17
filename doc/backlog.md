@@ -1,41 +1,110 @@
 # Hometower Product Backlog
 
-Last updated: 9 April 2026
+Last updated: 17 April 2026 — HT-050 shipped. 4 stories in Ready.
 
 ## In Progress
 | ID | Story | MoSCoW | Assigned |
 |---|---|---|---|
-| - | - | - | - |
+| — | — | — | — |
+
+## Done
+| ID | Story | MoSCoW | Shipped |
+|---|---|---|---|
+| HT-050 | Node and container drag resize | Could | 17 Apr 2026 |
+| HT-068 | Reliable JSON export from Settings | Must | 17 Apr 2026 |
+| HT-042 | Device attachments & photos | Should | 17 Apr 2026 |
+| HT-044 | Power usage tracking (per-device watts + aggregation by location/rack) | Should | 17 Apr 2026 |
+| HT-071 | Friendly validation feedback across settings forms | Should | 17 Apr 2026 |
+| HT-070 | Restore human-readable workspace timestamps | Should | 16 Apr 2026 |
+| HT-008 | Geographic map view with Leaflet.js | Should | 16 Apr 2026 |
+| HT-075 | Restore history safely when inventory devices were deleted | Must | 15 Apr 2026 |
+| HT-074 | Leave-page protection for unsaved topology changes | Must | 15 Apr 2026 |
+| HT-073 | Personal topology drafts with autosave | Must | 14 Apr 2026 |
+| HT-072 | Replace layout management with topology history | Must | 14 Apr 2026 |
+| HT-031 | Bulk operations in inventory (multi-select + batch actions) | Should | 14 Apr 2026 |
+| HT-054 | Human-readable timestamps in workspace and topology tables | Should | 14 Apr 2026 |
+| HT-055 | Validation feedback in create and rename dialogs | Should | 14 Apr 2026 |
+| HT-032 | Canvas undo/redo (Ctrl+Z / Ctrl+Shift+Z) | Should | 14 Apr 2026 |
+| HT-024 | IP address management view (IPAM) | Should | 14 Apr 2026 |
+| HT-022 | Networks / VLANs / Subnets | Must | 14 Apr 2026 |
+| HT-063 | Canvas initialization robustness and layout restoration | Should | 13 Apr 2026 |
+| HT-062 | Canvas event binding and interaction hardening | Should | 13 Apr 2026 |
+| HT-060 | Container unconvert and reparent safe server coordination | Must | 13 Apr 2026 |
+| HT-059 | Draft publish atomic rollback and ID safety | Must | 13 Apr 2026 |
+| HT-058 | Autosave conflict visibility and serialization | Must | 13 Apr 2026 |
+| HT-061 | Fix inventory delete action and mobile drawer accessibility | Must | 13 Apr 2026 |
+| HT-064 | Security hardening — endpoint exposure, rate limits, error sanitization, XSS | Must | 13 Apr 2026 |
+| HT-067 | Make NiceGUI JS bridge scripts singleton-safe | Must | 13 Apr 2026 |
+| HT-066 | Convert sync database routers off the ASGI event loop | Must | 13 Apr 2026 |
+| HT-053 | Ownership scoping for legacy `/api/diagrams/` endpoints | Must | 13 Apr 2026 |
+| HT-049 | Inventory stencils panel — drag published devices onto a Topology | Should | 12 Apr 2026 |
+| HT-052 | Inventory device deletion with orphan indicator | Must | 12 Apr 2026 |
+| HT-051 | Diagram-first device creation — type palette, draft state, Publish | Must | 12 Apr 2026 |
+| HT-057 | Collapse Views into Topology — direct canvas entry | Must | 12 Apr 2026 |
+| HT-048 | Topology Designer — view/edit mode with RBAC gate | Must | 12 Apr 2026 |
+| HT-047 | Workspaces, Topologies, and Views — 3-level hierarchy | Must | 12 Apr 2026 |
+| HT-046 | Un-container: convert container back to plain node | Must | 12 Apr 2026 |
+| HT-021 | Device containers (nested logical/physical grouping) | Must | 12 Apr 2026 |
+| HT-045 | Extract FastAPI RBAC dependency from domain layer | Should | 12 Apr 2026 |
+| HT-027 | Premium Design System & Theme Engine | Must | 11 Apr 2026 |
+| HT-000 | Phase 1 architecture design and review | 9 Apr 2026 |
+| HT-001 | User authentication and session management | 9 Apr 2026 |
+| HT-002 | Device CRUD operations (backend) | 9 Apr 2026 |
+| HT-003 | Basic topology canvas with drag-drop | 9 Apr 2026 |
+| HT-004 | Device-to-device connections | 9 Apr 2026 |
+| HT-005 | Location management (rack + geo) | 10 Apr 2026 |
+| HT-009 | Inventory list view (searchable table) | 10 Apr 2026 |
+| HT-018 | Device notes field | 9 Apr 2026 |
+| HT-006 | Tag system for devices | 10 Apr 2026 |
+| HT-007 | Custom fields (key-value pairs per device) | 10 Apr 2026 |
+| HT-010 | Device detail panel | 10 Apr 2026 |
+| HT-011 | RBAC enforcement (Admin/Contributor/Reader) | 10 Apr 2026 |
+| HT-019 | Admin user panel (create/edit/delete users) | 10 Apr 2026 |
+| HT-017 | Password reset via CLI | 10 Apr 2026 |
+| HT-012 | Export to JSON | 10 Apr 2026 |
+| HT-013 | Import from JSON | 10 Apr 2026 |
+| HT-016 | Canvas keyboard shortcuts | 10 Apr 2026 |
+| HT-028 | UX Design Spec — app layout, navigation flow & visual language | 10 Apr 2026 |
+| HT-034 | Health check endpoint (`GET /api/health`) | 10 Apr 2026 |
+| HT-036 | Unified toast / notification system | 10 Apr 2026 |
+| HT-029 | Diagram layout management UI (save/load/rename/delete) | 10 Apr 2026 |
+| HT-030 | Connection detail editing UI (edge click → properties panel) | 10 Apr 2026 |
+| HT-039 | Device status field (Active/Offline/Maintenance/Planned/Decommissioned) | 10 Apr 2026 |
+| HT-025 | Self-service password change + first-boot credential hardening | 10 Apr 2026 |
+| HT-035 | About / System info page | 10 Apr 2026 |
+| HT-040 | Canvas zoom & fit controls | 10 Apr 2026 |
+| HT-041 | Device duplication (clone with suffix) | 10 Apr 2026 |
+| HT-026 | App Shell — navigation sidebar, header bar & dashboard | 10 Apr 2026 |
+| HT-038 | Graceful session expiry handling | 10 Apr 2026 |
+| HT-023 | Services (name, port, URL, status per device) | 10 Apr 2026 |
+| HT-020 | Search and filter inventory | 10 Apr 2026 |
+| HT-021 | Device containers (nested logical/physical grouping) | 12 Apr 2026 |
+| HT-046 | Un-container: convert container back to plain node | 12 Apr 2026 |
+| HT-049 | Inventory stencils panel — drag published devices onto a Topology | Should | 12 Apr 2026 |
+| HT-052 | Inventory device deletion with orphan indicator | Must | 12 Apr 2026 |
+| HT-051 | Diagram-first device creation — type palette, draft state, Publish | Must | 12 Apr 2026 |
+| HT-057 | Collapse Views into Topology — direct canvas entry | Must | 12 Apr 2026 |
+| HT-048 | Topology Designer — view/edit mode with RBAC gate | Must | 12 Apr 2026 |
+| HT-047 | Workspaces, Topologies, and Views — 3-level hierarchy | 12 Apr 2026 |
 
 ## Ready for Development
-| ID | Story | MoSCoW | Size |
-|---|---|---|---|
-| HT-000 | Phase 1 architecture design and review | Must | L |
-| HT-001 | User authentication and session management | Must | M |
-| HT-002 | Device CRUD operations (backend) | Must | M |
-| HT-003 | Basic topology canvas with drag-drop | Must | L |
-| HT-004 | Device-to-device connections | Must | M |
-| HT-005 | Location management (rack + geo) | Must | M |
-| HT-006 | Tag system for devices | Should | S |
-| HT-007 | Custom fields (key-value pairs per device) | Should | S |
-| HT-008 | Geographic map view with Leaflet.js | Should | M |
-| HT-009 | Inventory list view (searchable table) | Must | M |
-| HT-010 | Device detail panel | Must | S |
-| HT-011 | RBAC enforcement (Admin/Contributor/Reader) | Must | M |
-| HT-012 | Export to JSON | Should | S |
-| HT-013 | Import from JSON | Should | M |
-| HT-014 | Export canvas to PNG/SVG | Could | S |
-| HT-015 | Dark mode toggle | Could | XS |
-| HT-016 | Canvas keyboard shortcuts (Delete, Undo, Select All) | Should | S |
-| HT-017 | Password reset via CLI | Should | XS |
-| HT-018 | Device notes field | Should | XS |
-| HT-019 | Admin user panel (create/edit/delete users) | Must | M |
-| HT-020 | Search and filter inventory | Must | M |
+| # | ID | Story | MoSCoW | Size | Depends on |
+|---|---|---|---|---|---|
+| 1 | HT-065 | Canvas visual polish and edge-case cleanup | Could | M | — |
+| 2 | HT-037 | Connection port / interface mapping | Could | S | HT-030 |
+| 3 | HT-043 | QR code labels for devices | Could | S | — |
+| 4 | HT-014 | Export canvas to PNG/SVG | Could | S | — |
 
 ## Defined (needs refinement)
 | ID | Story | MoSCoW | Blocker |
 |---|---|---|---|
-| - | - | - | - |
+
+## Superseded
+| ID | Story | Superseded By |
+|---|---|---|
+| HT-015 | Dark mode toggle | HT-027 (theme engine covers dark + light + midnight) |
+| HT-056 | Views table — clickable names and rename action | HT-057 (Views table removed; Topology name is the canvas link) |
+| HT-069 | Topology layout rename replaces names correctly | HT-072 (layout rename leaves the primary UX in favor of Save Version + History) |
 
 ## Icebox (Phase 2 / LightTower)
 | ID | Story | MoSCoW | Reason |
@@ -49,7 +118,3 @@ Last updated: 9 April 2026
 | LT-007 | Audit log | Should | Phase 2 only |
 | LT-008 | LDAP/SSO authentication | Should | Phase 2 only |
 
-## Completed
-| ID | Story | Shipped |
-|---|---|---|
-| - | - | - |

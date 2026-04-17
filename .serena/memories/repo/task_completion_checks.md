@@ -1,0 +1,4 @@
+- After code changes run: docker compose exec api pytest
+- Run type checks: docker compose exec api mypy src/ --ignore-missing-imports
+- Validate build: docker compose build
+- Update CHANGELOG.md under [Unreleased] when required by workflow.

@@ -1,0 +1,307 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  MULTI-PART OPENAPI SPECIFICATION — MERGE INSTRUCTIONS                     ║
+# ║                                                                              ║
+# ║  This specification is split across three files for readability:            ║
+# ║    api-contracts-part1.yaml  — Auth + Devices  (components + security)      ║
+# ║    api-contracts-part2.yaml  — Connections, Locations, Tags, CustomFields   ║
+# ║    api-contracts-part3.yaml  — Diagrams, Users, Export/Import               ║
+# ║                                                                              ║
+# ║  To produce a single valid OpenAPI 3.0.3 document, deep-merge them:        ║
+# ║    npm install -g @redocly/cli                                               ║
+# ║    redocly join api-contracts-part*.yaml -o openapi-merged.yaml             ║
+# ║                                                                              ║
+# ║  Or manually: copy all `paths` keys into one file, merge `components`       ║
+# ║  sections (securitySchemes, responses, schemas must all be present).        ║
+# ║  Parts 2 and 3 MUST be merged with Part 1 before running openapi-lint.      ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+openapi: "3.0.3"
+info:
+  title: Hometower API
+  version: "1.0.0"
+  description: >
+    Self-hosted homelab inventory management — Phase 1. Parts 2 and 3 of this spec define additional paths; merge all three files for a complete, valid OpenAPI document.
+
+servers:
+- url: http://localhost:8080
+  description: Local development
+
+# ── SECURITY ────────────────────────────────────────────────────────────────
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Insufficient role
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Unique constraint violation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    UnprocessableEntity:
+      description: Pydantic validation failure
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ValidationError' }
+
+  schemas:
+
+    # ── SHARED ──────────────────────────────────────────────────
+    Error:
+      type: object
+      required: [ detail ]
+      properties:
+        detail: { type: string, example: "Device not found" }
+
+    ValidationError:
+      type: object
+      required: [ detail ]
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc: { type: array, items: { type: string } }
+              msg: { type: string }
+              type: { type: string }
+
+    # ── ENUMS ────────────────────────────────────────────────────
+    DeviceType:
+      type: string
+      enum: [ Server, Switch, Router, NAS, UPS, SBC, Workstation, VM, LXC, Docker, Application, VLAN, Subnet ]
+
+    ConnectionType:
+      type: string
+      enum: [ Ethernet, WiFi, Fibre, iSCSI, NFS, VM, Other ]
+
+    Role:
+      type: string
+      enum: [ Admin, Contributor, Reader ]
+
+    LocationType:
+      type: string
+      enum: [ rack, geo ]
+
+    # ── AUTH ─────────────────────────────────────────────────────
+    LoginRequest:
+      type: object
+      required: [ email, password ]
+      properties:
+        email: { type: string, format: email, example: "admin@hometower.local" }
+        password: { type: string, minLength: 8, example: "s3cr3tpassword" }
+
+    TokenResponse:
+      type: object
+      required: [ access_token, token_type ]
+      properties:
+        access_token: { type: string, example: "eyJhbGci..." }
+        token_type: { type: string, example: "bearer" }
+
+    # ── DEVICE ───────────────────────────────────────────────────
+    DeviceCreate:
+      type: object
+      required: [ name, type ]
+      properties:
+        name: { type: string, maxLength: 255 }
+        type: { $ref: '#/components/schemas/DeviceType' }
+        ip: { type: string, nullable: true, example: "192.168.1.10" }
+        mac: { type: string, nullable: true, pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$' }
+        os: { type: string, nullable: true, maxLength: 255 }
+        notes: { type: string, nullable: true }
+        location_id: { type: string, format: uuid, nullable: true }
+
+    DeviceUpdate:
+      type: object
+      properties:
+        name: { type: string, maxLength: 255 }
+        type: { $ref: '#/components/schemas/DeviceType' }
+        ip: { type: string, nullable: true }
+        mac: { type: string, nullable: true }
+        os: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        location_id: { type: string, format: uuid, nullable: true }
+
+    DeviceResponse:
+      type: object
+      required: [ id, name, type, created_at, updated_at ]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/DeviceType' }
+        ip: { type: string, nullable: true }
+        mac: { type: string, nullable: true }
+        os: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        location_id: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    DeviceListResponse:
+      type: object
+      required: [ items, total, page, limit ]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/DeviceResponse' } }
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+
+# ── PATHS ───────────────────────────────────────────────────────────────────
+security:
+- bearerAuth: []
+
+paths:
+
+  # ── AUTH ─────────────────────────────────────────────────────
+  /api/auth/login:
+    post:
+      summary: Authenticate and receive JWT
+      operationId: login
+      tags: [ Auth ]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: JWT issued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401':
+          description: Invalid credentials or account disabled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /api/auth/logout:
+    post:
+      summary: Logout (client clears token; server records telemetry)
+      operationId: logout
+      tags: [ Auth ]
+      responses:
+        '204': { description: Logged out }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── DEVICES ─────────────────────────────────────────────────
+  /api/devices:
+    get:
+      summary: List all devices (paginated)
+      operationId: listDevices
+      tags: [ Devices ]
+      parameters:
+      - { name: page, in: query, schema: { type: integer, default: 1 } }
+      - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 100 } }
+      responses:
+        '200':
+          description: Paginated device list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Create a device (Contributor+)
+      operationId: createDevice
+      tags: [ Devices ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceCreate' }
+      responses:
+        '201':
+          description: Device created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /api/devices/search:
+    get:
+      summary: Search and filter devices
+      operationId: searchDevices
+      tags: [ Devices ]
+      parameters:
+      - { name: q, in: query, schema: { type: string } }
+      - { name: type, in: query, schema: { $ref: '#/components/schemas/DeviceType' } }
+      - { name: location_id, in: query, schema: { type: string, format: uuid } }
+      - { name: tag, in: query, schema: { type: string } }
+      - { name: page, in: query, schema: { type: integer, default: 1 } }
+      - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 100 } }
+      responses:
+        '200':
+          description: Filtered device list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/devices/{device_id}:
+    parameters:
+    - { name: device_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Get device by ID
+      operationId: getDevice
+      tags: [ Devices ]
+      responses:
+        '200':
+          description: Device record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update device fields (Contributor+)
+      operationId: updateDevice
+      tags: [ Devices ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceUpdate' }
+      responses:
+        '200':
+          description: Updated device
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+    delete:
+      summary: Delete device (Contributor+) — fails if device has connections
+      operationId: deleteDevice
+      tags: [ Devices ]
+      responses:
+        '204': { description: Device deleted }
+        '400':
+          description: Device has active connections
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }

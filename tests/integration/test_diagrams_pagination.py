@@ -1,4 +1,6 @@
 """Integration tests for /api/diagrams/ pagination behaviour."""
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -77,3 +79,66 @@ class TestListDiagramsPagination:
             headers={"Authorization": f"Bearer {reader_token}"},
         )
         assert response.status_code == 422
+
+    def test_topology_id_filter_returns_only_that_topology(
+        self, client: TestClient, contributor_token: str
+    ) -> None:
+        """The optional topology_id query must scope the list to a single topology."""
+        c_headers = {"Authorization": f"Bearer {contributor_token}"}
+
+        ws_resp = client.post(
+            "/api/workspaces/",
+            json={"name": f"DiagFilter-{uuid.uuid4().hex[:8]}"},
+            headers=c_headers,
+        )
+        assert ws_resp.status_code == 201
+        ws_id = ws_resp.json()["id"]
+
+        topo_a_resp = client.post(
+            f"/api/workspaces/{ws_id}/topologies/",
+            json={"name": "Topo-A"},
+            headers=c_headers,
+        )
+        topo_b_resp = client.post(
+            f"/api/workspaces/{ws_id}/topologies/",
+            json={"name": "Topo-B"},
+            headers=c_headers,
+        )
+        assert topo_a_resp.status_code == 201
+        assert topo_b_resp.status_code == 201
+        topo_a = topo_a_resp.json()["id"]
+        topo_b = topo_b_resp.json()["id"]
+
+        diag_a_resp = client.post(
+            "/api/diagrams/",
+            json={
+                **LAYOUT_PAYLOAD,
+                "name": "Layout-A",
+                "topology_id": topo_a,
+            },
+            headers=c_headers,
+        )
+        diag_b_resp = client.post(
+            "/api/diagrams/",
+            json={
+                **LAYOUT_PAYLOAD,
+                "name": "Layout-B",
+                "topology_id": topo_b,
+            },
+            headers=c_headers,
+        )
+        assert diag_a_resp.status_code == 201
+        assert diag_b_resp.status_code == 201
+
+        filtered = client.get(
+            "/api/diagrams/",
+            params={"topology_id": topo_a, "limit": 100},
+            headers=c_headers,
+        )
+        assert filtered.status_code == 200
+        data = filtered.json()
+        items = data["items"]
+        assert len(items) >= 1
+        assert all(item["topology_id"] == topo_a for item in items)
+        assert any(item["name"] == "Layout-A" for item in items)
+        assert all(item["name"] != "Layout-B" for item in items)

@@ -1,0 +1,11 @@
+[     175ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/login:0
+[   27310ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:8080/api/auth/login:0
+[   61706ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:8080/api/connections/:0
+[   61715ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:8080/api/devices/35d72e7d-8f83-4482-990e-aafb1181807e:0
+[   61721ms] [ERROR] Failed to load resource: the server responded with a status of 409 (Conflict) @ http://localhost:8080/api/devices/35d72e7d-8f83-4482-990e-aafb1181807e:0
+[   61755ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8080/api/devices/35d72e7d-8f83-4482-990e-aafb1181807e:0
+[   70502ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8080/api/devices/:0
+[   81740ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8080/api/devices/:0
+[  660138ms] [ERROR] WebSocket connection to 'ws://localhost:8080/_nicegui_ws/socket.io/?client_id=637dcd70-bb01-4f87-844d-e3c29b857cc5&next_message_id=0&implicit_handshake=true&document_id=36882db1-696b-48fc-b425-79bcc6738419&tab_id=a0fdaa7d-781f-40ef-a142-896b69c8bc72&old_tab_id=null&EIO=4&transport=websocket' failed: Connection closed before receiving a handshake response @ http://localhost:8080/_nicegui/3.10.0/static/socket.io.min.js:5
+[  663071ms] [LOG] reloading because implicit handshake failed for clientId 637dcd70-bb01-4f87-844d-e3c29b857cc5 @ http://localhost:8080/_nicegui/3.10.0/static/nicegui.js:463
+[  663429ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/login:0

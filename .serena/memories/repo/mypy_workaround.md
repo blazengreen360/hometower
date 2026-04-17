@@ -1,0 +1,3 @@
+- In this environment, `docker compose exec api mypy src/ --ignore-missing-imports` can exit 139 with no diagnostics.
+- Workaround that succeeds and still reports real type results: add `--cache-dir=/tmp/mypy_cache`.
+- Verified clean run output: `Success: no issues found in 59 source files`.

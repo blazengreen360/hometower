@@ -1,0 +1,52 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - link "Hometower" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e6]:
+        - generic [ref=e7]: Settings
+        - generic [ref=e8]: ›
+        - generic [ref=e9]: Locations
+      - button "Expand \"admin@hometower.local\"" [ref=e10] [cursor=pointer]:
+        - generic [ref=e11]:
+          - generic [ref=e12]: admin@hometower.local
+          - generic [ref=e13]: arrow_drop_down
+    - main [ref=e15]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]: Locations
+          - button "+ Add Location" [ref=e20] [cursor=pointer]:
+            - generic [ref=e22]: + Add Location
+        - table [ref=e25]:
+          - rowgroup [ref=e26]:
+            - row "Name Type Rack Row Lat Lng Parent Actions" [ref=e27]:
+              - columnheader "Name" [ref=e28] [cursor=pointer]:
+                - generic [ref=e29]: arrow_upward
+                - text: Name
+              - columnheader "Type" [ref=e30] [cursor=pointer]:
+                - generic [ref=e31]: arrow_upward
+                - text: Type
+              - columnheader "Rack" [ref=e32]
+              - columnheader "Row" [ref=e33]
+              - columnheader "Lat" [ref=e34]
+              - columnheader "Lng" [ref=e35]
+              - columnheader "Parent" [ref=e36]
+              - columnheader "Actions" [ref=e37]
+          - rowgroup [ref=e82]:
+            - row "Server Room 1 rack R01 A" [ref=e83]:
+              - cell "Server Room 1" [ref=e84]
+              - cell "rack" [ref=e85]
+              - cell "R01" [ref=e86]
+              - cell "A" [ref=e87]
+              - cell [ref=e88]
+              - cell [ref=e89]
+              - cell [ref=e90]
+              - cell [ref=e91]:
+                - button [ref=e92] [cursor=pointer]:
+                  - img [ref=e94]: edit
+                - button [ref=e95] [cursor=pointer]:
+                  - img [ref=e97]: delete
+  - alert [ref=e98]:
+    - generic [ref=e100]:
+      - img [ref=e101]: check_circle
+      - generic [ref=e102]: Saved

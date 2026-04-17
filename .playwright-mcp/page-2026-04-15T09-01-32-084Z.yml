@@ -1,0 +1,75 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "Hometower" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e7]: Topology
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - button "Save Version" [ref=e10] [cursor=pointer]:
+          - generic [ref=e12]: Save Version
+        - button "History" [ref=e13] [cursor=pointer]:
+          - generic [ref=e15]: History
+      - generic [ref=e16]:
+        - button "Undo unavailable" [disabled] [ref=e17]:
+          - img [ref=e19]: undo
+        - button "Redo unavailable" [disabled] [ref=e20]:
+          - img [ref=e22]: redo
+      - button "Edit" [ref=e23] [cursor=pointer]:
+        - generic [ref=e24]:
+          - img [ref=e25]: edit
+          - generic [ref=e26]: Edit
+    - button "Expand \"admin@hometower.local\"" [ref=e27] [cursor=pointer]:
+      - generic [ref=e28]:
+        - generic [ref=e29]: admin@hometower.local
+        - generic [ref=e30]: arrow_drop_down
+  - complementary [ref=e31]:
+    - generic [ref=e32]:
+      - button [ref=e34] [cursor=pointer]:
+        - img [ref=e36]: chevron_left
+      - generic [ref=e37] [cursor=pointer]:
+        - generic [ref=e38]: dashboard
+        - generic [ref=e39]: Dashboard
+      - generic [ref=e40] [cursor=pointer]:
+        - generic [ref=e41]: workspaces
+        - generic [ref=e42]: Workspaces
+      - generic [ref=e43] [cursor=pointer]:
+        - generic [ref=e44]: inventory_2
+        - generic [ref=e45]: Inventory
+      - generic [ref=e46] [cursor=pointer]:
+        - generic [ref=e47]: grid_view
+        - generic [ref=e48]: IPAM
+      - generic [ref=e49] [cursor=pointer]:
+        - generic [ref=e50]: map
+        - generic [ref=e51]: Map
+        - status [ref=e52]: soon
+      - separator [ref=e53]
+      - generic [ref=e54]: Settings
+      - generic [ref=e55] [cursor=pointer]:
+        - generic [ref=e56]: location_on
+        - generic [ref=e57]: Locations
+      - generic [ref=e58] [cursor=pointer]:
+        - generic [ref=e59]: lan
+        - generic [ref=e60]: Networks
+      - generic [ref=e61] [cursor=pointer]:
+        - generic [ref=e62]: people
+        - generic [ref=e63]: Users
+      - generic [ref=e64] [cursor=pointer]:
+        - generic [ref=e65]: cloud_download
+        - generic [ref=e66]: Data
+      - generic [ref=e67] [cursor=pointer]:
+        - generic [ref=e68]: person
+        - generic [ref=e69]: Profile
+      - generic [ref=e70] [cursor=pointer]:
+        - generic [ref=e71]: info
+        - generic [ref=e72]: About
+  - main [ref=e74]:
+    - generic [ref=e81]:
+      - generic [ref=e82]: Networks
+      - generic [ref=e83]: Highlight nodes by membership
+      - textbox [ref=e88]:
+        - /placeholder: Search networks...
+      - checkbox "IoT (10.0.0.0/24) - 1" [ref=e92] [cursor=pointer]:
+        - img [ref=e95]
+        - generic [ref=e97]: IoT (10.0.0.0/24) - 1
+      - button "Clear Highlights" [ref=e98] [cursor=pointer]:
+        - generic [ref=e100]: Clear Highlights

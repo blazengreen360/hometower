@@ -1,0 +1,3 @@
+[    7767ms] [ERROR] Connecting to 'http://127.0.0.1:8080/api/export' violates the following Content Security Policy directive: "connect-src 'self' ws: wss:". The action has been blocked. @ http://localhost:8080/settings/data:152
+[    7768ms] [ERROR] Fetch API cannot load http://127.0.0.1:8080/api/export. Refused to connect because it violates the document's Content Security Policy. @ http://localhost:8080/settings/data:152
+[   19081ms] [LOG] reloading because implicit handshake failed for clientId adfd5fe7-d66e-40c6-aed1-4e34d1c183e2 @ http://localhost:8080/_nicegui/3.10.0/static/nicegui.js:463

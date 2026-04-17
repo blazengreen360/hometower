@@ -1,0 +1,91 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - link "Hometower" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e7]: Workspaces
+      - button "Expand \"ht070.admin@local.test\"" [ref=e8] [cursor=pointer]:
+        - generic [ref=e9]:
+          - generic [ref=e10]: ht070.admin@local.test
+          - generic [ref=e11]: arrow_drop_down
+    - complementary [ref=e12]:
+      - generic [ref=e13]:
+        - button [ref=e15] [cursor=pointer]:
+          - img [ref=e17]: chevron_left
+        - generic [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]: dashboard
+          - generic [ref=e20]: Dashboard
+        - generic [ref=e21] [cursor=pointer]:
+          - generic [ref=e22]: workspaces
+          - generic [ref=e23]: Workspaces
+        - generic [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: inventory_2
+          - generic [ref=e26]: Inventory
+        - generic [ref=e27] [cursor=pointer]:
+          - generic [ref=e28]: grid_view
+          - generic [ref=e29]: IPAM
+        - generic [ref=e30] [cursor=pointer]:
+          - generic [ref=e31]: map
+          - generic [ref=e32]: Map
+        - separator [ref=e33]
+        - generic [ref=e34]: Settings
+        - generic [ref=e35] [cursor=pointer]:
+          - generic [ref=e36]: location_on
+          - generic [ref=e37]: Locations
+        - generic [ref=e38] [cursor=pointer]:
+          - generic [ref=e39]: lan
+          - generic [ref=e40]: Networks
+        - generic [ref=e41] [cursor=pointer]:
+          - generic [ref=e42]: people
+          - generic [ref=e43]: Users
+        - generic [ref=e44] [cursor=pointer]:
+          - generic [ref=e45]: cloud_download
+          - generic [ref=e46]: Data
+        - generic [ref=e47] [cursor=pointer]:
+          - generic [ref=e48]: person
+          - generic [ref=e49]: Profile
+        - generic [ref=e50] [cursor=pointer]:
+          - generic [ref=e51]: info
+          - generic [ref=e52]: About
+    - main [ref=e54]:
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - generic [ref=e58]: Workspaces
+          - button "+ New Workspace" [ref=e59] [cursor=pointer]:
+            - generic [ref=e61]: + New Workspace
+        - table [ref=e64]:
+          - rowgroup [ref=e65]:
+            - row "Name Topologies Last Modified Actions" [ref=e66]:
+              - columnheader "Name" [ref=e67] [cursor=pointer]:
+                - generic [ref=e68]: arrow_upward
+                - text: Name
+              - columnheader "Topologies" [ref=e69]
+              - columnheader "Last Modified" [ref=e70] [cursor=pointer]:
+                - generic [ref=e71]: arrow_upward
+                - text: Last Modified
+              - columnheader "Actions" [ref=e72]
+          - rowgroup [ref=e73]:
+            - row "HT070 Timecheck Workspace 2 16 Apr 2026, 3:10" [ref=e99]:
+              - cell "HT070 Timecheck Workspace" [ref=e100]:
+                - link "HT070 Timecheck Workspace" [ref=e101] [cursor=pointer]:
+                  - /url: /workspaces/63eb28a8-e1d1-470a-8899-b92c9daddf73
+              - cell "2" [ref=e102]
+              - cell "16 Apr 2026, 3:10" [ref=e103]
+              - cell [ref=e104]:
+                - button [ref=e105] [cursor=pointer]:
+                  - img [ref=e107]: edit
+                - button [ref=e108] [cursor=pointer]:
+                  - img [ref=e110]: delete
+            - row "HT070 Empty Workspace 0 14 Apr 2026, 12:00" [ref=e111]:
+              - cell "HT070 Empty Workspace" [ref=e112]:
+                - link "HT070 Empty Workspace" [ref=e113] [cursor=pointer]:
+                  - /url: /workspaces/e412484d-7bff-4e04-b5d0-ca30ae7f9575
+              - cell "0" [ref=e114]
+              - cell "14 Apr 2026, 12:00" [ref=e115]
+              - cell [ref=e116]:
+                - button [ref=e117] [cursor=pointer]:
+                  - img [ref=e119]: edit
+                - button [ref=e120] [cursor=pointer]:
+                  - img [ref=e122]: delete
+  - generic:
+    - tooltip "2026-04-16T03:10:00"

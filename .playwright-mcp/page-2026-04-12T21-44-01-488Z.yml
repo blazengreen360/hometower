@@ -1,0 +1,206 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "Hometower" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e7]: Inventory
+    - button "Expand \"admin@hometower.local\"" [ref=e8] [cursor=pointer]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: admin@hometower.local
+        - generic [ref=e11]: arrow_drop_down
+  - complementary [ref=e12]:
+    - generic [ref=e13]:
+      - button [ref=e15] [cursor=pointer]:
+        - img [ref=e17]: chevron_left
+      - generic [ref=e18] [cursor=pointer]:
+        - generic [ref=e19]: dashboard
+        - generic [ref=e20]: Dashboard
+      - generic [ref=e21] [cursor=pointer]:
+        - generic [ref=e22]: workspaces
+        - generic [ref=e23]: Workspaces
+      - generic [ref=e24] [cursor=pointer]:
+        - generic [ref=e25]: inventory_2
+        - generic [ref=e26]: Inventory
+      - generic [ref=e27] [cursor=pointer]:
+        - generic [ref=e28]: map
+        - generic [ref=e29]: Map
+        - status [ref=e30]: soon
+      - separator [ref=e31]
+      - generic [ref=e32]: Settings
+      - generic [ref=e33] [cursor=pointer]:
+        - generic [ref=e34]: location_on
+        - generic [ref=e35]: Locations
+      - generic [ref=e36] [cursor=pointer]:
+        - generic [ref=e37]: people
+        - generic [ref=e38]: Users
+      - generic [ref=e39] [cursor=pointer]:
+        - generic [ref=e40]: cloud_download
+        - generic [ref=e41]: Data
+      - generic [ref=e42] [cursor=pointer]:
+        - generic [ref=e43]: person
+        - generic [ref=e44]: Profile
+      - generic [ref=e45] [cursor=pointer]:
+        - generic [ref=e46]: info
+        - generic [ref=e47]: About
+  - main [ref=e49]:
+    - generic [ref=e51]:
+      - generic [ref=e52]: Inventory
+      - generic [ref=e53]: Use the Edit action to open the dedicated device editor page.
+      - textbox [ref=e58]:
+        - /placeholder: Search by name, IP, or notes…
+      - generic [ref=e59]:
+        - generic [ref=e60]: "Type:"
+        - generic [ref=e62] [cursor=pointer]: Server
+        - generic [ref=e64] [cursor=pointer]: Switch
+        - generic [ref=e66] [cursor=pointer]: Router
+        - generic [ref=e68] [cursor=pointer]: NAS
+      - checkbox "Orphaned only" [ref=e69] [cursor=pointer]:
+        - img [ref=e72]
+        - generic [ref=e74]: Orphaned only
+      - table [ref=e77]:
+        - rowgroup [ref=e78]:
+          - row "Name Type Status IP Tags Location Services Updated Actions" [ref=e79]:
+            - columnheader [ref=e80]
+            - columnheader "Name" [ref=e81] [cursor=pointer]:
+              - text: Name
+              - generic [ref=e82]: arrow_upward
+            - columnheader "Type" [ref=e83] [cursor=pointer]:
+              - text: Type
+              - generic [ref=e84]: arrow_upward
+            - columnheader "Status" [ref=e85] [cursor=pointer]:
+              - text: Status
+              - generic [ref=e86]: arrow_upward
+            - columnheader "IP" [ref=e87] [cursor=pointer]:
+              - text: IP
+              - generic [ref=e88]: arrow_upward
+            - columnheader "Tags" [ref=e89]
+            - columnheader "Location" [ref=e90] [cursor=pointer]:
+              - text: Location
+              - generic [ref=e91]: arrow_upward
+            - columnheader "Services" [ref=e92]
+            - columnheader "Updated" [ref=e93]
+            - columnheader "Actions" [ref=e94]
+        - rowgroup:
+          - row:
+            - cell
+        - rowgroup [ref=e99]:
+          - row "VM Server Active 10.1.1.1 — — — 2h ago" [ref=e100]:
+            - cell [ref=e101]:
+              - generic [ref=e102]: dns
+            - cell "VM" [ref=e103]:
+              - text: VM
+              - generic [ref=e104]: link_off
+            - cell "Server" [ref=e105]
+            - cell "Active" [ref=e106]:
+              - status "Active" [ref=e107]
+            - cell "10.1.1.1" [ref=e108]:
+              - text: 10.1.1.1
+              - button [ref=e109] [cursor=pointer]:
+                - img [ref=e111]: content_copy
+            - cell "—" [ref=e112]
+            - cell "—" [ref=e113]
+            - cell "—" [ref=e114]
+            - cell "2h ago" [ref=e115]
+            - cell [ref=e116]:
+              - link [ref=e117] [cursor=pointer]:
+                - /url: /inventory/edit/35d72e7d-8f83-4482-990e-aafb1181807e
+                - img [ref=e119]: edit
+              - link [ref=e120] [cursor=pointer]:
+                - /url: /topology?device_id=35d72e7d-8f83-4482-990e-aafb1181807e
+                - img [ref=e122]: account_tree
+              - button [ref=e123] [cursor=pointer]:
+                - img [ref=e125]: delete
+          - row "Nas Server NAS Active — — — — 2h ago" [ref=e126]:
+            - cell [ref=e127]:
+              - generic [ref=e128]: storage
+            - cell "Nas Server" [ref=e129]:
+              - text: Nas Server
+              - generic [ref=e130]: link_off
+            - cell "NAS" [ref=e131]
+            - cell "Active" [ref=e132]:
+              - status "Active" [ref=e133]
+            - cell "—" [ref=e134]
+            - cell "—" [ref=e135]
+            - cell "—" [ref=e136]
+            - cell "—" [ref=e137]
+            - cell "2h ago" [ref=e138]
+            - cell [ref=e139]:
+              - link [ref=e140] [cursor=pointer]:
+                - /url: /inventory/edit/d82ba911-0373-4b30-b592-c7b276a71458
+                - img [ref=e142]: edit
+              - link [ref=e143] [cursor=pointer]:
+                - /url: /topology?device_id=d82ba911-0373-4b30-b592-c7b276a71458
+                - img [ref=e145]: account_tree
+              - button [ref=e146] [cursor=pointer]:
+                - img [ref=e148]: delete
+          - row "Test Router Active — — — — 14m ago" [ref=e149]:
+            - cell [ref=e150]:
+              - generic [ref=e151]: router
+            - cell "Test" [ref=e152]:
+              - text: Test
+              - generic [ref=e153]: link_off
+            - cell "Router" [ref=e154]
+            - cell "Active" [ref=e155]:
+              - status "Active" [ref=e156]
+            - cell "—" [ref=e157]
+            - cell "—" [ref=e158]
+            - cell "—" [ref=e159]
+            - cell "—" [ref=e160]
+            - cell "14m ago" [ref=e161]
+            - cell [ref=e162]:
+              - link [ref=e163] [cursor=pointer]:
+                - /url: /inventory/edit/ef63d924-01a4-4b37-9e6f-44bc7b1a172e
+                - img [ref=e165]: edit
+              - link [ref=e166] [cursor=pointer]:
+                - /url: /topology?device_id=ef63d924-01a4-4b37-9e6f-44bc7b1a172e
+                - img [ref=e168]: account_tree
+              - button [ref=e169] [cursor=pointer]:
+                - img [ref=e171]: delete
+          - row "Test Server Active — — — — 14m ago" [ref=e172]:
+            - cell [ref=e173]:
+              - generic [ref=e174]: dns
+            - cell "Test" [ref=e175]:
+              - text: Test
+              - generic [ref=e176]: link_off
+            - cell "Server" [ref=e177]
+            - cell "Active" [ref=e178]:
+              - status "Active" [ref=e179]
+            - cell "—" [ref=e180]
+            - cell "—" [ref=e181]
+            - cell "—" [ref=e182]
+            - cell "—" [ref=e183]
+            - cell "14m ago" [ref=e184]
+            - cell [ref=e185]:
+              - link [ref=e186] [cursor=pointer]:
+                - /url: /inventory/edit/ccea98f5-b9c1-4037-a680-3f47f4fda0f3
+                - img [ref=e188]: edit
+              - link [ref=e189] [cursor=pointer]:
+                - /url: /topology?device_id=ccea98f5-b9c1-4037-a680-3f47f4fda0f3
+                - img [ref=e191]: account_tree
+              - button [ref=e192] [cursor=pointer]:
+                - img [ref=e194]: delete
+          - row "test Switch Active — — — — 13m ago" [ref=e195]:
+            - cell [ref=e196]:
+              - generic [ref=e197]: device_hub
+            - cell "test" [ref=e198]:
+              - text: test
+              - generic [ref=e199]: link_off
+            - cell "Switch" [ref=e200]
+            - cell "Active" [ref=e201]:
+              - status "Active" [ref=e202]
+            - cell "—" [ref=e203]
+            - cell "—" [ref=e204]
+            - cell "—" [ref=e205]
+            - cell "—" [ref=e206]
+            - cell "13m ago" [ref=e207]
+            - cell [ref=e208]:
+              - link [ref=e209] [cursor=pointer]:
+                - /url: /inventory/edit/91488bc4-b1db-44fc-af36-34fd13efc540
+                - img [ref=e211]: edit
+              - link [ref=e212] [cursor=pointer]:
+                - /url: /topology?device_id=91488bc4-b1db-44fc-af36-34fd13efc540
+                - img [ref=e214]: account_tree
+              - button [ref=e215] [cursor=pointer]:
+                - img [ref=e217]: delete
+        - rowgroup:
+          - row:
+            - cell
