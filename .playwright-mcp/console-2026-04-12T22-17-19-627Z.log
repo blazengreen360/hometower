@@ -1,9 +1,0 @@
-[     486ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/login:0
-[   27741ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/login:0
-[   28560ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/login:0
-[   94978ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/login:0
-[   95952ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/login:0
-[  327905ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:8080/api/devices/draft-635c00db-ee6b-4441-93e9-90fb5233e66b?include=services:0
-[  349138ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:8080/api/devices/draft-635c00db-ee6b-4441-93e9-90fb5233e66b?include=services:0
-[  365778ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:8080/api/devices/draft-635c00db-ee6b-4441-93e9-90fb5233e66b?include=services:0
-[  367245ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:8080/api/devices/draft-e1acbde6-b6da-4393-ae43-26568f3f8e53?include=services:0

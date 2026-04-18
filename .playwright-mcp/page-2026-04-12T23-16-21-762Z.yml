@@ -1,6 +1,0 @@
-- main [ref=e5]:
-  - generic [ref=e7]:
-    - generic [ref=e8]: 403 — Access Denied
-    - generic [ref=e9]: You do not have permission to view this page.
-    - button "Go to Home" [ref=e10] [cursor=pointer]:
-      - generic [ref=e12]: Go to Home

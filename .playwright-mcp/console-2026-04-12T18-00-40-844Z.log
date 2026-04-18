@@ -1,6 +1,0 @@
-[12639013ms] [ERROR] WebSocket connection to 'ws://localhost:8080/_nicegui_ws/socket.io/?client_id=3c5089dc-2f07-4e17-9345-b19af751470a&next_message_id=0&implicit_handshake=true&document_id=703985ff-ca79-4b03-b329-4611db9c20b2&tab_id=a0fdaa7d-781f-40ef-a142-896b69c8bc72&old_tab_id=null&EIO=4&transport=websocket' failed: Connection closed before receiving a handshake response @ http://localhost:8080/_nicegui/3.10.0/static/socket.io.min.js:5
-[12642965ms] [LOG] reloading because implicit handshake failed for clientId 3c5089dc-2f07-4e17-9345-b19af751470a @ http://localhost:8080/_nicegui/3.10.0/static/nicegui.js:463
-[12643265ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/login:0
-[12742434ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/settings/profile:0
-[12742434ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/settings/profile:0
-[12742434ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/settings/profile:0
