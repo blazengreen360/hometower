@@ -83,6 +83,14 @@ LAST_MODIFIED_BROWSER_LOCAL_CELL_EXPRESSION = (
 )
 
 
+def browser_local_cell_expression(field_name: str) -> str:
+    """Return the client-side formatter expression for a browser-local timestamp cell."""
+    return (
+        f"($htFormatLastModifiedLocal && $htFormatLastModifiedLocal(props.row.{field_name}_iso, "
+        f"props.row.{field_name}_display)) || props.row.{field_name}_display"
+    )
+
+
 def format_last_modified_timestamp(
     iso_timestamp: str | None,
     *,
@@ -102,6 +110,16 @@ def format_last_modified_timestamp(
 
 def enrich_last_modified_rows(items: object) -> list[dict[str, object]]:
     """Attach fallback, ISO, and sortable last_modified values for table rows."""
+    return enrich_browser_local_timestamp_rows(items)
+
+
+def enrich_browser_local_timestamp_rows(
+    items: object,
+    *,
+    source_key: str = "last_modified",
+    target_key: str = "last_modified",
+) -> list[dict[str, object]]:
+    """Attach fallback, ISO, and sortable fields for a browser-local timestamp column."""
     if not isinstance(items, list):
         return []
 
@@ -111,12 +129,12 @@ def enrich_last_modified_rows(items: object) -> list[dict[str, object]]:
             continue
 
         row: dict[str, object] = dict(item)
-        raw_last_modified = row.get("last_modified")
-        iso_value = raw_last_modified.strip() if isinstance(raw_last_modified, str) else ""
-        row["last_modified_sort"] = iso_value
-        row["last_modified_iso"] = iso_value
-        row["last_modified"] = format_last_modified_timestamp(iso_value)
-        row["last_modified_display"] = format_last_modified_timestamp(
+        raw_value = row.get(source_key)
+        iso_value = raw_value.strip() if isinstance(raw_value, str) else ""
+        row[f"{target_key}_sort"] = iso_value
+        row[f"{target_key}_iso"] = iso_value
+        row[target_key] = format_last_modified_timestamp(iso_value)
+        row[f"{target_key}_display"] = format_last_modified_timestamp(
             iso_value,
             allow_raw_iso_fallback=False,
         )

@@ -154,6 +154,12 @@ CANVAS_DRAFT_PUBLISH_JS: str = """
                 }
                 throw edgeError;
             }
+            var stencilDevice = {
+                id: newId, name: device.name || '', type: device.type || oldData.raw_device_type || '',
+                ip: device.ip || '', version: Number(device.version || 1)
+            };
+            if (window.htStencilUpsertPublishedDevice) window.htStencilUpsertPublishedDevice(stencilDevice);
+            document.dispatchEvent(new CustomEvent('ht:stencil-device-published', { detail: { device: stencilDevice } }));
             return _htPromoteConnections(newId).then(function() {
                 if (window._htFlushAutosave) window._htFlushAutosave();
                 if (window._htUpdateDraftBadge) window._htUpdateDraftBadge();

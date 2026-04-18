@@ -17,10 +17,16 @@ DO NOT expect to read standard conversational prose. You will receive a strictly
   "traceability": "<The story/RFC/bug ID from §0>",
   "complexity_delta": "<increased | neutral | reduced>",
   "files_changed": ["<list of files>"],
-  "review_tier": "<FAST-TRACK | STANDARD | DEEP>"
+  "review_tier": "<FAST-TRACK | STANDARD | DEEP>",
+  "gate_results": {
+    "docker compose exec api pytest": "pass",
+    "docker compose exec api mypy src/ --ignore-missing-imports": "pass",
+    "docker compose build": "pass"
+  }
 }
 ```
 You MUST extract your context variables exclusively from this JSON object. If the `verdict` is not `APPROVED`, abort immediately.
+If `gate_results` is missing, incomplete, or contains anything other than `pass` for the three mandatory review gates, abort immediately.
 
 ## Commit Message Convention
 
@@ -199,6 +205,7 @@ Report back to Code-Reviewer:
 2. **Never amend previous commits.** Only create new commits.
 3. **Never force anything.** No `git push --force`, no `git reset --hard`, no `git checkout -- .`.
 4. **Never commit without APPROVED verdict.** If you're invoked without a clear APPROVED signal, refuse and report the error.
+4a. **Never commit without mandatory gate proof.** Refuse if the payload does not include passing results for pytest, mypy, and docker build.
 5. **Never stage unreviewed files.** Only files from the reviewed diff.
 6. **Never commit secrets.** If you see `.env`, credentials, or API keys in the staged files, abort immediately and report.
 7. **Every commit message must include `Audit: APPROVED`.** This is the traceability chain.

@@ -1,6 +1,6 @@
 # Hometower Product Backlog
 
-Last updated: 18 April 2026 — HT-080 shipped. 14 stories in Ready.
+Last updated: 18 April 2026 — HT-081 shipped after live validation and approved code review. 11 stories in Ready.
 
 ## In Progress
 | ID | Story | MoSCoW | Assigned |
@@ -10,6 +10,8 @@ Last updated: 18 April 2026 — HT-080 shipped. 14 stories in Ready.
 ## Done
 | ID | Story | MoSCoW | Shipped |
 |---|---|---|---|
+| HT-081 | Data Table Enhancements & Pagination (Workspaces/Topologies/IAM) | Must | 18 Apr 2026 |
+| HT-078 | Inventory stencils panel — fix empty device list | Must | 18 Apr 2026 |
 | HT-080 | UI Premiumization & Component Consistency | Must | 18 Apr 2026 |
 | HT-087 | Quick Wins (Auto-Layout, Markdown Notes, CSV, Quick-Links) | Must | 17 Apr 2026 |
 | HT-050 | Node and container drag resize | Could | 17 Apr 2026 |
@@ -80,36 +82,27 @@ Last updated: 18 April 2026 — HT-080 shipped. 14 stories in Ready.
 | HT-038 | Graceful session expiry handling | 10 Apr 2026 |
 | HT-023 | Services (name, port, URL, status per device) | 10 Apr 2026 |
 | HT-020 | Search and filter inventory | 10 Apr 2026 |
-| HT-021 | Device containers (nested logical/physical grouping) | 12 Apr 2026 |
-| HT-046 | Un-container: convert container back to plain node | 12 Apr 2026 |
-| HT-049 | Inventory stencils panel — drag published devices onto a Topology | Should | 12 Apr 2026 |
-| HT-052 | Inventory device deletion with orphan indicator | Must | 12 Apr 2026 |
-| HT-051 | Diagram-first device creation — type palette, draft state, Publish | Must | 12 Apr 2026 |
-| HT-057 | Collapse Views into Topology — direct canvas entry | Must | 12 Apr 2026 |
-| HT-048 | Topology Designer — view/edit mode with RBAC gate | Must | 12 Apr 2026 |
-| HT-047 | Workspaces, Topologies, and Views — 3-level hierarchy | 12 Apr 2026 |
 
 ## Ready for Development
 | # | ID | Story | MoSCoW | Size | Depends on |
 |---|---|---|---|---|---|
-| 2 | HT-081 | Data Table Enhancements & Pagination (Workspaces/Topologies/IAM) | Must | M | HT-080 |
-| 3 | HT-082 | Dashboard Revamp & Power Widgets | Must | L | HT-080 |
-| 4 | HT-086 | Deep Execution Environments (UML-Style Deployment Modeling) | Should | L | HT-077 |
-| 5 | HT-085 | Financial Power Management (Cost Tracking via Locations) | Should | M | HT-082 |
-| 6 | HT-083 | Beautiful Empty States & Minimalist Onboarding | Should | S | HT-080 |
-| 7 | HT-084 | Taxi-cab (Orthogonal) Edge Routing Styles | Should | M | HT-030 |
-| 8 | HT-078 | Inventory stencils panel — fix empty device list | Must | S | — |
+| 1 | HT-082 | Dashboard Revamp & Power Widgets | Must | L | HT-080 |
 | 2 | HT-076 | Canvas full-screen layout & panel consolidation | Must | L | HT-078 |
 | 3 | HT-077 | Container behavior overhaul — un-parent, resize, icon watermark | Must | L | — |
-| 4 | HT-079 | Canvas minimap navigation overview | Should | M | HT-076 |
-| 5 | HT-065 | Canvas visual polish and edge-case cleanup | Could | M | — |
-| 6 | HT-037 | Connection port / interface mapping | Could | S | HT-030 |
-| 7 | HT-043 | QR code labels for devices | Could | S | — |
-| 8 | HT-014 | Export canvas to PNG/SVG | Could | S | — |
+| 4 | HT-083 | Beautiful Empty States & Minimalist Onboarding | Should | S | HT-080 |
+| 5 | HT-085 | Financial Power Management (Cost Tracking via Locations) | Should | M | HT-082 |
+| 6 | HT-079 | Canvas minimap navigation overview | Should | M | HT-076 |
+| 7 | HT-084 | Taxi-cab (Orthogonal) Edge Routing Styles | Should | M | HT-030 |
+| 8 | HT-065 | Canvas visual polish and edge-case cleanup | Could | M | — |
+| 9 | HT-037 | Connection port / interface mapping | Could | S | HT-030 |
+| 10 | HT-043 | QR code labels for devices | Could | S | — |
+| 11 | HT-014 | Export canvas to PNG/SVG | Could | S | — |
 
 ## Defined (needs refinement)
 | ID | Story | MoSCoW | Blocker |
 |---|---|---|---|
+| HT-086 | Deep Execution Environments (UML-Style Deployment Modeling) | Should | Story is currently on-hold and depends on HT-077; needs explicit reactivation and sequencing before it can return to Ready |
+| HT-089 | Session ownership contract alignment | Must | Architect must reconcile the AGENTS session-ownership rule with the current service-layer transaction pattern before implementation starts |
 
 ## Superseded
 | ID | Story | Superseded By |

@@ -153,6 +153,12 @@ class TestCanvasDraftPublishJS:
         notify_idx = CANVAS_DRAFT_PUBLISH_JS.index("window._htNotify('Device published to inventory.', 'positive');")
         assert promote_idx < flush_idx < notify_idx
 
+    def test_publish_dispatches_stencil_device_published_event(self) -> None:
+        assert "ht:stencil-device-published" in CANVAS_DRAFT_PUBLISH_JS
+        assert "var stencilDevice = {" in CANVAS_DRAFT_PUBLISH_JS
+        assert "if (window.htStencilUpsertPublishedDevice) window.htStencilUpsertPublishedDevice(stencilDevice);" in CANVAS_DRAFT_PUBLISH_JS
+        assert "detail: { device: stencilDevice }" in CANVAS_DRAFT_PUBLISH_JS
+
     def test_promote_connections_reconciles_duplicates_after_async_settlement(self) -> None:
         assert "function _htPrunePromotedDraftEdges(cy, node)" in CANVAS_DRAFT_PUBLISH_JS
         assert "return Promise.all(promotions).then(function() {" in CANVAS_DRAFT_PUBLISH_JS

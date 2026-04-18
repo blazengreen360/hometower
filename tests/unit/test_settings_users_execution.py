@@ -162,12 +162,25 @@ class TestSettingsUsersPage:
         async def exercise() -> None:
             await settings_users_module.settings_users_page()
             table = fake_ui.created["table"][0]
+            search_input = next(input_element for input_element in fake_ui.created["input"] if input_element.placeholder == "Search users")
             assert len(table.rows) == 2
             assert table.rows[0]["is_self"] is True
+            assert table.pagination == {"rowsPerPage": 25, "sortBy": "username", "descending": False}
+            assert any("rows-per-page-options=[10, 25, 50, 100]" in props for props in table.props_calls)
+            assert any(column["name"] == "last_active" and column["field"] == "last_active_sort" for column in table.columns)
+            assert "Edit user" in table.slots["body"]
+            assert "Delete user" in table.slots["body"]
+            assert "$parent.$emit('edit', props.row)" in table.slots["body"]
+            assert "$parent.$emit('delete', props.row)" in table.slots["body"]
+            assert search_input.placeholder == "Search users"
+            search_input.handlers["change"](SimpleNamespace(value="alice"))
+            assert table.filter == "alice"
+            search_input.handlers["change"](SimpleNamespace(value=None))
+            assert table.filter == ""
 
             add_button = next(button for button in fake_ui.created["button"] if button.value == "+ Add User")
             await _invoke(add_button.handlers["click"])
-            inputs = fake_ui.created["input"]
+            inputs = [input_element for input_element in fake_ui.created["input"] if input_element.label in {"Username", "Email", "Password"}]
             role_select = fake_ui.created["select"][0]
             active_checkbox = fake_ui.created["checkbox"][0]
             inputs[0].value = "carol"
@@ -184,7 +197,7 @@ class TestSettingsUsersPage:
             assert any(notification[1].get("type") == "positive" for notification in fake_ui.notifications)
             assert len(table.rows) == 3
 
-            await _invoke(lambda: table.handlers["edit"](SimpleNamespace(args=table.rows[1])))
+            await _invoke(lambda: table.trigger("edit", table.rows[1]))
             inputs[0].value = "bobby"
             inputs[1].value = "bob@test.local"
             inputs[2].value = ""
@@ -192,7 +205,7 @@ class TestSettingsUsersPage:
             await _invoke(save_button.handlers["click"])
             assert any(row["username"] == "bobby" for row in table.rows)
 
-            await _invoke(lambda: table.handlers["delete"](SimpleNamespace(args=table.rows[2])))
+            await _invoke(lambda: table.trigger("delete", table.rows[2]))
             delete_button = next(button for button in fake_ui.created["button"] if button.value == "Delete")
             await _invoke(delete_button.handlers["click"])
             await _drain_pending(fake_ui)

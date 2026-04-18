@@ -14,8 +14,9 @@ from src.utils.settings import settings
 
 def _failure_message(response: object, fallback: str) -> str:
     status_code = getattr(response, "status_code", None)
+    response_json = getattr(response, "json", None)
     try:
-        payload = response.json()
+        payload = response_json() if callable(response_json) else None
     except Exception:
         payload = None
     if isinstance(payload, dict):

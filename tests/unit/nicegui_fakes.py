@@ -99,6 +99,10 @@ class FakeElement:
         self.selected: list[dict[str, object]] = []
         self.slots: dict[str, str] = {}
         self.options: object = None
+        self.label: str | None = None
+        self.placeholder: str = ""
+        self.pagination: dict[str, object] | None = None
+        self.filter: str | None = None
         self.opened = False
         self.closed = False
         self.visible = True
@@ -174,6 +178,13 @@ class FakeElement:
         self.bound_mapping = mapping
         self.bound_key = key
         self.value = mapping[key]
+        return self
+
+    def set_filter(self, value: str) -> None:
+        self.filter = value
+
+    def bind_filter_from(self, mapping: dict[str, object], key: str) -> "FakeElement":
+        self.filter = str(mapping.get(key, "") or "")
         return self
 
     def set_value(self, value: object) -> None:
@@ -311,14 +322,20 @@ class FakeUI:
     def space(self) -> FakeElement:
         return self._element("space")
 
-    def input(self, *args: object, label: str | None = None, value: object = "", placeholder: str = "", **_kwargs: object) -> FakeElement:
-        return self._element("input", value=value)
+    def input(self, *args: object, label: str | None = None, value: object = "", placeholder: str = "", on_change: Callable[..., object] | None = None, **_kwargs: object) -> FakeElement:
+        element = self._element("input", value=value)
+        element.label = label or (str(args[0]) if args else None)
+        element.placeholder = placeholder
+        if on_change is not None:
+            element.handlers["change"] = on_change
+        return element
 
     def textarea(self, *args: object, label: str | None = None, value: object = "", **_kwargs: object) -> FakeElement:
         return self._element("textarea", value=value)
 
     def select(self, options: object = None, *, label: str | None = None, value: object = None, **_kwargs: object) -> FakeElement:
         element = self._element("select", value=value)
+        element.label = label
         element.options = options
         return element
 
@@ -341,6 +358,7 @@ class FakeUI:
         rows: list[dict[str, object]] | None = None,
         row_key: str | None = None,
         selection: str | None = None,
+        pagination: dict[str, object] | None = None,
         on_select: Callable[..., object] | None = None,
         **_kwargs: object,
     ) -> FakeElement:
@@ -349,6 +367,7 @@ class FakeUI:
         element.rows = list(rows or [])
         element.row_key = row_key
         element.selection = selection
+        element.pagination = dict(pagination or {})
         if on_select is not None:
             element.handlers["select"] = on_select
         return element

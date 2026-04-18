@@ -76,6 +76,6 @@ One-way data flow. The DB is source of truth. JS never mutates Python state dire
 ## Verification
 
 After any canvas change:
-1. `bash .claude/skills/verify-gate/scripts/run.sh --fast` — arch-grep catches stray repo imports in `src/ui/`.
+1. `bash .github/skills/verify-gate/scripts/run.sh --fast` — arch-grep catches stray repo imports in `src/ui/`.
 2. Manually open the topology page and confirm: view-mode cannot write, edit-mode can, undo/redo work, keyboard shortcuts respect readonly.
 3. Browser devtools console should show no unhandled Cytoscape errors.

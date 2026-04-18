@@ -456,13 +456,15 @@ class TestHt080PremiumizationGuards:
 
     def test_inventory_page_uses_shared_page_intro_and_actions(self) -> None:
         import src.ui.pages.inventory_page_controller as mod
+        import src.ui.pages.inventory_page_runtime_filters as runtime_filters
 
         source = inspect.getsource(mod)
+        filter_source = inspect.getsource(runtime_filters)
         assert "page_container" in source
         assert "render_page_intro" in source
         assert "primary_button(" in source
         assert "secondary_button(" in source
-        assert "set_filter_chip_state" in source
+        assert "set_filter_chip_state" in source or "set_filter_chip_state" in filter_source
 
     def test_map_page_uses_shared_page_intro_and_action_wrapper(self) -> None:
         import src.ui.pages.map as mod

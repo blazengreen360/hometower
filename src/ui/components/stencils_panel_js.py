@@ -1,15 +1,4 @@
-"""Inventory stencils panel JavaScript bridge (HT-049).
-
-STENCIL_DRAG_JS — makes stencil device rows draggable via HTML5 drag API.
-STENCIL_DROP_HANDLER_JS — handles ht:stencil-drop events on the canvas,
-    creating real (non-draft) nodes and triggering autosave.
-STENCIL_PANEL_JS — client-side virtual-scroll renderer, placed-state event
-    consumers (ht:stencil-placed / ht:stencil-refresh), collapse toggle.
-
-STENCIL_DROP_HANDLER_JS is concatenated into the _htInitEventHandlers closure
-in canvas_events.py — it shares scope with cy, _escapeHtml, _notify, and
-deviceShapes.
-"""
+"""Inventory stencils panel JS bridge for drag/drop, rendering, and refresh."""
 
 STENCIL_DRAG_JS: str = """
 function htStencilCardDrag(el, deviceId, deviceName, deviceType, deviceIp, deviceVersion) {
@@ -78,10 +67,6 @@ STENCIL_DROP_HANDLER_JS: str = """
             _notify('Device placed on canvas.', 'positive');
         });
 """
-
-
-# ── Client-side virtual-scroll renderer + event consumers ────────────────
-
 STENCIL_PANEL_JS: str = """
 (function() {
     if (window._htStencilPanelLoaded) return;
@@ -89,8 +74,14 @@ STENCIL_PANEL_JS: str = """
     var _d = [], _p = new Set(), _tc = {}, _ti = {}, _c = null;
     var _s = '', _tf = '', _B = 50;
 
-    window.htStencilInit = function(cid, devs, placed, tc, ti) {
+    window.htStencilInit = function(cid, devs, placed, tc, ti, tries) {
         _c = document.getElementById(cid);
+        if (!_c) {
+            if ((tries || 0) < 12) window.requestAnimationFrame(function() {
+                window.htStencilInit(cid, devs, placed, tc, ti, (tries || 0) + 1);
+            });
+            return;
+        }
         _d = devs || []; _p = new Set(placed || []);
         _tc = tc || {}; _ti = ti || {};
         _render();
@@ -120,10 +111,22 @@ STENCIL_PANEL_JS: str = """
         });
     }
 
+    function _upsert(dev) {
+        if (!dev || !dev.id) return;
+        _d = _d.filter(function(item) { return item.id !== dev.id; }); _d.unshift(dev);
+    }
+    window.htStencilUpsertPublishedDevice = function(dev) {
+        if (!dev) return; _upsert(dev); _p.add(String(dev.id || '')); _render();
+    };
+
     function _render() {
         if (!_c) return;
         _c.innerHTML = '';
         var items = _filtered(), idx = 0;
+        if (!items.length) {
+            _c.innerHTML = '<div style="padding:8px;color:var(--ht-text-secondary);font-size:0.75rem;">No devices in inventory</div>';
+            return;
+        }
         var sr = _c.closest('.q-scrollarea__container');
         function batch() {
             var f = document.createDocumentFragment();
@@ -218,6 +221,11 @@ STENCIL_PANEL_JS: str = """
         if (nameRow && !nameRow.querySelector('.ht-placed-badge')) {
             nameRow.appendChild(_badge());
         }
+    });
+
+    document.addEventListener('ht:stencil-device-published', function(evt) {
+        var dev = evt.detail && evt.detail.device ? evt.detail.device : null;
+        window.htStencilUpsertPublishedDevice(dev);
     });
 
     document.addEventListener('ht:stencil-refresh', function() {

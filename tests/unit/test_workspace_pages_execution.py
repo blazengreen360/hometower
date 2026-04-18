@@ -73,8 +73,17 @@ class TestWorkspacesPage:
         asyncio.run(workspaces_module.workspaces_page())
 
         table = fake_ui.created["table"][0]
+        search_input = fake_ui.created["input"][0]
         last_modified_column = next(column for column in table.columns if column["name"] == "last_modified")
         assert last_modified_column["field"] == "last_modified_sort"
+        assert table.pagination == {"rowsPerPage": 25, "sortBy": "name", "descending": False}
+        assert any("rows-per-page-options=[10, 25, 50, 100]" in props for props in table.props_calls)
+        assert search_input.placeholder == "Search workspaces"
+        assert "w-full max-w-full sm:max-w-[240px]" in search_input.classes_calls
+        search_input.handlers["change"](SimpleNamespace(value="Workspace One"))
+        assert table.filter == "Workspace One"
+        search_input.handlers["change"](SimpleNamespace(value=None))
+        assert table.filter == ""
 
         assert table.rows[0]["last_modified"] == "2026-04-12T13:39:49Z"
         assert table.rows[0]["last_modified_display"] == "\u2014"
@@ -392,8 +401,19 @@ class TestWorkspaceDetailPage:
         asyncio.run(workspace_detail_module.workspace_detail_page("ws-1"))
 
         table = fake_ui.created["table"][0]
+        search_input = fake_ui.created["input"][0]
         last_modified_column = next(column for column in table.columns if column["name"] == "last_modified")
         assert last_modified_column["field"] == "last_modified_sort"
+        assert table.pagination == {"rowsPerPage": 25, "sortBy": "name", "descending": False}
+        assert any("rows-per-page-options=[10, 25, 50, 100]" in props for props in table.props_calls)
+        assert search_input.placeholder == "Search topologies"
+        assert "Open topology" in table.slots["body"]
+        assert "Rename topology" in table.slots["body"]
+        assert "Delete topology" in table.slots["body"]
+        search_input.handlers["change"](SimpleNamespace(value="Topology One"))
+        assert table.filter == "Topology One"
+        search_input.handlers["change"](SimpleNamespace(value=None))
+        assert table.filter == ""
 
         assert table.rows[0]["last_modified"] == "2026-04-12T13:39:49Z"
         assert table.rows[0]["last_modified_display"] == "\u2014"

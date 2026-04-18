@@ -1,12 +1,10 @@
-"""Workspace detail page — /workspaces/{workspace_id}.
-
-Shows the topologies inside a workspace with New/Rename/Delete actions.
-"""
+"""Workspace detail page — /workspaces/{workspace_id}."""
 import html
 
 import httpx
 from nicegui import app as nicegui_app
 from nicegui import ui
+from nicegui.elements.table import Table
 
 from src.ui.components.app_shell import app_shell
 from src.ui.components.auth_guard import redirect_if_unauthenticated
@@ -18,7 +16,10 @@ from src.ui.design.primitives import page_container
 from src.ui.design.primitives import primary_button
 from src.ui.design.primitives import render_page_intro
 from src.ui.design.primitives import secondary_button
-from src.ui.design.primitives import table_surface
+from src.ui.design.table_patterns import create_standard_table
+from src.ui.design.table_patterns import render_table_search_input
+from src.ui.pages.workspace_detail_table import TOPOLOGY_TABLE_BODY_SLOT
+from src.ui.pages.workspace_detail_table import TOPOLOGY_TABLE_COLUMNS
 from src.ui.utils.formatting import LAST_MODIFIED_BROWSER_LOCAL_BRIDGE_SCRIPT
 from src.ui.utils.formatting import LAST_MODIFIED_BROWSER_LOCAL_CELL_EXPRESSION
 from src.ui.utils.formatting import enrich_last_modified_rows
@@ -53,6 +54,7 @@ async def workspace_detail_page(workspace_id: str) -> None:
 
     ws_name = "Workspace"
     topologies: list[dict[str, object]] = []
+    table: Table | None = None
 
     async def load_workspace() -> None:
         nonlocal ws_name
@@ -77,7 +79,9 @@ async def workspace_detail_page(workspace_id: str) -> None:
             if resp.status_code == 200:
                 topologies.clear()
                 topologies.extend(enrich_last_modified_rows(resp.json().get("items", [])))
-                table.rows = topologies  # type: ignore[assignment]
+                if table is None:
+                    return
+                table.rows = topologies
                 table.update()
         except Exception as exc:
             logger.error("Topologies load error: {}", str(exc))
@@ -165,6 +169,10 @@ async def workspace_detail_page(workspace_id: str) -> None:
         ui.add_body_html(LAST_MODIFIED_BROWSER_LOCAL_BRIDGE_SCRIPT)
 
         with page_container(ui.column()):
+            def _apply_search(value: str) -> None:
+                if table is not None:
+                    table.set_filter(value)
+
             render_breadcrumb([("Workspaces", "/workspaces"), (ws_name, "")])
             with ui.row().classes("w-full items-end justify-between gap-4 flex-wrap"):
                 render_page_intro(
@@ -179,45 +187,17 @@ async def workspace_detail_page(workspace_id: str) -> None:
                         "New Topology", "Topology name", on_submit=on_create,
                     ),
                 ))
+            with ui.row().classes("w-full justify-end"):
+                render_table_search_input(
+                    ui_module=ui,
+                    placeholder="Search topologies",
+                    on_change=_apply_search,
+                )
 
-            columns: list[dict[str, str | bool]] = [
-                {"name": "name", "label": "Name", "field": "name", "sortable": True},
-                {"name": "tags", "label": "Tags", "field": "tags"},
-                {"name": "last_modified", "label": "Last Modified", "field": "last_modified_sort", "sortable": True},
-                {"name": "actions", "label": "Actions", "field": "actions"},
-            ]
-            table = table_surface(ui.table(columns=columns, rows=[], row_key="id"))
+            table = create_standard_table(ui_module=ui, columns=TOPOLOGY_TABLE_COLUMNS, row_key="id", sort_by="name")
             table.add_slot(
                 "body",
-                r"""
-                <q-tr :props="props">
-                    <q-td key="name">
-                        <a href="#" class="ht-table-link"
-                           @click.prevent="$parent.$emit('open', props.row)">
-                            {{ props.row.name }}
-                        </a>
-                    </q-td>
-                    <q-td key="tags">
-                        <q-chip v-for="tag in (props.row.tags || [])" :key="tag"
-                            :label="tag" dense size="sm" />
-                    </q-td>
-                    <q-td key="last_modified">
-                        {{ __LAST_MODIFIED_DISPLAY__ }}
-                        <q-tooltip v-if="props.row.last_modified_iso">{{ props.row.last_modified_iso }}</q-tooltip>
-                    </q-td>
-                    <q-td key="actions">
-                        <q-btn flat dense icon="open_in_new" label="Open"
-                            @click="() => $parent.$emit('open', props.row)" />
-                        <q-btn flat dense icon="edit"
-                            @click="() => $parent.$emit('rename', props.row)" />
-                        <q-btn flat dense icon="delete" class="ht-btn-icon-danger"
-                            @click="() => $parent.$emit('delete', props.row)" />
-                    </q-td>
-                </q-tr>
-                """.replace(
-                    "__LAST_MODIFIED_DISPLAY__",
-                    LAST_MODIFIED_BROWSER_LOCAL_CELL_EXPRESSION,
-                ),
+                TOPOLOGY_TABLE_BODY_SLOT.replace("__LAST_MODIFIED_DISPLAY__", LAST_MODIFIED_BROWSER_LOCAL_CELL_EXPRESSION),
             )
 
             async def _open_topology(e: object) -> None:

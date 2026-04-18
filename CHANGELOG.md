@@ -4,6 +4,11 @@ All notable changes to Hometower will be documented in this file.
 
 ## [Unreleased]
 
+### Added — HT-081 data table enhancements and pagination
+
+- Standardized the Workspaces, workspace-detail Topologies, and Settings Users pages on a shared NiceGUI table pattern with client-side search, sorting, pagination defaults, and consistent HT-080 table chrome.
+- Added shared table helper wiring plus focused execution coverage for real search-handler registration and the Settings Users row-action event path, keeping browser-local timestamp formatting aligned with the existing HT-054 convention.
+
 ### Changed — HT-080 UI premiumization and component consistency
 
 - Added shared page, card, button, banner, and table primitives in `src/ui/design/primitives.py` and expanded the theme token set in `src/ui/design/tokens.py` so typography, spacing, and semantic actions now resolve through one global UI specification.

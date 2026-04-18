@@ -7,6 +7,7 @@ import html
 import httpx
 from nicegui import app as nicegui_app
 from nicegui import ui
+from nicegui.elements.table import Table
 
 from src.ui.components.app_shell import app_shell
 from src.ui.components.auth_guard import redirect_if_unauthenticated
@@ -17,7 +18,8 @@ from src.ui.design.primitives import page_container
 from src.ui.design.primitives import primary_button
 from src.ui.design.primitives import render_page_intro
 from src.ui.design.primitives import secondary_button
-from src.ui.design.primitives import table_surface
+from src.ui.design.table_patterns import create_standard_table
+from src.ui.design.table_patterns import render_table_search_input
 from src.ui.utils.formatting import LAST_MODIFIED_BROWSER_LOCAL_BRIDGE_SCRIPT
 from src.ui.utils.formatting import LAST_MODIFIED_BROWSER_LOCAL_CELL_EXPRESSION
 from src.ui.utils.formatting import enrich_last_modified_rows
@@ -39,7 +41,7 @@ async def workspaces_page() -> None:
         return
 
     workspaces: list[dict[str, object]] = []
-    refs: dict[str, object] = {}
+    table: Table | None = None
 
     async def load_workspaces() -> None:
         try:
@@ -51,7 +53,9 @@ async def workspaces_page() -> None:
                 data = resp.json()
                 workspaces.clear()
                 workspaces.extend(enrich_last_modified_rows(data.get("items", [])))
-                table.rows = workspaces  # type: ignore[assignment]
+                if table is None:
+                    return
+                table.rows = workspaces
                 table.update()
             else:
                 logger.error("Workspaces load failed: status={}", resp.status_code)
@@ -138,6 +142,10 @@ async def workspaces_page() -> None:
         ui.add_body_html(LAST_MODIFIED_BROWSER_LOCAL_BRIDGE_SCRIPT)
 
         with page_container(ui.column()):
+            def _apply_search(value: str) -> None:
+                if table is not None:
+                    table.set_filter(value)
+
             with ui.row().classes("w-full items-end justify-between gap-4 flex-wrap"):
                 render_page_intro(
                     ui,
@@ -151,14 +159,20 @@ async def workspaces_page() -> None:
                         "New Workspace", "Workspace name", on_submit=on_create,
                     ),
                 ))
+            with ui.row().classes("w-full justify-end"):
+                render_table_search_input(
+                    ui_module=ui,
+                    placeholder="Search workspaces",
+                    on_change=_apply_search,
+                )
 
-            columns: list[dict[str, str | bool]] = [
+            columns: list[dict[str, object]] = [
                 {"name": "name", "label": "Name", "field": "name", "sortable": True},
-                {"name": "topology_count", "label": "Topologies", "field": "topology_count"},
+                {"name": "topology_count", "label": "Topologies", "field": "topology_count", "sortable": True},
                 {"name": "last_modified", "label": "Last Modified", "field": "last_modified_sort", "sortable": True},
-                {"name": "actions", "label": "Actions", "field": "actions"},
+                {"name": "actions", "label": "Actions", "field": "actions", "align": "right", "style": "width: 1%; white-space: nowrap;", "headerStyle": "width: 1%; white-space: nowrap;"},
             ]
-            table = table_surface(ui.table(columns=columns, rows=[], row_key="id"))
+            table = create_standard_table(ui_module=ui, columns=columns, row_key="id", sort_by="name")
             table.add_slot(
                 "body",
                 r"""
@@ -173,11 +187,17 @@ async def workspaces_page() -> None:
                         {{ __LAST_MODIFIED_DISPLAY__ }}
                         <q-tooltip v-if="props.row.last_modified_iso">{{ props.row.last_modified_iso }}</q-tooltip>
                     </q-td>
-                    <q-td key="actions">
-                        <q-btn flat dense icon="edit"
-                            @click="() => $parent.$emit('rename', props.row)" />
-                        <q-btn flat dense icon="delete" class="ht-btn-icon-danger"
-                            @click="() => $parent.$emit('delete', props.row)" />
+                    <q-td key="actions" class="text-right">
+                        <div class="row no-wrap justify-end q-gutter-xs">
+                            <q-btn flat dense round size="sm" icon="edit" class="ht-btn-icon ht-btn-icon-secondary"
+                                @click="() => $parent.$emit('rename', props.row)">
+                                <q-tooltip>Rename workspace</q-tooltip>
+                            </q-btn>
+                            <q-btn flat dense round size="sm" icon="delete" class="ht-btn-icon ht-btn-icon-danger"
+                                @click="() => $parent.$emit('delete', props.row)">
+                                <q-tooltip>Delete workspace</q-tooltip>
+                            </q-btn>
+                        </div>
                     </q-td>
                 </q-tr>
                 """.replace(

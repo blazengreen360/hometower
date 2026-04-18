@@ -22,7 +22,7 @@ Schema changes are the hardest thing to roll back. This skill catches common foo
 ## Run
 
 ```bash
-bash .claude/skills/migration-safety/scripts/check.sh alembic/versions/<file>.py
+bash .github/skills/migration-safety/scripts/check.sh alembic/versions/<file>.py
 ```
 
 Flags risky patterns and prints a pass/fail with line numbers. Exit non-zero if any HIGH-severity issue is present.

@@ -67,8 +67,8 @@ Produce exactly this structure in chat. No file writes — this is a handoff art
 - If user-visible: relevant story in doc/stories/
 
 ### 10. Verification
-- bash .claude/skills/verify-gate/scripts/run.sh
-- If migration involved: bash .claude/skills/migration-safety/scripts/check.sh <migration file>
+- bash .github/skills/verify-gate/scripts/run.sh
+- If migration involved: bash .github/skills/migration-safety/scripts/check.sh <migration file>
 
 ### Risks / open questions for Architect
 - <anything the RFC left ambiguous — do not proceed past this without resolution>

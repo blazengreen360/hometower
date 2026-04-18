@@ -48,11 +48,18 @@ def render_sidebar(current_route: str) -> Callable[[], None]:
         "background:color-mix(in srgb, var(--ht-bg-surface-raised) 94%, transparent);"
         " border-right:1px solid var(--ht-border); backdrop-filter:blur(18px);"
     ) as drawer:
+        button_ref: list[ui.button] = []
+
+        def _on_toggle() -> None:
+            if button_ref:
+                _toggle_sidebar(drawer, button_ref[0])
+
         with ui.row().classes("justify-end px-2 pt-2"):
             collapse_button = ui.button(
                 icon="chevron_left" if expanded else "chevron_right",
-                on_click=lambda: _toggle_sidebar(drawer, collapse_button),
+                on_click=_on_toggle,
             ).props("flat dense round size=sm").classes("text-[var(--ht-text-secondary)]")
+            button_ref.append(collapse_button)
 
         for item in _NAV_ITEMS:
             disabled = item.get("disabled") == "true"

@@ -18,7 +18,7 @@ Machine-verified pre-push gate. Replaces ad-hoc `pytest` / `mypy` / grep invocat
 ## Run
 
 ```bash
-bash .claude/skills/verify-gate/scripts/run.sh
+bash .github/skills/verify-gate/scripts/run.sh
 ```
 
 Flags:

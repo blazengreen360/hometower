@@ -190,6 +190,9 @@ class TestStencilPanelJSEventConsumers:
     def test_listens_for_stencil_refresh_event(self) -> None:
         assert "ht:stencil-refresh" in STENCIL_PANEL_JS
 
+    def test_listens_for_published_device_event(self) -> None:
+        assert "ht:stencil-device-published" in STENCIL_PANEL_JS
+
     def test_placed_event_adds_placed_class(self) -> None:
         assert "ht-stencil-placed" in STENCIL_PANEL_JS
 
@@ -206,6 +209,11 @@ class TestStencilPanelJSEventConsumers:
 
     def test_placed_event_appends_badge(self) -> None:
         assert "ht-placed-badge" in STENCIL_PANEL_JS
+
+    def test_published_device_event_upserts_and_marks_placed(self) -> None:
+        assert "_upsert(dev);" in STENCIL_PANEL_JS
+        assert "_p.add(String(dev.id || ''));" in STENCIL_PANEL_JS
+        assert "_render();" in STENCIL_PANEL_JS
 
 
 class TestStencilPanelJSVirtualScroll:
@@ -227,6 +235,12 @@ class TestStencilPanelJSVirtualScroll:
     def test_uses_document_fragment(self) -> None:
         """Batch rendering should use DocumentFragment for performance."""
         assert "createDocumentFragment" in STENCIL_PANEL_JS
+
+    def test_retries_init_until_mount_exists(self) -> None:
+        assert "requestAnimationFrame" in STENCIL_PANEL_JS
+
+    def test_empty_inventory_message_present(self) -> None:
+        assert "No devices in inventory" in STENCIL_PANEL_JS
 
 
 class TestStencilPanelJSCollapse:

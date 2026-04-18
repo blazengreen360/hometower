@@ -6,7 +6,7 @@ tools: [vscode/memory, vscode/askQuestions, read/readFile, edit/createDirectory,
 user-invocable: true
 ---
 
-> Codex reads [AGENTS.md](../../AGENTS.md) for runtime behavior and uses [doc/codex-operating-model.md](../../doc/codex-operating-model.md) for the Product-Owner mapping. This file remains the Product-Owner behavior spec.
+> Codex reads [AGENTS.md](../../AGENTS.md) for runtime behavior. The local `.agents/skills/product-owner/SKILL.md` file is the Codex Product-Owner behavior spec. This file remains the human-readable Product-Owner reference.
 
 > Codex execution note: In Codex, this behavior normally stays in the main agent. Do not spawn implementation or delivery subagents from Product-Owner mode; if bounded read-only research materially helps, use at most an `explorer` subagent and fold its findings back into the story yourself.
 

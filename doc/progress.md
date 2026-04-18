@@ -1,27 +1,36 @@
-# HT-080 Remediation — Premiumization Consistency Follow-Up
+# HT-082 Progress — Dashboard Revamp And Power Widgets
 
-**Story/Bug:** HT-080 follow-up
+**Story:** HT-082 (L)
 **Started:** 18 April 2026
-**Status:** Done
+**Status:** In Progress
 
 ## Work Plan (CPM)
-B1 fix the reviewed UI consistency gaps + add enforcement tests -> B2 run focused verification + mandatory live user simulation -> B3 formal scoped code review -> B4 close out follow-up
+B1 implement a backend dashboard aggregate endpoint + model + tests -> B2 implement the premium dashboard UI against that aggregate contract + focused UI tests -> B3 run mandatory live user validation on dashboard widgets, filtering, and navigation -> B4 formal code review with mandatory gates and local commit on approval -> B5 close out story bookkeeping
 
-Critical path: B1 -> B2 -> B3 -> B4
-Parallelizable work is intentionally minimal because the review findings are frontend-local and the verification/review steps depend on the exact remediation diff.
+Critical path: B1 -> B2 -> B3 -> B4 -> B5
+Parallelizable work is intentionally limited: the backend contract must settle before the frontend lane finalizes the dashboard widget wiring, but UI styling/component extraction can begin once the response shape is clear.
+
+## Decisive Proof
+- Dashboard `/` renders a balanced overview with real aggregate data from a single dashboard summary contract rather than scatter-gather page fetches.
+- Power widget supports `All` vs workspace filtering without a full page reload.
+- Inventory/status widgets navigate to pre-filtered `/inventory`.
+- Recent activity shows the latest relevant changes and links to the resource.
+- Mandatory review gates pass: `docker compose exec api pytest`, `docker compose exec api mypy src/ --ignore-missing-imports`, `docker compose build`.
+- Code-Reviewer returns a valid verdict with exact gate evidence, then commits locally via Git-Committer.
 
 ## Bundle Progress
 | # | Bundle | Agent | Status | Notes |
 |---|---|---|---|---|
-| B1 | Fix HT-080 review findings | PM -> Frontend-Engineer | Done | Frontend-Engineer delivered a surgical UI-only remediation across the cited surfaces, added focused regression coverage, and reported both a scoped pytest run and the canonical verify gate as green. |
-| B2 | Verify remediation | PM -> User-Simulator | Done | Mandatory live validation ultimately passed after recovering local admin access, restarting the non-reloading api container after UI edits, fixing the Tags empty-state affordance, and correcting the sidebar active/collapse regressions surfaced during browser validation. |
-| B3 | Formal review | PM -> Code-Reviewer | Done | Final scoped code review returned no findings after the last UI correctness and structural cleanup passes. |
-| B4 | Close-out bookkeeping | PM | Done | Progress record closed; HT-080 backlog/changelog story state already reflected the shipped story, so no additional story archival move was needed for this follow-up-only remediation. |
+| B1 | Backend aggregate contract + tests | PM -> Backend-Engineer | Pending | Build a single dashboard summary endpoint/service contract with efficient aggregate queries and recent-activity payload. |
+| B2 | Dashboard UI revamp + focused tests | PM -> Frontend-Engineer | Pending | Rebuild `/` against the aggregate endpoint with premium widget cards, workspace-aware power card, inventory/status drill-through, and recent-activity links. |
+| B3 | Mandatory live validation | PM -> User-Simulator | Pending | Validate dashboard load, power workspace switching, inventory drill-through, and recent activity link behavior in the browser. |
+| B4 | Formal review + local commit | PM -> Code-Reviewer | Pending | Review scoped diff, rerun mandatory gates in the review run, and commit locally if APPROVED. |
+| B5 | Close-out bookkeeping | PM | Pending | Update changelog, backlog, story archive, tracker if needed, and clear progress state after approval. |
 
 ## Decisions
-- Treat this as a known-location HT-080 remediation, not a new feature story.
-- Minimal viable coordination applies: Frontend-Engineer owns the code/test fix bundle because the findings are presentation-layer only.
-- The review findings are the acceptance target for this follow-up: hardcoded-color removal, primitive adoption on cited surfaces, dialog action consistency, and regression tests that enforce the HT-080 invariants.
+- No Architect lane up front: the story already fixes the dashboard direction and the most efficient path is a direct backend aggregate contract plus frontend implementation.
+- The backend should own aggregation so the NiceGUI page does not issue multiple independent collection calls on load.
+- Recent activity should start with the simplest reliable sources already in the data model: recent devices and recent topology history/version events, then normalize them into one dashboard activity list.
 
 ## Blockers
 - None.

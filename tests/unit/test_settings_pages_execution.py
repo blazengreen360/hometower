@@ -421,7 +421,11 @@ class TestSettingsUsersPage:
             save_button = next(button for button in fake_ui.created["button"] if button.value == "Save")
 
             await _invoke(add_button.handlers["click"])
-            username_input, email_input, password_input = fake_ui.created["input"]
+            username_input, email_input, password_input = [
+                input_element
+                for input_element in fake_ui.created["input"]
+                if input_element.label in {"Username", "Email", "Password"}
+            ]
             role_select = fake_ui.created["select"][0]
 
             password_input.value = "Password123!"
