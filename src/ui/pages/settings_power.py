@@ -15,6 +15,12 @@ from src.ui.components.auth_guard import (
     redirect_if_unauthenticated,
 )
 from src.ui.components.toast import show_toast
+from src.ui.design.primitives import card_section
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import page_container
+from src.ui.design.primitives import primary_button
+from src.ui.design.primitives import render_page_intro
+from src.ui.design.primitives import secondary_button
 from src.utils.logger import logger
 from src.utils.settings import settings
 
@@ -69,44 +75,37 @@ async def settings_power_page() -> None:
         return
 
     with app_shell("Power", "/settings/power", breadcrumb=["Settings", "Power"]):
-        with ui.column().classes("w-full max-w-3xl gap-4"):
-            ui.label("Power Settings").style(
-                "font-size:1.5rem; font-weight:700; color:var(--ht-text-primary);"
+        with page_container(ui.column()):
+            render_page_intro(
+                ui,
+                "Power Settings",
+                "Configure electricity cost and currency so dashboards, maps, and rollups can estimate monthly operating spend.",
+                "Settings",
             )
-            ui.label(
-                "Configure electricity cost used for dashboard and map power estimates."
-            ).style("font-size:0.9rem; color:var(--ht-text-secondary);")
 
-            with ui.card().classes("w-full").style(
-                "background:var(--ht-bg-surface-raised); border:1px solid var(--ht-border);"
-                " border-radius:var(--ht-radius-card);"
-            ):
-                with ui.column().classes("w-full gap-3 p-4"):
+            with card_surface(ui.card()):
+                with card_section(ui.column()).classes("w-full gap-3"):
                     with ui.row().classes("w-full gap-3 items-end"):
                         cost_input = (
                             ui.input("Cost per kWh", value="")
-                            .props("type=number min=0 step=0.0001")
+                            .props("outlined type=number min=0 step=0.0001")
                             .classes("w-56")
                         )
                         currency_input = (
                             ui.input("Currency", value="")
-                            .props("maxlength=3")
+                            .props("outlined maxlength=3")
                             .classes("w-36")
                         )
 
-                    ui.label("Formula: monthly kWh = total watts x 24 x 30.44 / 1000").style(
-                        "font-size:0.8rem; color:var(--ht-text-secondary);"
+                    ui.label("Formula: monthly kWh = total watts x 24 x 30.44 / 1000").classes(
+                        "ht-small-copy"
                     )
                     ui.label(
                         "Costs are estimates and depend on devices with known power values."
-                    ).style("font-size:0.8rem; color:var(--ht-text-secondary);")
+                    ).classes("ht-small-copy")
 
-                    updated_label = ui.label("Last updated: unknown").style(
-                        "font-size:0.8rem; color:var(--ht-text-secondary);"
-                    )
-                    error_label = ui.label("").style(
-                        "font-size:0.85rem; color:var(--ht-error);"
-                    )
+                    updated_label = ui.label("Last updated: unknown").classes("ht-small-copy")
+                    error_label = ui.label("").classes("ht-form-error")
                     error_label.set_visibility(False)
 
                     def _clear_error() -> None:
@@ -221,9 +220,7 @@ async def settings_power_page() -> None:
                         )
 
                     with ui.row().classes("w-full justify-end gap-2"):
-                        ui.button("Clear", on_click=_clear_form).props("flat")
-                        ui.button("Save settings", on_click=_save_settings).props(
-                            "color=primary"
-                        )
+                        secondary_button(ui.button("Clear", on_click=_clear_form))
+                        primary_button(ui.button("Save settings", on_click=_save_settings))
 
             await _load_settings()

@@ -1,0 +1,3 @@
+- Local docker `api` service runs uvicorn without hot reload; after UI code edits under mounted `src/`, restart `docker compose restart api` before trusting browser validation.
+- Local admin auth may drift from `.env` because `ADMIN_PASSWORD` is first-boot only; if browser validation blocks on login, use the supported CLI reset path `python -m src.cli reset-password --username admin@hometower.local --password <new>` rather than assuming `.env` still works.
+- HT-080 follow-up needed both code review and live browser passes to catch UI affordance and shell-state regressions that targeted tests missed.

@@ -5,6 +5,10 @@ import inspect
 import httpx
 from nicegui import ui
 
+from src.ui.design.primitives import card_section
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import danger_button
+from src.ui.design.primitives import secondary_button
 from src.utils.logger import logger
 from src.utils.settings import settings
 
@@ -34,53 +38,48 @@ async def show_delete_confirmation(
 
     placements = await _fetch_placements()
 
-    with ui.dialog() as dialog, ui.card().style("min-width:400px"):
-        title = f"Delete {device_name}?" if device_name else "Delete device?"
-        ui.label(title).style("font-size:1.1rem; font-weight:600; color:var(--ht-text-primary)")
-        if placements:
-            ui.label(
-                f"This device appears in {len(placements)} topology diagram(s). "
-                "Removing it will leave orphaned canvas nodes."
-            ).style("color:var(--ht-text-primary)")
-            with ui.column().classes("q-ml-md"):
-                for p in placements:
-                    topo = p.get("topology_name")
-                    label = p.get("view_name", "Unknown view")
-                    if topo:
-                        label += f" ({topo})"
-                    ui.label(f"\u2022 {label}").style(
-                        "color:var(--ht-text-secondary); font-size:0.875rem"
-                    )
-        else:
-            ui.label("This device has no topology placements.").style(
-                "color:var(--ht-text-primary)"
-            )
+    with ui.dialog() as dialog, card_surface(ui.card()).classes("min-w-[400px]"):
+        with card_section(ui.column()):
+            title = f"Delete {device_name}?" if device_name else "Delete device?"
+            ui.label(title).classes("ht-section-title")
+            if placements:
+                ui.label(
+                    f"This device appears in {len(placements)} topology diagram(s). "
+                    "Removing it will leave orphaned canvas nodes."
+                ).classes("ht-muted-copy")
+                with ui.column().classes("q-ml-md"):
+                    for p in placements:
+                        topo = p.get("topology_name")
+                        label = p.get("view_name", "Unknown view")
+                        if topo:
+                            label += f" ({topo})"
+                        ui.label(f"\u2022 {label}").classes("ht-small-copy")
+            else:
+                ui.label("This device has no topology placements.").classes("ht-muted-copy")
 
-        with ui.row().classes("w-full justify-end q-mt-md"):
-            ui.button("Cancel", on_click=dialog.close).props("flat color=grey")
+            with ui.row().classes("w-full justify-end q-mt-md gap-2"):
+                secondary_button(ui.button("Cancel", on_click=dialog.close))
 
-            async def _do_delete() -> None:
-                try:
-                    async with httpx.AsyncClient() as http:
-                        resp = await http.delete(
-                            f"{settings.api_base_url}/api/devices/{device_id}",
-                            headers={"Authorization": f"Bearer {token}"},
-                            timeout=10.0,
-                        )
-                    if resp.status_code == 204:
-                        ui.notify(f"Deleted {device_name}", type="positive")
-                        dialog.close()
-                        await on_deleted()  # type: ignore[misc]
-                    else:
-                        detail = resp.json().get("detail", "Delete failed")
-                        ui.notify(detail, type="negative")
-                except Exception as exc:
-                    logger.error("Delete error: {}", str(exc))
-                    ui.notify("Delete failed", type="negative")
+                async def _do_delete() -> None:
+                    try:
+                        async with httpx.AsyncClient() as http:
+                            resp = await http.delete(
+                                f"{settings.api_base_url}/api/devices/{device_id}",
+                                headers={"Authorization": f"Bearer {token}"},
+                                timeout=10.0,
+                            )
+                        if resp.status_code == 204:
+                            ui.notify(f"Deleted {device_name}", type="positive")
+                            dialog.close()
+                            await on_deleted()  # type: ignore[misc]
+                        else:
+                            detail = resp.json().get("detail", "Delete failed")
+                            ui.notify(detail, type="negative")
+                    except Exception as exc:
+                        logger.error("Delete error: {}", str(exc))
+                        ui.notify("Delete failed", type="negative")
 
-            ui.button(
-                "Delete device", on_click=_do_delete
-            ).props("color=negative").style("font-weight:600")
+                danger_button(ui.button("Delete device", on_click=_do_delete))
 
     dialog.open()
 
@@ -99,19 +98,18 @@ async def show_bulk_delete_confirmation(
         if inspect.isawaitable(maybe_awaitable):
             await maybe_awaitable
 
-    with ui.dialog() as dialog, ui.card().style("min-width:400px"):
-        ui.label(f"Delete {selected_count} devices?").style(
-            "font-size:1.1rem; font-weight:600; color:var(--ht-text-primary)"
-        )
-        ui.label(
-            "This cannot be undone. Devices with active connections will be skipped."
-        ).style("color:var(--ht-text-primary)")
+    with ui.dialog() as dialog, card_surface(ui.card()).classes("min-w-[400px]"):
+        with card_section(ui.column()):
+            ui.label(f"Delete {selected_count} devices?").classes("ht-section-title")
+            ui.label(
+                "This cannot be undone. Devices with active connections will be skipped."
+            ).classes("ht-muted-copy")
 
-        with ui.row().classes("w-full justify-end q-mt-md"):
-            ui.button("Cancel", on_click=dialog.close).props("flat color=grey")
-            ui.button(
-                "Delete devices",
-                on_click=lambda: _confirm_and_close(dialog),
-            ).props("color=negative").style("font-weight:600")
+            with ui.row().classes("w-full justify-end q-mt-md gap-2"):
+                secondary_button(ui.button("Cancel", on_click=dialog.close))
+                danger_button(ui.button(
+                    "Delete devices",
+                    on_click=lambda: _confirm_and_close(dialog),
+                ))
 
     dialog.open()

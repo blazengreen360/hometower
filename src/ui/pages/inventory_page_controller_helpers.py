@@ -2,8 +2,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import uuid
+
+import httpx
+
+from src.models.device import DeviceResponseEnriched
 
 from src.ui.pages.inventory_bulk_actions import BulkActionOutcome
+from src.utils.logger import logger
+from src.utils.settings import settings
 
 
 def resolve_selection_after_bulk(
@@ -33,3 +40,54 @@ def relative_time(dt: datetime) -> str:
     if diff < 86400:
         return f"{diff // 3600}h ago"
     return f"{diff // 86400}d ago"
+
+
+async def load_inventory_devices(token: str) -> list[DeviceResponseEnriched]:
+    """Load enriched inventory devices for the page controller."""
+    try:
+        async with httpx.AsyncClient() as http:
+            response = await http.get(
+                f"{settings.api_base_url}/api/devices/",
+                params={"include": "location,tags,services,networks", "limit": "1000"},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10.0,
+            )
+    except Exception as exc:
+        logger.error("Inventory load error: {}", str(exc))
+        return []
+
+    if response.status_code != 200:
+        logger.error("Inventory load failed: status={}", response.status_code)
+        return []
+
+    return [
+        DeviceResponseEnriched.model_validate(item)
+        for item in response.json().get("items", [])
+    ]
+
+
+async def load_inventory_placement_data(
+    token: str,
+    device_ids: set[uuid.UUID],
+) -> tuple[set[str], dict[str, int]]:
+    """Return orphan IDs and placement counts for the inventory table."""
+    all_ids = {str(device_id) for device_id in device_ids}
+    try:
+        async with httpx.AsyncClient() as http:
+            response = await http.get(
+                f"{settings.api_base_url}/api/devices/placed-ids",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10.0,
+            )
+    except Exception as exc:
+        logger.error("Orphan data load error: {}", str(exc))
+        return set(), {}
+
+    if response.status_code != 200:
+        logger.error("Orphan data load failed: status={}", response.status_code)
+        return set(), {}
+
+    placed_ids = set(response.json())
+    orphan_ids = all_ids.difference(placed_ids)
+    placement_counts = {device_id: (1 if device_id in placed_ids else 0) for device_id in all_ids}
+    return orphan_ids, placement_counts

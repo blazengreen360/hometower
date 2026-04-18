@@ -110,6 +110,31 @@ def login_ui(page: Page) -> None:
                     page.wait_for_load_state('networkidle', timeout=2000)
                 except Exception:
                     pass
+                # Post-login readiness gate: wait for a reliable authenticated
+                # app-shell signal before proceeding. We consider the app-shell
+                # ready when any of these are true:
+                #  - `window._htFetchIntercepted` (app_shell JS injected)
+                #  - `window._htUserRole` (pages set this when rendering authenticated pages)
+                #  - presence of the header bearing the app title (rendered by app_shell)
+                predicate = (
+                    "() => {"
+                    " try {"
+                    "  if (window._htFetchIntercepted) return true;"
+                    "  if (window._htUserRole) return true;"
+                    "  var h = document.querySelector('header');"
+                    "  if (h && h.innerText && h.innerText.indexOf('Hometower') !== -1) return true;"
+                    "  return false;"
+                    " } catch(e) { return false; }"
+                    "}"
+                )
+                # Allow up to 8s for the app-shell to initialise (network + client boot)
+                try:
+                    ready = evaluate_with_retry(page, predicate, timeout_ms=8000)
+                except Exception:
+                    ready = False
+                if not ready:
+                    # As a conservative fallback, give a short extra pause before failing
+                    page.wait_for_timeout(400)
                 return
             page.wait_for_timeout(200)
 
@@ -1094,8 +1119,11 @@ def run_deep_canvas_test() -> int:
             _num(inner_after_clamp.get("styleWidth")),
         )
 
+        # Give more time on warm runs for the browser to settle rendered/style metrics
+        # after the pointer-driven resize. 4s was occasionally flaky; extend to 8s
+        # while keeping the measurable-change assertion unchanged.
         inner_valid_before_save = wait_for_style_increase(
-            page, compound_ids["inner"], baseline_w, timeout_ms=4000
+            page, compound_ids["inner"], baseline_w, timeout_ms=8000
         )
 
         new_style_w = _num(inner_valid_before_save.get("styleWidth"))

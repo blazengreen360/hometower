@@ -8,8 +8,24 @@ import httpx
 from nicegui import ui
 
 from src.models.custom_field import CustomFieldResponse
+from src.ui.design.primitives import card_section, card_surface, danger_button, danger_icon_button, primary_button, secondary_button, secondary_icon_button
 from src.utils.logger import logger
 from src.utils.settings import settings
+
+
+def _failure_message(response: object, fallback: str) -> str:
+    status_code = getattr(response, "status_code", None)
+    try:
+        payload = response.json()
+    except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        detail = payload.get("detail")
+        if isinstance(detail, str) and detail.strip():
+            return detail
+    if isinstance(status_code, int):
+        return f"{fallback} ({status_code})"
+    return fallback
 
 
 def render_custom_fields_section(
@@ -54,18 +70,22 @@ def render_custom_fields_section(
                     new_val: Optional[str] = getattr(i, "value", "")
                     try:
                         async with httpx.AsyncClient() as c:
-                            await c.patch(
+                            response = await c.patch(
                                 f"{settings.api_base_url}/api/devices/{device_id}"
                                 f"/custom-fields/{cf_id}",
                                 json={"value": new_val},
                                 headers={"Authorization": f"Bearer {token}"},
                                 timeout=5.0,
                             )
-                        getattr(vl, "set_text")(html.escape(new_val or "\u2014"))
-                        ui.notify("Field updated", type="positive")
                     except httpx.HTTPError as exc:
                         logger.error("CF save: {}", str(exc))
                         ui.notify("Connection error", type="negative")
+                        return
+                    if response.status_code not in (200, 204):
+                        ui.notify(_failure_message(response, "Field update failed"), type="negative")
+                        return
+                    getattr(vl, "set_text")(html.escape(new_val or "\u2014"))
+                    ui.notify("Field updated", type="positive")
                     getattr(vl, "set_visibility")(True)
                     getattr(er, "style")("display:none")
 
@@ -76,9 +96,7 @@ def render_custom_fields_section(
                 ui.button(icon="check", on_click=_save_cf).props(
                     "flat dense round size=xs"
                 ).style("color:var(--ht-success);")
-                ui.button(icon="close", on_click=_cancel_cf).props(
-                    "flat dense round size=xs"
-                ).style("color:var(--ht-error);")
+                danger_icon_button(ui.button(icon="close", on_click=_cancel_cf))
 
             def _start_cf(
                 vl: object = val_lbl,
@@ -95,7 +113,7 @@ def render_custom_fields_section(
             async def _delete_cf(cf_id: uuid.UUID = cf.id, dlg=confirm_dlg) -> None:
                 try:
                     async with httpx.AsyncClient() as c:
-                        await c.delete(
+                        response = await c.delete(
                             f"{settings.api_base_url}/api/devices/{device_id}"
                             f"/custom-fields/{cf_id}",
                             headers={"Authorization": f"Bearer {token}"},
@@ -105,26 +123,30 @@ def render_custom_fields_section(
                     logger.error("CF delete: {}", str(exc))
                     ui.notify("Connection error", type="negative")
                     return
+                if response.status_code not in (200, 204):
+                    ui.notify(_failure_message(response, "Delete field failed"), type="negative")
+                    return
                 dlg.close()
                 on_change()
 
             with confirm_dlg:
-                with ui.card().style("min-width:300px"):
-                    ui.label(f"Delete custom field '{html.escape(cf.key)}'?").style(
-                        "font-weight:600;"
-                    )
-                    with ui.row().classes("justify-end gap-2"):
-                        ui.button("Delete", on_click=_delete_cf).props(
-                            "color=negative"
+                with card_surface(ui.card()).classes("min-w-[300px]"):
+                    with card_section(ui.column()):
+                        ui.label(f"Delete custom field '{html.escape(cf.key)}'?").classes(
+                            "ht-section-title"
                         )
-                        ui.button("Cancel", on_click=confirm_dlg.close).props("flat")
+                        with ui.row().classes("justify-end gap-2"):
+                            secondary_button(ui.button("Cancel", on_click=confirm_dlg.close))
+                            danger_button(ui.button("Delete", on_click=_delete_cf))
 
-            ui.button(icon="edit", on_click=_start_cf).props(
-                "flat dense round size=xs aria-label='Edit field'"
-            ).style("color:var(--ht-text-secondary);")
-            ui.button(icon="delete", on_click=lambda dlg=confirm_dlg: dlg.open()).props(
-                "flat dense round size=xs aria-label='Delete field'"
-            ).style("color:var(--ht-error);")
+            secondary_icon_button(
+                ui.button(icon="edit", on_click=_start_cf).props("aria-label='Edit field'")
+            )
+            danger_icon_button(
+                ui.button(icon="delete", on_click=lambda dlg=confirm_dlg: dlg.open()).props(
+                    "aria-label='Delete field'"
+                )
+            )
 
     if not is_editor:
         return
@@ -159,6 +181,9 @@ def render_custom_fields_section(
                 if r.status_code == 409:
                     ui.notify("Key already exists", type="warning")
                     return
+                if r.status_code not in (200, 201):
+                    ui.notify(_failure_message(r, "Add field failed"), type="negative")
+                    return
                 key_inp.set_value("")
                 val_inp.set_value("")
                 on_change()
@@ -166,6 +191,4 @@ def render_custom_fields_section(
                 logger.error("CF add: {}", str(exc))
                 ui.notify("Connection error", type="negative")
 
-        ui.button(icon="add", on_click=_add_field).props(
-            "flat dense round aria-label='Add field'"
-        ).style("color:var(--ht-accent);")
+        primary_button(ui.button(icon="add", on_click=_add_field).props("aria-label='Add field'"))

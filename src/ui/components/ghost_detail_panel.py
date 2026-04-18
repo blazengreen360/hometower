@@ -7,6 +7,8 @@ from nicegui import ui
 
 from src.ui.components.toast import show_toast
 from src.ui.components.topology_layout_bar_support import apply_history_response, build_state_sync_js
+from src.ui.design.primitives import primary_button
+from src.ui.design.primitives import secondary_button
 from src.utils.logger import logger
 from src.utils.settings import settings
 
@@ -191,14 +193,14 @@ def render_ghost_detail_panel(token: str, user_role: str, topology_id: str) -> N
         if can_reconcile:
             ui.separator()
             ui.label("Reconcile this ghost").style("font-size:0.875rem; color:var(--ht-text-primary); font-weight:600;")
-            ui.button("Recreate as New Device", on_click=_recreate_as_new_device).props("color=primary").classes(
-                "w-full"
-            )
+            secondary_button(
+                ui.button("Recreate as New Device", on_click=_recreate_as_new_device)
+            ).classes("w-full")
             map_select = ui.select(options={}, label="Map to Existing Device", value=None).classes("w-full")
             map_select_ref.append(map_select)
-            ui.button("Map Selected Device", on_click=_map_to_existing_device).props("outline color=primary").classes(
-                "w-full"
-            )
+            primary_button(
+                ui.button("Map Selected Device", on_click=_map_to_existing_device)
+            ).classes("w-full")
         else:
             ui.label("Your role can view ghosts but cannot reconcile them.").style(
                 "font-size:0.825rem; color:var(--ht-text-secondary);"

@@ -7,8 +7,24 @@ import httpx
 from nicegui import ui
 
 from src.models.tag import TagResponse
+from src.ui.design.primitives import card_section, card_surface, danger_button, on_accent_icon_button, secondary_button, secondary_icon_button
 from src.utils.logger import logger
 from src.utils.settings import settings
+
+
+def _failure_message(response: object, fallback: str) -> str:
+    status_code = getattr(response, "status_code", None)
+    try:
+        payload = response.json()
+    except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        detail = payload.get("detail")
+        if isinstance(detail, str) and detail.strip():
+            return detail
+    if isinstance(status_code, int):
+        return f"{fallback} ({status_code})"
+    return fallback
 
 
 def render_tags_section(
@@ -31,7 +47,7 @@ def render_tags_section(
                 "padding:2px 10px; max-width:fit-content;"
             ):
                 ui.label(html.escape(tag.name)).style(
-                    "font-size:0.75rem; color:white; font-weight:500;"
+                    "font-size:0.75rem; color:var(--ht-text-on-accent); font-weight:500;"
                 )
                 if is_editor:
 
@@ -40,7 +56,7 @@ def render_tags_section(
                     async def _detach(t_id: uuid.UUID = tag.id, dlg=confirm_dlg) -> None:
                         try:
                             async with httpx.AsyncClient() as c:
-                                await c.delete(
+                                response = await c.delete(
                                     f"{settings.api_base_url}/api/devices/{device_id}"
                                     f"/tags/{t_id}",
                                     headers={"Authorization": f"Bearer {token}"},
@@ -50,29 +66,27 @@ def render_tags_section(
                             logger.error("Tag detach: {}", str(exc))
                             ui.notify("Connection error", type="negative")
                             return
+                        if response.status_code not in (200, 204):
+                            ui.notify(_failure_message(response, "Remove tag failed"), type="negative")
+                            return
                         dlg.close()
                         on_change()
 
                     with confirm_dlg:
-                        with ui.card().style("min-width:300px"):
-                            ui.label(
-                                f"Remove tag '{html.escape(tag.name)}' from this device?"
-                            ).style(
-                                "font-weight:600;"
-                            )
-                            with ui.row().classes("justify-end gap-2"):
-                                ui.button("Remove", on_click=_detach).props(
-                                    "color=negative"
-                                )
-                                ui.button("Cancel", on_click=confirm_dlg.close).props(
-                                    "flat"
-                                )
+                        with card_surface(ui.card()).classes("min-w-[300px]"):
+                            with card_section(ui.column()):
+                                ui.label(
+                                    f"Remove tag '{html.escape(tag.name)}' from this device?"
+                                ).classes("ht-section-title")
+                                with ui.row().classes("justify-end gap-2"):
+                                    secondary_button(ui.button("Cancel", on_click=confirm_dlg.close))
+                                    danger_button(ui.button("Remove", on_click=_detach))
 
-                    ui.button(
-                        icon="close", on_click=lambda dlg=confirm_dlg: dlg.open()
-                    ).props(
-                        "flat dense round size=xs aria-label='Remove tag'"
-                    ).style("color:white; padding:0;")
+                    on_accent_icon_button(
+                        ui.button(icon="close", on_click=lambda dlg=confirm_dlg: dlg.open()).props(
+                            "aria-label='Remove tag'"
+                        )
+                    ).style("padding:0;")
 
     if not is_editor:
         return
@@ -80,6 +94,18 @@ def render_tags_section(
     attached_ids = {t.id for t in tags}
     available = [t for t in all_tags if t.id not in attached_ids]
     if not available:
+        empty_state = (
+            "No tags available to add yet"
+            if not all_tags
+            else "All available tags are already attached"
+        )
+        with ui.row().classes("items-center justify-between gap-2 w-full"):
+            ui.label(empty_state).style(
+                "font-size:0.8125rem; color:var(--ht-text-secondary);"
+            )
+            secondary_icon_button(
+                ui.button(icon="add").props("disable aria-label='Add tag unavailable'")
+            )
         return
 
     opts = {str(t.id): html.escape(t.name) for t in available}
@@ -90,7 +116,7 @@ def render_tags_section(
             return
         try:
             async with httpx.AsyncClient() as c:
-                await c.post(
+                response = await c.post(
                     f"{settings.api_base_url}/api/devices/{device_id}/tags",
                     json={"tag_id": val},
                     headers={"Authorization": f"Bearer {token}"},
@@ -99,6 +125,9 @@ def render_tags_section(
         except httpx.HTTPError as exc:
             logger.error("Tag attach: {}", str(exc))
             ui.notify("Connection error", type="negative")
+            return
+        if response.status_code not in (200, 201, 204):
+            ui.notify(_failure_message(response, "Add tag failed"), type="negative")
             return
         on_change()
 

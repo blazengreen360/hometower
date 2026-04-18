@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import httpx
 
+from src.models.types import Role
 from tests.unit.nicegui_fakes import AsyncClientStub, FakeUI, install_fake_ui
 
 
@@ -33,6 +34,7 @@ def test_dashboard_power_card_shows_monthly_cost_and_top_locations(
     # Prevent auth redirect and app shell rendering
     monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
     monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+    monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
 
     # Prepare HTTP responses for the six client.get calls in dashboard_page()
     client_stub = AsyncClientStub(
@@ -103,6 +105,7 @@ def test_dashboard_power_card_shows_rate_not_configured_when_missing(
 
     monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
     monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+    monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
 
     client_stub = AsyncClientStub(
         [

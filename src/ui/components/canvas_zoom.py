@@ -72,7 +72,7 @@ _ZOOM_CONTROLS_JS = (
             'right:0',
             'bottom:0',
             'z-index:12000',
-            'background:rgba(0,0,0,0.55)',
+            'background:color-mix(in srgb, var(--ht-bg-base) 68%, transparent)',
             'display:flex',
             'align-items:center',
             'justify-content:center'
@@ -164,7 +164,16 @@ _ZOOM_CONTROLS_JS = (
 
         btn('ht-zoom-in', '+', 'Zoom In');
         btn('ht-zoom-out', '&minus;', 'Zoom Out');
-        btn('ht-zoom-fit', '&#8861;', 'Fit to Screen');
+        btn(
+            'ht-zoom-fit',
+            '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">'
+                + '<rect x="5" y="5" width="14" height="14" rx="2" ry="2" '
+                + 'fill="none" stroke="currentColor" stroke-width="2"></rect>'
+                + '<path d="M9 12h6M12 9v6" fill="none" stroke="currentColor" stroke-width="2" '
+                + 'stroke-linecap="round"></path>'
+            + '</svg>',
+            'Fit to Screen'
+        );
         btn('ht-help-open', '?', 'Help');
         parent.appendChild(wrap);
 

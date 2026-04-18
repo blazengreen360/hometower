@@ -72,6 +72,59 @@ _CANVAS_CORE_JS = """
         if (!hasSavedViewport) cy.fit(undefined, 40);
     }
 
+    window.htAutoLayout = function(options) {
+        if (!window._cy) {
+            return { ok: false, error: 'canvas-unavailable' };
+        }
+        if (window.HT_READONLY) {
+            if (window._htNotify) {
+                window._htNotify('Enter Edit mode to run Auto-Layout.', 'info');
+            }
+            return { ok: false, error: 'readonly' };
+        }
+
+        var cy = window._cy;
+        var layoutOptions = {
+            name: 'breadthfirst',
+            directed: true,
+            animate: true,
+            animationDuration: 500,
+            fit: true,
+            padding: 40,
+            spacingFactor: 1.1,
+        };
+        if (options && typeof options === 'object') {
+            layoutOptions = Object.assign(layoutOptions, options);
+        }
+
+        try {
+            var layout = cy.layout(layoutOptions);
+            var hasCompleted = false;
+            var onLayoutStop = function() {
+                if (hasCompleted) return;
+                hasCompleted = true;
+                _htMarkNodesPositioned(cy.nodes());
+                if (window._htResizeSyncFromSelection) {
+                    window._htResizeSyncFromSelection();
+                }
+                if (window.scheduleAutosave) {
+                    window.scheduleAutosave(300);
+                }
+            };
+            if (layout && typeof layout.on === 'function') {
+                layout.on('layoutstop', onLayoutStop);
+            }
+            layout.run();
+            return { ok: true };
+        } catch (error) {
+            console.error('Hometower auto-layout failed:', error);
+            if (window._htNotify) {
+                window._htNotify('Auto-Layout failed.', 'negative');
+            }
+            return { ok: false, error: 'layout-failed' };
+        }
+    };
+
     window.initCanvas = function(elements, savedPositions, deviceShapes, attempt) {
         var currentAttempt = attempt || 0;
 

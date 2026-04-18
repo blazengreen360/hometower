@@ -211,6 +211,13 @@ class TestCanvasInitializationGuards:
         assert "_htMarkNodesPositioned(cy.nodes());" in _CANVAS_INIT_JS
         assert "if (!hasSavedViewport) cy.fit(undefined, 40);" in _CANVAS_INIT_JS
 
+    def test_auto_layout_bridge_uses_readonly_guard_and_autosave(self) -> None:
+        assert "window.htAutoLayout = function(options) {" in _CANVAS_INIT_JS
+        assert "if (window.HT_READONLY)" in _CANVAS_INIT_JS
+        assert "name: 'breadthfirst'" in _CANVAS_INIT_JS
+        assert "animationDuration: 500" in _CANVAS_INIT_JS
+        assert "window.scheduleAutosave(300);" in _CANVAS_INIT_JS
+
     def test_saved_viewport_is_preserved_when_only_new_nodes_need_overflow_placement(self) -> None:
         assert "return n.data('_positioned') !== true;" in _CANVAS_INIT_JS
         assert "var placedCount = _htPlaceOverflowNodes(cy);" in _CANVAS_INIT_JS
@@ -309,6 +316,8 @@ class TestUiRegressionFixes:
         )
         assert "Delete custom field '" in source
         assert "lambda dlg=confirm_dlg: dlg.open()" in source
+        assert 'secondary_button(ui.button("Cancel"' in source
+        assert 'danger_button(ui.button("Delete"' in source
 
     def test_tag_detach_requires_confirmation_dialog(self) -> None:
         from src.ui.components import device_detail_tags_section
@@ -316,6 +325,8 @@ class TestUiRegressionFixes:
         source = inspect.getsource(device_detail_tags_section.render_tags_section)
         assert "Remove tag '" in source
         assert "lambda dlg=confirm_dlg: dlg.open()" in source
+        assert 'secondary_button(ui.button("Cancel"' in source
+        assert 'danger_button(ui.button("Remove"' in source
 
     def test_login_password_input_submits_on_enter(self) -> None:
         source = inspect.getsource(login_page)

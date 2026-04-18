@@ -20,6 +20,10 @@ from src.ui.components.device_detail_sections import (
     render_networks_section,
     render_tags_section,
 )
+from src.ui.components.device_panel_rich_fields import (
+    render_ip_quick_links,
+    render_markdown_notes_row,
+)
 from src.ui.components.device_panel_helpers import render_editable_int_row, render_editable_row
 
 
@@ -49,15 +53,10 @@ def render_general_content(
     render_editable_row(
         "Type", device.type.value, "type", device_id, token, False, version
     )
-    render_editable_row(
-        "Notes",
+    render_markdown_notes_row(
         device.notes,
-        "notes",
-        device_id,
-        token,
         is_editor,
-        version,
-        on_change,
+        on_saved=on_change,
         save_value=save_notes,
     )
     render_editable_int_row(
@@ -94,6 +93,7 @@ def render_network_content(
         on_change,
         save_value=save_ip,
     )
+    render_ip_quick_links(device.ip)
     render_editable_row(
         "MAC",
         device.mac,

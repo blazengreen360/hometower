@@ -5,14 +5,8 @@ CANVAS_STYLE_JS remains as a backward-compatible alias (dark theme).
 """
 import json
 
+from src.models.types import DeviceType
 from src.ui.design.tokens import DEVICE_TYPE_COLORS, THEMES
-
-_STATUS_STYLE_BY_DEVICE_STATUS: dict[str, dict[str, object]] = {
-    "Offline": {"opacity": 0.5},
-    "Maintenance": {"border-width": 3, "border-color": "#f97316"},
-    "Planned": {"border-style": "dashed"},
-    "Decommissioned": {"opacity": 0.3},
-}
 
 EDGE_STYLE_BY_CONNECTION_TYPE: dict[str, dict[str, object]] = {
     "Ethernet": {"line-style": "solid", "width": 2},
@@ -22,8 +16,8 @@ EDGE_STYLE_BY_CONNECTION_TYPE: dict[str, dict[str, object]] = {
     "NFS": {"line-style": "dotted"},
     "VM": {
         "line-style": "dashed",
-        "line-color": "#a78bfa",
-        "target-arrow-color": "#a78bfa",
+        "line-color": DEVICE_TYPE_COLORS[DeviceType.VM],
+        "target-arrow-color": DEVICE_TYPE_COLORS[DeviceType.VM],
     },
     "Other": {"width": 1, "opacity": 0.7},
 }
@@ -53,6 +47,12 @@ def build_theme_style_json(theme_name: str) -> str:
     Device type colours (DEVICE_TYPE_COLORS) are not theme-dependent.
     """
     t = THEMES.get(theme_name, THEMES["dark"])
+    status_style_by_device_status: dict[str, dict[str, object]] = {
+        "Offline": {"opacity": 0.5},
+        "Maintenance": {"border-width": 3, "border-color": t["warning"]},
+        "Planned": {"border-style": "dashed"},
+        "Decommissioned": {"opacity": 0.3},
+    }
     styles: list[dict[str, object]] = [
         {
             "selector": "node",
@@ -104,7 +104,7 @@ def build_theme_style_json(theme_name: str) -> str:
             "style":    {"background-color": colour},
         })
     # Status and connection-type styles
-    styles.extend(_build_selector_styles("node", "status", _STATUS_STYLE_BY_DEVICE_STATUS))
+    styles.extend(_build_selector_styles("node", "status", status_style_by_device_status))
     styles.extend(_build_selector_styles(
         "edge",
         "connection_type",

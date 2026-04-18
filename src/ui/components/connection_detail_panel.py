@@ -7,6 +7,11 @@ from nicegui import ui
 
 from src.models.types import ConnectionType
 from src.ui.components.toast import show_toast
+from src.ui.design.primitives import card_section
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import danger_button
+from src.ui.design.primitives import primary_button
+from src.ui.design.primitives import secondary_button
 from src.utils.logger import logger
 from src.utils.settings import settings
 
@@ -205,33 +210,31 @@ def render_connection_detail_panel(token: str, user_role: str) -> None:
 
                 confirm_dlg = ui.dialog()
                 with confirm_dlg:
-                    with ui.card().style("min-width:280px"):
-                        ui.label(
-                            f"Delete connection between {safe_src} and {safe_tgt}?"
-                        ).style("font-weight:600;")
-                        with ui.row().classes("justify-end gap-2"):
-                            async def _do_del(_cid: str = cid) -> None:
-                                await ui.run_javascript(
-                                    "if(!window._htRequestCanvasAction && window._htNotify) "
-                                    "window._htNotify('Delete unavailable: undo bridge not ready.', 'negative');"
-                                )
-                                await ui.run_javascript(
-                                    _build_request_delete_edge_js(
-                                        conn_id=_cid,
-                                        source_id=source_id,
-                                        target_id=target_id,
-                                        conn_type=ctype,
-                                        label=clabel,
+                    with card_surface(ui.card()).classes("min-w-[280px]"):
+                        with card_section(ui.column()):
+                            ui.label(
+                                f"Delete connection between {safe_src} and {safe_tgt}?"
+                            ).classes("ht-section-title")
+                            with ui.row().classes("justify-end gap-2"):
+                                async def _do_del(_cid: str = cid) -> None:
+                                    await ui.run_javascript(
+                                        "if(!window._htRequestCanvasAction && window._htNotify) "
+                                        "window._htNotify('Delete unavailable: undo bridge not ready.', 'negative');"
                                     )
-                                )
-                                state["conn_id"] = None
-                                confirm_dlg.close()
+                                    await ui.run_javascript(
+                                        _build_request_delete_edge_js(
+                                            conn_id=_cid,
+                                            source_id=source_id,
+                                            target_id=target_id,
+                                            conn_type=ctype,
+                                            label=clabel,
+                                        )
+                                    )
+                                    state["conn_id"] = None
+                                    confirm_dlg.close()
 
-                            ui.button(
-                                "Delete",
-                                on_click=_do_del,
-                            ).props("color=negative")
-                            ui.button("Cancel", on_click=confirm_dlg.close).props("flat")
+                                secondary_button(ui.button("Cancel", on_click=confirm_dlg.close))
+                                danger_button(ui.button("Delete", on_click=_do_del))
 
                 async def _save(
                     _ts: ui.select = ts, _li: ui.input = li, _cid: str = cid
@@ -254,12 +257,8 @@ def render_connection_detail_panel(token: str, user_role: str) -> None:
                         show_toast(type="error", title="Update failed")
 
                 with ui.row().classes("gap-2 mt-2 w-full"):
-                    ui.button(
-                        "Save", on_click=_save
-                    ).props("color=primary dense")
-                    ui.button(
-                        "Delete", on_click=lambda: confirm_dlg.open()
-                    ).props("color=negative dense")
+                    primary_button(ui.button("Save", on_click=_save)).props("dense")
+                    danger_button(ui.button("Delete", on_click=lambda: confirm_dlg.open())).props("dense")
             else:
                 ui.label(f"Type: {safe_ctype}").style(
                     "font-size:0.875rem; color:var(--ht-text-primary);"

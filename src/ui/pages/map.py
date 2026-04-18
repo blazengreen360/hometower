@@ -9,6 +9,7 @@ from nicegui import ui
 from src.ui.components.app_shell import app_shell
 from src.ui.components.auth_guard import redirect_if_unauthenticated
 from src.ui.components.map_view import inject_map_view_assets, map_bootstrap_payload
+from src.ui.design.primitives import page_container, render_page_intro, secondary_button
 from src.ui.pages.map_page_data import MapLocation, load_geo_locations
 from src.utils.logger import logger
 
@@ -33,9 +34,11 @@ async def map_page() -> None:
 
     with app_shell("Map", "/map", breadcrumb=["Map"]):
         inject_map_view_assets()
-        with ui.column().classes("w-full").style("flex:1; min-height:0; gap:12px; padding:12px;"):
-            ui.label("Infrastructure Map").style(
-                "font-size:1.125rem; font-weight:600; color:var(--ht-text-primary);"
+        with page_container(ui.column()).classes("flex-1 min-h-0 gap-4"):
+            render_page_intro(
+                ui,
+                "Infrastructure Map",
+                "Browse geographic locations and jump directly into the related topology context.",
             )
 
             with ui.element("div").style(
@@ -93,15 +96,11 @@ async def map_page() -> None:
                 )
                 with drawer:
                     with ui.row().classes("w-full items-center justify-between"):
-                        drawer_title = ui.label("Location").style(
-                            "color:var(--ht-text-primary); font-size:1rem; font-weight:600;"
-                        )
+                        drawer_title = ui.label("Location").classes("ht-section-title")
                         ui.button(icon="close", on_click=lambda: _set_drawer_open(False)).props(
                             "flat dense round aria-label='Close location details'"
                         )
-                    drawer_meta = ui.label("0 devices").style(
-                        "color:var(--ht-text-secondary); font-size:0.8rem;"
-                    )
+                    drawer_meta = ui.label("0 devices").classes("ht-small-copy")
                     device_list = ui.column().classes("w-full").style("gap:6px;")
 
     def _set_drawer_open(is_open: bool) -> None:
@@ -133,13 +132,15 @@ async def map_page() -> None:
                 )
             for device in location["devices"]:
                 with ui.row().classes("w-full items-center justify-between"):
-                    ui.button(
-                        device["name"],
-                        icon="dns",
-                        on_click=lambda did=device["id"]: ui.navigate.to(
-                            f"/topology?device_id={did}"
-                        ),
-                    ).props("flat align=left").classes("w-full justify-start")
+                    secondary_button(
+                        ui.button(
+                            device["name"],
+                            icon="dns",
+                            on_click=lambda did=device["id"]: ui.navigate.to(
+                                f"/topology?device_id={did}"
+                            ),
+                        ).props("align=left")
+                    ).classes("w-full justify-start")
                     ui.label(device["type"]).style(
                         "color:var(--ht-text-secondary); font-size:0.75rem;"
                     )

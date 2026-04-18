@@ -10,6 +10,12 @@ from src.models.types import Role
 from src.ui.components.app_shell import app_shell
 from src.ui.components.auth_guard import redirect_if_insufficient_role, redirect_if_unauthenticated
 from src.ui.components.network_modal import NetworkModalController, create_network_modal
+from src.ui.design.primitives import page_container
+from src.ui.design.primitives import primary_button
+from src.ui.design.primitives import render_page_intro
+from src.ui.design.primitives import table_surface
+from src.ui.design.tokens import DEFAULT_NETWORK_COLOR
+from src.ui.pages.settings_page_helpers import show_destructive_confirmation
 from src.utils.logger import logger
 from src.utils.settings import settings
 
@@ -45,25 +51,27 @@ async def settings_networks_page() -> None:
     networks: list[dict[str, object]] = []
     modal_mode = {"value": "create"}
     editing_id: dict[str, Optional[str]] = {"value": None}
-    form: dict[str, str] = {"name": "", "vlan_id": "", "cidr": "", "gateway": "", "description": "", "color": "#3b82f6"}
+    form: dict[str, str] = {
+        "name": "",
+        "vlan_id": "",
+        "cidr": "",
+        "gateway": "",
+        "description": "",
+        "color": DEFAULT_NETWORK_COLOR,
+    }
     modal: NetworkModalController
 
     def _to_rows(items: list[dict[str, object]]) -> list[dict[str, object]]:
-        rows: list[dict[str, object]] = []
-        for item in items:
-            rows.append(
-                {
-                    "id": str(item.get("id", "")),
-                    "name": str(item.get("name", "")),
-                    "vlan_id": "" if item.get("vlan_id") is None else str(item.get("vlan_id")),
-                    "cidr": str(item.get("cidr", "")),
-                    "gateway": str(item.get("gateway", "") or ""),
-                    "description": str(item.get("description", "") or ""),
-                    "color": str(item.get("color", "")),
-                    "device_count": _coerce_count(item.get("device_count", 0)),
-                }
-            )
-        return rows
+        return [{
+            "id": str(item.get("id", "")),
+            "name": str(item.get("name", "")),
+            "vlan_id": "" if item.get("vlan_id") is None else str(item.get("vlan_id")),
+            "cidr": str(item.get("cidr", "")),
+            "gateway": str(item.get("gateway", "") or ""),
+            "description": str(item.get("description", "") or ""),
+            "color": str(item.get("color", "")),
+            "device_count": _coerce_count(item.get("device_count", 0)),
+        } for item in items]
 
     def _coerce_count(raw_count: object) -> int:
         if isinstance(raw_count, int):
@@ -73,7 +81,7 @@ async def settings_networks_page() -> None:
         return 0
 
     def _reset_form() -> None:
-        form.update({"name": "", "vlan_id": "", "cidr": "", "gateway": "", "description": "", "color": "#3b82f6"})
+        form.update({"name": "", "vlan_id": "", "cidr": "", "gateway": "", "description": "", "color": DEFAULT_NETWORK_COLOR})
         modal.clear_error()
 
     async def load_networks() -> None:
@@ -106,7 +114,7 @@ async def settings_networks_page() -> None:
         form["cidr"] = str(row.get("cidr", ""))
         form["gateway"] = str(row.get("gateway", ""))
         form["description"] = str(row.get("description", ""))
-        form["color"] = str(row.get("color", "") or "#3b82f6")
+        form["color"] = str(row.get("color", "") or DEFAULT_NETWORK_COLOR)
         modal_mode["value"] = "edit"
         editing_id["value"] = str(row.get("id", ""))
         modal.open_for_mode("edit")
@@ -115,7 +123,7 @@ async def settings_networks_page() -> None:
         modal.clear_error()
         name_value = form["name"].strip()
         cidr_value = form["cidr"].strip()
-        color_value = form["color"].strip() or "#3b82f6"
+        color_value = form["color"].strip() or DEFAULT_NETWORK_COLOR
         if not name_value:
             modal.set_error("Name is required")
             return
@@ -158,7 +166,7 @@ async def settings_networks_page() -> None:
             logger.error("Network save failed: {}", exc)
             modal.set_error("Request failed - check logs")
 
-    async def confirm_delete(network_id: str, network_name: str) -> None:
+    def confirm_delete(network_id: str, network_name: str) -> None:
         async def do_delete() -> None:
             try:
                 async with httpx.AsyncClient() as client:
@@ -176,75 +184,67 @@ async def settings_networks_page() -> None:
             except Exception as exc:
                 logger.error("Network delete failed: {}", exc)
 
-        with ui.dialog() as confirm_dlg, ui.card():
-            ui.label(f"Delete '{html.escape(network_name)}'?").classes("font-bold")
-            ui.label(
-                "If devices are attached, delete will be blocked until memberships are removed."
-            ).style("color: var(--ht-text-secondary); font-size: 0.875rem")
-            with ui.row():
-                ui.button("Cancel", on_click=confirm_dlg.close).props("flat")
-
-                async def _do_delete_and_close() -> None:
-                    confirm_dlg.close()
-                    await do_delete()
-
-                ui.button("Delete", on_click=_do_delete_and_close).props("color=negative")
-        confirm_dlg.open()
+        show_destructive_confirmation(
+            ui_module=ui,
+            title=f"Delete '{html.escape(network_name)}'?",
+            description="If devices are attached, delete will be blocked until memberships are removed.",
+            on_confirm=do_delete,
+        )
 
     with app_shell("Networks", "/settings/networks", breadcrumb=["Settings", "Networks"]):
-        with ui.row().classes("w-full items-center justify-between"):
-            ui.label("Networks").classes("text-2xl font-bold").style(
-                "color: var(--ht-text-primary)"
+        with page_container(ui.column()):
+            with ui.row().classes("w-full items-end justify-between gap-4 flex-wrap"):
+                render_page_intro(
+                    ui,
+                    "Networks",
+                    "Maintain VLAN, CIDR, gateway, and color metadata so devices and IPAM share a consistent network catalog.",
+                    "Settings",
+                )
+                primary_button(ui.button("+ Add Network", on_click=open_create_modal))
+
+            columns: list[dict[str, str | bool]] = [
+                {"name": "name", "label": "Name", "field": "name", "sortable": True},
+                {"name": "vlan_id", "label": "VLAN", "field": "vlan_id", "sortable": True},
+                {"name": "cidr", "label": "CIDR", "field": "cidr"},
+                {"name": "gateway", "label": "Gateway", "field": "gateway"},
+                {"name": "color", "label": "Color", "field": "color"},
+                {"name": "device_count", "label": "Devices", "field": "device_count", "sortable": True},
+                {"name": "actions", "label": "Actions", "field": "actions"},
+            ]
+
+            table = table_surface(ui.table(columns=columns, rows=[], row_key="id"))
+
+            table.add_slot(
+                "body-cell-color",
+                """
+                <q-td :props="props">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span :style="'width:12px;height:12px;border-radius:999px;display:inline-block;background:'+props.row.color"></span>
+                    <span>{{ props.row.color }}</span>
+                  </div>
+                </q-td>
+                """,
             )
-            ui.button("+ Add Network", on_click=open_create_modal).style(
-                "background-color: var(--ht-accent); color: var(--ht-text-on-accent)"
+            table.add_slot(
+                "body-cell-actions",
+                """
+                <q-td :props="props">
+                  <q-btn flat dense icon="edit" size="sm"
+                    @click="$parent.$emit('edit', props.row)" />
+                  <q-btn flat dense icon="delete" size="sm" class="ht-btn-icon-danger"
+                    @click="$parent.$emit('delete_row', props.row)" />
+                </q-td>
+                """,
             )
-
-        columns: list[dict[str, str | bool]] = [
-            {"name": "name", "label": "Name", "field": "name", "sortable": True},
-            {"name": "vlan_id", "label": "VLAN", "field": "vlan_id", "sortable": True},
-            {"name": "cidr", "label": "CIDR", "field": "cidr"},
-            {"name": "gateway", "label": "Gateway", "field": "gateway"},
-            {"name": "color", "label": "Color", "field": "color"},
-            {"name": "device_count", "label": "Devices", "field": "device_count", "sortable": True},
-            {"name": "actions", "label": "Actions", "field": "actions"},
-        ]
-
-        table = ui.table(columns=columns, rows=[], row_key="id").classes("w-full").style(
-            "background-color: var(--ht-bg-surface-raised)"
-        )
-
-        table.add_slot(
-            "body-cell-color",
-            """
-            <q-td :props="props">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span :style="'width:12px;height:12px;border-radius:999px;display:inline-block;background:'+props.row.color"></span>
-                <span>{{ props.row.color }}</span>
-              </div>
-            </q-td>
-            """,
-        )
-        table.add_slot(
-            "body-cell-actions",
-            """
-            <q-td :props="props">
-              <q-btn flat dense icon="edit" size="sm"
-                @click="$parent.$emit('edit', props.row)" />
-              <q-btn flat dense icon="delete" size="sm" color="negative"
-                @click="$parent.$emit('delete_row', props.row)" />
-            </q-td>
-            """,
-        )
-        table.on("edit", lambda e: open_edit_modal(e.args))
-        table.on(
-            "delete_row",
-            lambda e: ui.timer(
-                0,
-                lambda: confirm_delete(str(e.args["id"]), str(e.args["name"])),
-                once=True,
+            table.on("edit", lambda e: open_edit_modal(e.args))
+            table.on(
+                "delete_row",
+                lambda e: ui.timer(
+                    0,
+                    lambda: confirm_delete(str(e.args["id"]), str(e.args["name"])),
+                    once=True,
+                ),
             ),
-        )
 
     modal = create_network_modal(form=form, on_submit=submit_form)
     await load_networks()

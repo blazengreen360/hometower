@@ -6,8 +6,16 @@ import httpx
 from nicegui import app as nicegui_app
 from nicegui import ui
 
+from src.models.types import Role
 from src.ui.components.app_shell import app_shell
-from src.ui.components.auth_guard import redirect_if_unauthenticated
+from src.ui.components.auth_guard import get_ui_role, redirect_if_unauthenticated
+from src.ui.design.primitives import card_section
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import page_container
+from src.ui.design.primitives import primary_button
+from src.ui.design.primitives import render_page_intro
+from src.ui.design.primitives import render_stat_card
+from src.ui.design.primitives import secondary_button
 from src.utils.logger import logger
 from src.utils.settings import settings
 
@@ -28,21 +36,6 @@ def _relative_time(iso: str) -> str:
     if diff < 86400:
         return f"{diff // 3600}h ago"
     return f"{diff // 86400}d ago"
-
-
-def _stat_card(label: str, value: str) -> None:
-    """Render a single stat card with hover lift animation."""
-    with ui.card().classes("p-4 ht-stat-card").style(
-        "background:var(--ht-bg-surface-raised); min-width:140px; text-align:center;"
-        " border:1px solid var(--ht-border); border-radius:var(--ht-radius-card);"
-        " box-shadow:var(--ht-shadow-sm); transition:all var(--ht-transition-norm);"
-    ):
-        ui.label(value).style(
-            "font-size:2rem; font-weight:700; color:var(--ht-text-primary);"
-        )
-        ui.label(label).style(
-            "font-size:0.8rem; color:var(--ht-text-secondary); text-transform:uppercase;"
-        )
 
 
 def _as_int(value: object, default: int = 0) -> int:
@@ -73,6 +66,8 @@ async def dashboard_page() -> None:
         return
 
     token: str = nicegui_app.storage.user.get("access_token", "")
+    role = get_ui_role()
+    can_write = role in {Role.Admin, Role.Contributor}
     headers = {"Authorization": f"Bearer {token}"}
     base = settings.api_base_url
 
@@ -123,56 +118,37 @@ async def dashboard_page() -> None:
         logger.error("Dashboard data fetch failed: {}", str(exc))
 
     with app_shell("Dashboard", "/", breadcrumb=["Dashboard"]):
-        ui.add_head_html("""
-<style>
-.ht-stat-card:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--ht-shadow-md) !important;
-}
-</style>
-""")
-        with ui.column().classes("w-full max-w-4xl mx-auto p-6 gap-6"):
-            ui.label("Dashboard").style(
-                "font-size:1.25rem; font-weight:600; color:var(--ht-text-primary);"
+        with page_container(ui.column()):
+            render_page_intro(
+                ui,
+                "Dashboard",
+                "A control-room view of your homelab: inventory scale, recent changes, and power load in one pass.",
+                "Operations",
             )
 
             with ui.row().classes("flex-wrap gap-4"):
-                _stat_card("Devices", str(device_count))
-                _stat_card("Connections", str(conn_count))
-                _stat_card("Locations", str(loc_count))
-                _stat_card("Tags", str(tag_count))
+                render_stat_card(ui, "Devices", str(device_count))
+                render_stat_card(ui, "Connections", str(conn_count))
+                render_stat_card(ui, "Locations", str(loc_count))
+                render_stat_card(ui, "Tags", str(tag_count))
 
-            with ui.card().classes("w-full").style(
-                "background:var(--ht-bg-surface-raised); border:1px solid var(--ht-border);"
-                " border-radius:var(--ht-radius-card); box-shadow:var(--ht-shadow-sm);"
-            ):
-                with ui.column().classes("p-4 gap-3 w-full"):
-                    ui.label("Power Usage").style(
-                        "font-size:0.875rem; font-weight:600; color:var(--ht-text-secondary);"
-                        " text-transform:uppercase; letter-spacing:0.5px;"
-                    )
+            with card_surface(ui.card()):
+                with card_section(ui.column()):
+                    ui.label("Power Usage").classes("ht-section-caption")
 
                     total_watts = _as_int(power_summary.get("total_watts"), 0)
-                    ui.label(f"{total_watts}W").style(
-                        "font-size:2rem; font-weight:700; color:var(--ht-text-primary);"
-                    )
+                    ui.label(f"{total_watts}W").classes("ht-page-title")
 
                     monthly_cost = _as_float(power_summary.get("estimated_monthly_cost"))
                     currency = power_summary.get("currency")
                     if monthly_cost is not None and isinstance(currency, str) and currency:
-                        ui.label(f"{monthly_cost:.2f} {currency} / month").style(
-                            "font-size:0.9rem; color:var(--ht-text-secondary);"
-                        )
+                        ui.label(f"{monthly_cost:.2f} {currency} / month").classes("ht-muted-copy")
                     else:
-                        ui.label("Rate not configured").style(
-                            "font-size:0.9rem; color:var(--ht-text-secondary);"
-                        )
+                        ui.label("Rate not configured").classes("ht-muted-copy")
 
                     top_locations = _power_top_locations(power_summary.get("by_location"))
                     if not top_locations:
-                        ui.label("No location power data yet").style(
-                            "font-size:0.85rem; color:var(--ht-text-secondary);"
-                        )
+                        ui.label("No location power data yet").classes("ht-small-copy")
                     else:
                         max_watts = max(
                             _as_int(row.get("total_watts"), 0)
@@ -186,65 +162,42 @@ async def dashboard_page() -> None:
 
                             with ui.column().classes("w-full gap-1"):
                                 with ui.row().classes("w-full items-center justify-between"):
-                                    ui.label(name).style(
-                                        "font-size:0.8rem; color:var(--ht-text-primary);"
-                                    )
-                                    ui.label(f"{watts}W").style(
-                                        "font-size:0.75rem; color:var(--ht-text-secondary);"
-                                    )
-                                with ui.element("div").style(
-                                    "width:100%; height:6px; border-radius:999px;"
-                                    " background:var(--ht-bg-surface); overflow:hidden;"
-                                ):
-                                    ui.element("div").style(
-                                        f"height:100%; width:{width}%; background:var(--ht-accent);"
+                                    ui.label(name).classes("text-[var(--ht-text-primary)] text-[0.82rem]")
+                                    ui.label(f"{watts}W").classes("ht-small-copy")
+                                with ui.element("div").classes("ht-progress-track"):
+                                    ui.element("div").classes("ht-progress-bar").style(
+                                        f"width:{width}%;"
                                     )
 
-            with ui.card().classes("w-full").style(
-                "background:var(--ht-bg-surface-raised); border:1px solid var(--ht-border);"
-                " border-radius:var(--ht-radius-card); box-shadow:var(--ht-shadow-sm);"
-            ):
-                with ui.column().classes("p-4 gap-3 w-full"):
-                    ui.label("Recent Activity").style(
-                        "font-size:0.875rem; font-weight:600; color:var(--ht-text-secondary);"
-                        " text-transform:uppercase; letter-spacing:0.5px;"
-                    )
+            with card_surface(ui.card()):
+                with card_section(ui.column()):
+                    ui.label("Recent Activity").classes("ht-section-caption")
                     if not recent_devices:
-                        ui.label(
-                            "No devices yet — add one from Topology"
-                        ).style("color:var(--ht-text-secondary); font-size:0.875rem;")
+                        ui.label("No devices yet — add one from Topology").classes("ht-muted-copy")
                     else:
                         for dev in recent_devices:
                             with ui.row().classes("items-center justify-between w-full"):
                                 with ui.row().classes("items-center gap-2"):
-                                    ui.icon("dns").style(
-                                        "color:var(--ht-accent); font-size:1.1rem;"
-                                    )
-                                    ui.label(dev.get("name", "\u2014")).style(
-                                        "color:var(--ht-text-primary); font-size:0.875rem;"
-                                    )
-                                    ui.label(dev.get("type", "")).style(
-                                        "color:var(--ht-text-secondary); font-size:0.75rem;"
-                                    )
-                                ui.label(
-                                    _relative_time(dev.get("updated_at", ""))
-                                ).style(
-                                    "color:var(--ht-text-secondary); font-size:0.75rem;"
-                                )
+                                    ui.icon("dns").classes("text-[var(--ht-accent)] text-[1.1rem]")
+                                    ui.label(dev.get("name", "\u2014")).classes("text-[var(--ht-text-primary)]")
+                                    ui.label(dev.get("type", "")).classes("ht-small-copy")
+                                ui.label(_relative_time(dev.get("updated_at", ""))).classes("ht-small-copy")
 
             with ui.row().classes("gap-3 flex-wrap"):
-                ui.button(
-                    "Add Device",
-                    icon="add",
-                    on_click=lambda: ui.navigate.to("/topology"),
-                ).style("background:var(--ht-accent); color:var(--ht-text-on-accent);")
-                ui.button(
+                if can_write:
+                    primary_button(ui.button(
+                        "Add Device",
+                        icon="add",
+                        on_click=lambda: ui.navigate.to("/topology"),
+                    ))
+                secondary_button(ui.button(
                     "View Inventory",
                     icon="list",
                     on_click=lambda: ui.navigate.to("/inventory"),
-                ).props("outlined")
-                ui.button(
-                    "Manage Locations",
-                    icon="location_on",
-                    on_click=lambda: ui.navigate.to("/settings/locations"),
-                ).props("outlined")
+                ))
+                if can_write:
+                    secondary_button(ui.button(
+                        "Manage Locations",
+                        icon="location_on",
+                        on_click=lambda: ui.navigate.to("/settings/locations"),
+                    ))

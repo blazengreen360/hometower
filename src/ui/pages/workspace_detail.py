@@ -12,6 +12,13 @@ from src.ui.components.app_shell import app_shell
 from src.ui.components.auth_guard import redirect_if_unauthenticated
 from src.ui.components.breadcrumb import render_breadcrumb
 from src.ui.components.dialogs.name_dialog import show_name_dialog
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import danger_button
+from src.ui.design.primitives import page_container
+from src.ui.design.primitives import primary_button
+from src.ui.design.primitives import render_page_intro
+from src.ui.design.primitives import secondary_button
+from src.ui.design.primitives import table_surface
 from src.ui.utils.formatting import LAST_MODIFIED_BROWSER_LOCAL_BRIDGE_SCRIPT
 from src.ui.utils.formatting import LAST_MODIFIED_BROWSER_LOCAL_CELL_EXPRESSION
 from src.ui.utils.formatting import enrich_last_modified_rows
@@ -138,19 +145,18 @@ async def workspace_detail_page(workspace_id: str) -> None:
             except Exception as exc:
                 logger.error("Topology delete failed: {}", str(exc))
 
-        with ui.dialog() as dlg, ui.card():
-            ui.label(f"Delete '{html.escape(name)}'?").classes("font-bold")
-            ui.label("The topology and its canvas data will be deleted.").style(
-                "font-size:0.85rem; color:var(--ht-text-secondary)"
-            )
-            with ui.row():
-                ui.button("Cancel", on_click=dlg.close).props("flat")
+        with ui.dialog() as dlg, card_surface(ui.card()).classes("min-w-[360px]"):
+            with ui.column().classes("ht-card-section"):
+                ui.label(f"Delete '{html.escape(name)}'?").classes("ht-section-title")
+                ui.label("The topology and its canvas data will be deleted.").classes("ht-muted-copy")
+                with ui.row().classes("gap-2 justify-end"):
+                    secondary_button(ui.button("Cancel", on_click=dlg.close))
 
-                async def _do() -> None:
-                    dlg.close()
-                    await do_delete()
+                    async def _do() -> None:
+                        dlg.close()
+                        await do_delete()
 
-                ui.button("Delete", on_click=_do).props("color=negative")
+                    danger_button(ui.button("Delete", on_click=_do))
         dlg.open()
 
     await load_workspace()
@@ -158,81 +164,85 @@ async def workspace_detail_page(workspace_id: str) -> None:
     with app_shell("Workspace", f"/workspaces/{workspace_id}", breadcrumb=["Workspaces"]):
         ui.add_body_html(LAST_MODIFIED_BROWSER_LOCAL_BRIDGE_SCRIPT)
 
-        render_breadcrumb([("Workspaces", "/workspaces"), (ws_name, "")])
-        with ui.row().classes("w-full items-center justify-between"):
-            ui.label(ws_name).style(
-                "font-size:1.25rem; font-weight:600; color:var(--ht-text-primary)"
-            )
-            ui.button(
-                "+ New Topology",
-                on_click=lambda: show_name_dialog(
-                    "New Topology", "Topology name", on_submit=on_create,
+        with page_container(ui.column()):
+            render_breadcrumb([("Workspaces", "/workspaces"), (ws_name, "")])
+            with ui.row().classes("w-full items-end justify-between gap-4 flex-wrap"):
+                render_page_intro(
+                    ui,
+                    ws_name,
+                    "A workspace groups related topologies so diagrams, inventory, and history stay anchored to the same operating context.",
+                    "Workspace",
+                )
+                primary_button(ui.button(
+                    "+ New Topology",
+                    on_click=lambda: show_name_dialog(
+                        "New Topology", "Topology name", on_submit=on_create,
+                    ),
+                ))
+
+            columns: list[dict[str, str | bool]] = [
+                {"name": "name", "label": "Name", "field": "name", "sortable": True},
+                {"name": "tags", "label": "Tags", "field": "tags"},
+                {"name": "last_modified", "label": "Last Modified", "field": "last_modified_sort", "sortable": True},
+                {"name": "actions", "label": "Actions", "field": "actions"},
+            ]
+            table = table_surface(ui.table(columns=columns, rows=[], row_key="id"))
+            table.add_slot(
+                "body",
+                r"""
+                <q-tr :props="props">
+                    <q-td key="name">
+                        <a href="#" class="ht-table-link"
+                           @click.prevent="$parent.$emit('open', props.row)">
+                            {{ props.row.name }}
+                        </a>
+                    </q-td>
+                    <q-td key="tags">
+                        <q-chip v-for="tag in (props.row.tags || [])" :key="tag"
+                            :label="tag" dense size="sm" />
+                    </q-td>
+                    <q-td key="last_modified">
+                        {{ __LAST_MODIFIED_DISPLAY__ }}
+                        <q-tooltip v-if="props.row.last_modified_iso">{{ props.row.last_modified_iso }}</q-tooltip>
+                    </q-td>
+                    <q-td key="actions">
+                        <q-btn flat dense icon="open_in_new" label="Open"
+                            @click="() => $parent.$emit('open', props.row)" />
+                        <q-btn flat dense icon="edit"
+                            @click="() => $parent.$emit('rename', props.row)" />
+                        <q-btn flat dense icon="delete" class="ht-btn-icon-danger"
+                            @click="() => $parent.$emit('delete', props.row)" />
+                    </q-td>
+                </q-tr>
+                """.replace(
+                    "__LAST_MODIFIED_DISPLAY__",
+                    LAST_MODIFIED_BROWSER_LOCAL_CELL_EXPRESSION,
                 ),
-            ).props("color=primary").style("min-height:44px")
-
-        columns: list[dict[str, str | bool]] = [
-            {"name": "name", "label": "Name", "field": "name", "sortable": True},
-            {"name": "tags", "label": "Tags", "field": "tags"},
-            {"name": "last_modified", "label": "Last Modified", "field": "last_modified_sort", "sortable": True},
-            {"name": "actions", "label": "Actions", "field": "actions"},
-        ]
-        table = ui.table(columns=columns, rows=[], row_key="id").classes("w-full")
-        table.add_slot(
-            "body",
-            r"""
-            <q-tr :props="props">
-                <q-td key="name">
-                    <a href="#" style="color:var(--ht-accent); text-decoration:none"
-                       @click.prevent="$parent.$emit('open', props.row)">
-                        {{ props.row.name }}
-                    </a>
-                </q-td>
-                <q-td key="tags">
-                    <q-chip v-for="tag in (props.row.tags || [])" :key="tag"
-                        :label="tag" dense size="sm" />
-                </q-td>
-                <q-td key="last_modified">
-                    {{ __LAST_MODIFIED_DISPLAY__ }}
-                    <q-tooltip v-if="props.row.last_modified_iso">{{ props.row.last_modified_iso }}</q-tooltip>
-                </q-td>
-                <q-td key="actions">
-                    <q-btn flat dense icon="open_in_new" label="Open"
-                        @click="() => $parent.$emit('open', props.row)" />
-                    <q-btn flat dense icon="edit"
-                        @click="() => $parent.$emit('rename', props.row)" />
-                    <q-btn flat dense icon="delete" color="negative"
-                        @click="() => $parent.$emit('delete', props.row)" />
-                </q-td>
-            </q-tr>
-            """.replace(
-                "__LAST_MODIFIED_DISPLAY__",
-                LAST_MODIFIED_BROWSER_LOCAL_CELL_EXPRESSION,
-            ),
-        )
-
-        async def _open_topology(e: object) -> None:
-            """Navigate to a topology canvas."""
-            args: dict[str, object] = getattr(e, "args", {})
-            topo_id = str(args.get("id", ""))
-            if not topo_id:
-                return
-            ui.navigate.to(
-                f"/topology?topology_id={topo_id}"
-                f"&workspace_id={workspace_id}"
             )
 
-        table.on("open", _open_topology)
-        table.on(
-            "rename",
-            lambda e: show_name_dialog(
-                "Rename Topology", "Topology name",
-                current_value=e.args.get("name", ""),
-                on_submit=lambda n: on_rename(e.args["id"], n),
-            ),
-        )
-        table.on(
-            "delete",
-            lambda e: confirm_delete(e.args["id"], e.args.get("name", "")),
-        )
+            async def _open_topology(e: object) -> None:
+                """Navigate to a topology canvas."""
+                args: dict[str, object] = getattr(e, "args", {})
+                topo_id = str(args.get("id", ""))
+                if not topo_id:
+                    return
+                ui.navigate.to(
+                    f"/topology?topology_id={topo_id}"
+                    f"&workspace_id={workspace_id}"
+                )
+
+            table.on("open", _open_topology)
+            table.on(
+                "rename",
+                lambda e: show_name_dialog(
+                    "Rename Topology", "Topology name",
+                    current_value=e.args.get("name", ""),
+                    on_submit=lambda n: on_rename(e.args["id"], n),
+                ),
+            )
+            table.on(
+                "delete",
+                lambda e: confirm_delete(e.args["id"], e.args.get("name", "")),
+            )
 
     await load_topologies()

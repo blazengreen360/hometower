@@ -13,6 +13,10 @@ from src.models.device import DeviceResponseEnriched
 from src.models.types import DeviceStatus
 from src.ui.components.device_type_options import get_editable_device_type_values
 from src.ui.components.toast import show_toast
+from src.ui.design.primitives import card_section
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import primary_button
+from src.ui.design.primitives import secondary_button
 from src.utils.logger import logger
 from src.utils.settings import settings
 
@@ -57,37 +61,30 @@ def create_inventory_edit_modal(
     status_options = [status.value for status in DeviceStatus]
 
     with ui.dialog() as dialog:
-        with ui.card().classes("w-full").style(
-            "max-width:760px; background:var(--ht-bg-surface-raised); color:var(--ht-text-primary);"
-        ):
-            ui.label("Edit Device").style("font-size:1.125rem; font-weight:700;")
-            subtitle = ui.label("").style(
-                "font-size:0.8rem; color:var(--ht-text-secondary); margin-top:-4px;"
-            )
+        with card_surface(ui.card()).classes("w-full max-w-[760px]"):
+            with card_section(ui.column()):
+                ui.label("Edit Device").classes("ht-section-title")
+                subtitle = ui.label("").classes("ht-small-copy -mt-1")
 
-            if can_edit:
-                ui.label("Update core properties and save changes.").style(
-                    "font-size:0.82rem; color:var(--ht-text-secondary);"
-                )
-            else:
-                ui.label("Read-only view: your role cannot edit devices.").style(
-                    "font-size:0.82rem; color:var(--ht-text-secondary);"
-                )
+                if can_edit:
+                    ui.label("Update core properties and save changes.").classes("ht-small-copy")
+                else:
+                    ui.label("Read-only view: your role cannot edit devices.").classes("ht-small-copy")
 
-            with ui.row().classes("w-full gap-3"):
-                name_input = ui.input("Name").classes("flex-1")
-                type_select = ui.select(type_options, label="Type").classes("w-48")
-                status_select = ui.select(status_options, label="Status").classes("w-48")
+                with ui.row().classes("w-full gap-3"):
+                    name_input = ui.input("Name").classes("flex-1").props("dense outlined")
+                    type_select = ui.select(type_options, label="Type").classes("w-48").props("dense outlined")
+                    status_select = ui.select(status_options, label="Status").classes("w-48").props("dense outlined")
 
-            with ui.row().classes("w-full gap-3"):
-                ip_input = ui.input("IP").classes("flex-1")
-                mac_input = ui.input("MAC").classes("flex-1")
-                os_input = ui.input("OS").classes("flex-1")
+                with ui.row().classes("w-full gap-3"):
+                    ip_input = ui.input("IP").classes("flex-1").props("dense outlined")
+                    mac_input = ui.input("MAC").classes("flex-1").props("dense outlined")
+                    os_input = ui.input("OS").classes("flex-1").props("dense outlined")
 
-            notes_input = ui.textarea("Notes").props("autogrow").classes("w-full")
+                notes_input = ui.textarea("Notes").props("autogrow outlined").classes("w-full")
 
-            error_label = ui.label("").style("font-size:0.82rem; color:var(--ht-error);")
-            error_label.set_visibility(False)
+                error_label = ui.label("").style("font-size:0.82rem; color:var(--ht-error);")
+                error_label.set_visibility(False)
 
             if not can_edit:
                 for field in [
@@ -156,15 +153,17 @@ def create_inventory_edit_modal(
                 error_label.set_visibility(True)
 
             with ui.row().classes("w-full justify-between items-center pt-2"):
-                ui.button("Open in Topology", on_click=_open_topology).props(
-                    "flat icon=account_tree"
+                secondary_button(
+                    ui.button("Open in Topology", on_click=_open_topology).props("icon=account_tree")
                 )
                 with ui.row().classes("gap-2"):
-                    ui.button("Close", on_click=dialog.close).props("flat")
-                    save_btn = ui.button(
-                        "Save Changes",
-                        on_click=lambda: asyncio.ensure_future(_save()),
-                    ).props("color=primary")
+                    secondary_button(ui.button("Close", on_click=dialog.close))
+                    save_btn = primary_button(
+                        ui.button(
+                            "Save Changes",
+                            on_click=lambda: asyncio.ensure_future(_save()),
+                        )
+                    )
                     if not can_edit:
                         save_btn.props("disable")
 

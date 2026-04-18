@@ -1,7 +1,4 @@
-"""Settings — Users management page at /settings/users.
-
-Admin-only page. Renders a table of all users with create, edit, and delete actions.
-"""
+"""Settings — Users management page at /settings/users."""
 import html
 from typing import Optional
 
@@ -11,10 +8,15 @@ from nicegui import ui
 
 from src.models.types import Role
 from src.ui.components.app_shell import app_shell
-from src.ui.components.auth_guard import (
-    redirect_if_insufficient_role,
-    redirect_if_unauthenticated,
-)
+from src.ui.components.auth_guard import redirect_if_insufficient_role, redirect_if_unauthenticated
+from src.ui.design.primitives import card_section
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import page_container
+from src.ui.design.primitives import primary_button
+from src.ui.design.primitives import render_page_intro
+from src.ui.design.primitives import secondary_button
+from src.ui.design.primitives import table_surface
+from src.ui.pages.settings_page_helpers import show_destructive_confirmation
 from src.ui.utils.validation_feedback import friendly_error_message
 from src.utils.logger import logger
 from src.utils.settings import settings
@@ -49,13 +51,7 @@ async def settings_users_page() -> None:
     modal_mode = {"value": "create"}
     editing_id: dict[str, Optional[str]] = {"value": None}
 
-    form: dict = {
-        "username": "",
-        "email": "",
-        "password": "",
-        "role": "Contributor",
-        "is_active": True,
-    }
+    form: dict = {"username": "", "email": "", "password": "", "role": "Contributor", "is_active": True}
 
     def _to_rows(users_list: list[dict]) -> list[dict]:
         return [{**u, "is_self": u["id"] == current_user_id} for u in users_list]
@@ -78,15 +74,7 @@ async def settings_users_page() -> None:
         error_label.set_visibility(False)
 
     def _reset_form() -> None:
-        form.update(
-            {
-                "username": "",
-                "email": "",
-                "password": "",
-                "role": "Contributor",
-                "is_active": True,
-            }
-        )
+        form.update({"username": "", "email": "", "password": "", "role": "Contributor", "is_active": True})
         _clear_form_error()
 
     def open_create_modal() -> None:
@@ -151,7 +139,7 @@ async def settings_users_page() -> None:
             error_label.set_text("Couldn't save user right now. Please try again.")
             error_label.set_visibility(True)
 
-    async def confirm_delete(user_id: str, username: str) -> None:
+    def confirm_delete(user_id: str, username: str) -> None:
         async def do_delete() -> None:
             try:
                 async with httpx.AsyncClient() as client:
@@ -173,92 +161,88 @@ async def settings_users_page() -> None:
                 logger.error("User delete failed: {}", exc)
                 ui.notify("Couldn't delete user right now. Please try again.", type="negative")
 
-        with ui.dialog() as confirm_dlg, ui.card():
-            ui.label(f"Delete '{html.escape(username)}'?").classes("font-bold")
-            with ui.row():
-                ui.button("Cancel", on_click=confirm_dlg.close).props("flat")
+        show_destructive_confirmation(
+            ui_module=ui,
+            title=f"Delete '{html.escape(username)}'?",
+            description=None,
+            on_confirm=do_delete,
+            min_width_class="min-w-[320px]",
+        )
 
-                async def _do_delete_and_close() -> None:
-                    confirm_dlg.close()
-                    await do_delete()
-
-                ui.button(
-                    "Delete", on_click=_do_delete_and_close
-                ).props("color=negative")
-        confirm_dlg.open()
-
-    async def _on_delete(event: object) -> None:
+    def _on_delete(event: object) -> None:
         args = getattr(event, "args", {})
         if not isinstance(args, dict):
             return
         user_id = str(args.get("id", ""))
         if not user_id:
             return
-        username = str(args.get("username", ""))
-        await confirm_delete(user_id, username)
+        confirm_delete(user_id, str(args.get("username", "")))
 
-    # --- Layout ---
     with app_shell("Users", "/settings/users", breadcrumb=["Settings", "Users"]):
-        with ui.row().classes("w-full items-center justify-between"):
-            ui.label("User Management").classes("text-2xl font-bold")
-            ui.button("+ Add User", on_click=open_create_modal).props("color=primary")
+        with page_container(ui.column()):
+            with ui.row().classes("w-full items-end justify-between gap-4 flex-wrap"):
+                render_page_intro(
+                    ui,
+                    "User Management",
+                    "Create, edit, and deactivate accounts with explicit role control for Admin, Contributor, and Reader access.",
+                    "Settings",
+                )
+                primary_button(ui.button("+ Add User", on_click=open_create_modal))
 
-        columns: list[dict] = [
-            {"name": "username", "label": "Username", "field": "username", "sortable": True},
-            {"name": "email", "label": "Email", "field": "email", "sortable": True},
-            {"name": "role", "label": "Role", "field": "role", "sortable": True},
-            {"name": "is_active", "label": "Active", "field": "is_active"},
-            {"name": "actions", "label": "Actions", "field": "actions"},
-        ]
-        table = ui.table(columns=columns, rows=[], row_key="id").classes("w-full")
-        table.add_slot(
-            "body",
-            """
-            <q-tr :props="props">
-                <q-td key="username">{{ props.row.username }}</q-td>
-                <q-td key="email">{{ props.row.email }}</q-td>
-                <q-td key="role">{{ props.row.role }}</q-td>
-                <q-td key="is_active">{{ props.row.is_active ? 'Yes' : 'No' }}</q-td>
-                <q-td key="actions">
-                    <q-btn flat dense icon="edit"
-                        @click="() => $emit('edit', props.row)" />
-                    <q-btn flat dense icon="delete" color="negative"
-                        :disabled="props.row.is_self"
-                        @click="() => $emit('delete', props.row)" />
-                </q-td>
-            </q-tr>
-            """,
-        )
-        table.on("edit", lambda e: open_edit_modal(e.args))
-        table.on("delete", _on_delete)
+            columns: list[dict] = [
+                {"name": "username", "label": "Username", "field": "username", "sortable": True},
+                {"name": "email", "label": "Email", "field": "email", "sortable": True},
+                {"name": "role", "label": "Role", "field": "role", "sortable": True},
+                {"name": "is_active", "label": "Active", "field": "is_active"},
+                {"name": "actions", "label": "Actions", "field": "actions"},
+            ]
+            table = table_surface(ui.table(columns=columns, rows=[], row_key="id"))
+            table.add_slot(
+                "body",
+                """
+                <q-tr :props="props">
+                    <q-td key="username">{{ props.row.username }}</q-td>
+                    <q-td key="email">{{ props.row.email }}</q-td>
+                    <q-td key="role">{{ props.row.role }}</q-td>
+                    <q-td key="is_active">{{ props.row.is_active ? 'Yes' : 'No' }}</q-td>
+                    <q-td key="actions">
+                        <q-btn flat dense icon="edit"
+                            @click="() => $emit('edit', props.row)" />
+                        <q-btn flat dense icon="delete" class="ht-btn-icon-danger"
+                            :disabled="props.row.is_self"
+                            @click="() => $emit('delete', props.row)" />
+                    </q-td>
+                </q-tr>
+                """,
+            )
+            table.on("edit", lambda e: open_edit_modal(e.args))
+            table.on("delete", _on_delete)
 
-    # --- Modal dialog ---
-    with ui.dialog() as dialog, ui.card().classes("w-96"):
-        modal_title = ui.label("Create User").classes("text-xl font-bold")
-        username_input = ui.input("Username").bind_value(form, "username").classes("w-full")
-        email_input = ui.input("Email").bind_value(form, "email").classes("w-full")
-        password_input = ui.input("Password", password=True).bind_value(form, "password").classes(
-            "w-full"
-        )
-        role_select = ui.select(
-            ["Admin", "Contributor", "Reader"],
-            label="Role",
-        ).bind_value(form, "role").classes("w-full")
-        active_checkbox = ui.checkbox("Active").bind_value(form, "is_active")
-        error_label = (
-            ui.label("").style("color: var(--ht-error); font-size: 0.875rem")
-        )
-        error_label.set_visibility(False)
-        for field_control in (
-            username_input,
-            email_input,
-            password_input,
-            role_select,
-            active_checkbox,
-        ):
-            field_control.on_value_change(lambda _event: _clear_form_error())
-        with ui.row():
-            ui.button("Cancel", on_click=dialog.close).props("flat")
-            ui.button("Save", on_click=submit_form).props("color=primary")
+    with ui.dialog() as dialog, card_surface(ui.card()).classes("w-96"):
+        with card_section(ui.column()):
+            modal_title = ui.label("Create User").classes("ht-section-title")
+            username_input = ui.input("Username").bind_value(form, "username").classes("w-full").props("outlined")
+            email_input = ui.input("Email").bind_value(form, "email").classes("w-full").props("outlined")
+            password_input = ui.input("Password", password=True).bind_value(form, "password").classes(
+                "w-full"
+            ).props("outlined")
+            role_select = ui.select(
+                ["Admin", "Contributor", "Reader"],
+                label="Role",
+            ).bind_value(form, "role").classes("w-full").props("outlined")
+            active_checkbox = ui.checkbox("Active").bind_value(form, "is_active")
+            error_label = ui.label("").style("color: var(--ht-error); min-height: 1.25rem;")
+            error_label.set_visibility(False)
+            for field_control in (
+                username_input,
+                email_input,
+                password_input,
+                role_select,
+                active_checkbox,
+            ):
+                field_control.on_value_change(lambda _event: _clear_form_error())
+            with ui.row().classes("gap-2 justify-end"):
+                secondary_button(ui.button("Cancel", on_click=dialog.close))
+                primary_button(ui.button("Save", on_click=submit_form))
 
     await load_users()

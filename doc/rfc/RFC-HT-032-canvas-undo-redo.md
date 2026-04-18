@@ -1011,7 +1011,7 @@ This is the only test layer that proves the mixed stack behaves correctly across
 
 ### 10. Verification
 
-- `bash .agents/skills/verify-gate/scripts/run.sh --fast`
+- `bash .github/skills/verify-gate/scripts/run.sh --fast`
 - `docker compose exec api pytest tests/unit/test_canvas_undo.py tests/integration/test_canvas_undo_api.py -v`
 - `docker compose exec api pytest tests/e2e/test_topology_canvas_undo_redo.py -v` if the browser harness is part of the pipeline
 

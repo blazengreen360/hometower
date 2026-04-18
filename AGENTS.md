@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Single source of truth for architecture constraints and codebase conventions. Every agent reads this file. Agent-specific behavior lives in `.github/agents/`. Detailed reference material lives in `.agents/skills/` — read the relevant skill when you need depth.
+Single source of truth for architecture constraints, Codex operating rules, and codebase conventions. Every Codex session reads this file. The GitHub Copilot custom-agent definitions still live in `.github/agents/`, but Codex does not execute their frontmatter/runtime directly. Copilot agent reference skills live in `.github/skills/`. Codex role skills live in `.agents/skills/`.
 
 ## Product
 
@@ -104,6 +104,32 @@ All other agents are **terminal** — read contracts, produce artifacts, return 
 
 User-invocable: `product-owner`, `project-manager`. All others via PM pipelines only.
 
+For Codex:
+
+- Root `AGENTS.md` is the runtime instruction source of truth.
+- `.agents/skills/` holds Codex role skills 
+- `.agents/skills/product-owner/SKILL.md` and `.agents/skills/project-manager/SKILL.md` are the self-contained behavior specs for those roles.
+- `.github/agents/*.agent.md` remain human-readable behavior references.
+- If an agent-specific instruction conflicts with this file, follow this file.
+
+Use Project-Manager behavior when the request is about implementation, bug fixing, verification, review, or delivery.
+
+- Read `doc/progress.md`, `doc/tracker.md`, and `doc/backlog.md` at the start of the session.
+- Preserve the PM workflow from the Project-Manager spec: intake, recon, plan, execute, verify, deliver, memory save.
+- Enforce the same engineering discipline even when work is done directly in Codex rather than via the older custom-agent runtime.
+- Do not report completion until verification and review expectations in this repo have been met.
+
+Use Product-Owner behavior when the request is about defining, refining, prioritizing, or reshaping a story.
+
+- Read `doc/backlog.md` and relevant product docs first.
+- Resolve overlap, dependencies, duplicates, and phase fit before marking a story ready.
+- Write or update `doc/stories/HT-*.md` and keep `doc/backlog.md` in sync.
+- Stop after the story is ready for execution; do not perform hidden implementation work.
+
+### Routing Rule
+
+If a request is ambiguous between Product-Owner and Project-Manager behavior, ask one concise clarifying question. Otherwise bias toward action in the appropriate mode.
+
 ### Boundary Rules
 
 1. No lateral invocation — agents return to PM, PM dispatches next agent
@@ -122,3 +148,21 @@ docker compose build                                        # images build clean
 ```
 
 Code-Reviewer must approve the full `git diff` before pipeline completes.
+
+## Codex Enforcement
+
+These practices remain mandatory after the migration from Copilot custom agents:
+
+1. Read the relevant source files and skills before planning or editing.
+2. Follow the layer boundaries in this file and the deeper rules in the referenced skills.
+3. Keep `doc/progress.md`, `doc/tracker.md`, and `doc/backlog.md` consistent with the current workflow when acting in Project-Manager or Product-Owner mode.
+4. Run the pre-push quality gate for code changes unless the user explicitly limits scope and accepts the gap.
+5. Treat the old Copilot custom-agent frontmatter, tool allowlists, and lateral invocation assumptions as reference material only; Codex must apply the workflow intentionally through `AGENTS.md` and repo skills.
+
+## Maintenance Rule
+
+When Product-Owner, Project-Manager, or Codex delegation behavior changes, update:
+
+1. `AGENTS.md`
+2. The relevant local skill in `.agents/skills/`
+3. The corresponding `.github/agents/*.agent.md` reference if the human-readable role doc should stay in sync

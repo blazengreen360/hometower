@@ -4,6 +4,20 @@ All notable changes to Hometower will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — HT-080 UI premiumization and component consistency
+
+- Added shared page, card, button, banner, and table primitives in `src/ui/design/primitives.py` and expanded the theme token set in `src/ui/design/tokens.py` so typography, spacing, and semantic actions now resolve through one global UI specification.
+- Reworked the app shell plus first-class surfaces across dashboard, workspaces, workspace detail, login/access-denied, IPAM, settings pages, inventory tables, and the dedicated inventory editor to use the shared HT-080 visual language instead of page-local styling.
+- Standardized destructive/secondary/primary action treatments in shared dialogs and detail panels, and removed remaining hardcoded hex colors from `src/ui` component files outside the design-token layer.
+- Normalized supporting topology/canvas helpers to read semantic colors from the theme system, keeping UI chrome and canvas affordances aligned across light, dark, and midnight themes.
+
+### Added — HT-087 quick wins
+
+- Added a new topology Auto-Layout toolbar action that runs an animated Cytoscape layout and persists the resulting node positions through the existing draft/autosave path.
+- Device notes now render sanitized markdown in read mode while preserving raw markdown editing in the existing device detail workflow.
+- The inventory page now exposes one-click CSV export for the current filtered rows, including Name, Status, Type, IP, MAC, Location, and Notes, with spreadsheet-formula prefix hardening.
+- Device detail views now expose dense SSH, HTTP, and HTTPS quick-connect actions when an IP address is present.
+
 ### Added — HT-050 node and container drag resize
 
 - Added edit-mode-only resize handles for topology nodes and containers through a new canvas overlay bridge, with corner proportional resize, edge-only dimension resize, minimum-size clamping, and compound/container child-bounds enforcement.
@@ -19,6 +33,7 @@ All notable changes to Hometower will be documented in this file.
 
 - Corrected compound/container one-sided resize math so the non-dragged interior edge remains visually pinned and child nodes no longer slide with the container during expand or shrink operations.
 - Added focused browser-proof coverage for the exact user-reported case: one container with one child node now resizes cleanly across all four axes and remains sane after refresh.
+- Hardened the deep browser-proof harness for HT-050 with stronger post-login readiness checks and longer nested-container settle waits so the direct-run canvas proof is more reliable during local verification.
 
 ### Fixed — HT-068 reliable JSON export from Settings
 

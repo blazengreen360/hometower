@@ -4,6 +4,10 @@ from dataclasses import dataclass
 
 from nicegui import ui
 
+from src.ui.design.primitives import card_section
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import primary_button
+from src.ui.design.primitives import secondary_button
 from src.ui.design.tokens import FONT_MONO
 
 
@@ -20,39 +24,38 @@ def create_location_modal(
     on_submit: Callable[[], object],
 ) -> LocationModalController:
     """Render the location modal and return simple controls for the page."""
-    with ui.dialog() as modal_dialog, ui.card().style(
-        "min-width: 400px; background-color: var(--ht-bg-surface-raised)"
-    ):
-        modal_title = ui.label("Add Location").classes("text-xl font-bold")
-        ui.separator()
+    with ui.dialog() as modal_dialog, card_surface(ui.card()).classes("min-w-[400px]"):
+        with card_section(ui.column()):
+            modal_title = ui.label("Add Location").classes("ht-section-title")
 
-        name_input = ui.input("Name").classes("w-full").bind_value(form, "name")
+            name_input = ui.input("Name").classes("w-full").props("outlined").bind_value(form, "name")
 
-        type_select = (
-            ui.select(["rack", "geo"], label="Type", value="rack")
-            .classes("w-full")
-            .bind_value(form, "type")
-        )
-
-        rack_container = ui.column().classes("w-full gap-2")
-        with rack_container:
-            rack_input = ui.input("Rack (optional)").classes("w-full").bind_value(form, "rack")
-            row_input = ui.input("Row (optional)").classes("w-full").bind_value(form, "row")
-            parent_input = ui.input("Parent ID (optional UUID)").classes("w-full").bind_value(
-                form, "parent_id"
+            type_select = (
+                ui.select(["rack", "geo"], label="Type", value="rack")
+                .classes("w-full")
+                .props("outlined")
+                .bind_value(form, "type")
             )
 
-        geo_container = ui.column().classes("w-full gap-2")
-        with geo_container:
-            lat_input = ui.input("Latitude").classes("w-full").style(
-                f"font-family: {FONT_MONO}"
-            ).bind_value(form, "lat")
-            lng_input = ui.input("Longitude").classes("w-full").style(
-                f"font-family: {FONT_MONO}"
-            ).bind_value(form, "lng")
+            rack_container = ui.column().classes("w-full gap-2")
+            with rack_container:
+                rack_input = ui.input("Rack (optional)").classes("w-full").props("outlined").bind_value(form, "rack")
+                row_input = ui.input("Row (optional)").classes("w-full").props("outlined").bind_value(form, "row")
+                parent_input = ui.input("Parent ID (optional UUID)").classes("w-full").props("outlined").bind_value(
+                    form, "parent_id"
+                )
 
-        error_label = ui.label("").style("color: var(--ht-error); min-height: 1.25rem")
-        error_label.set_visibility(False)
+            geo_container = ui.column().classes("w-full gap-2")
+            with geo_container:
+                lat_input = ui.input("Latitude").classes("w-full").props("outlined").style(
+                    f"font-family: {FONT_MONO}"
+                ).bind_value(form, "lat")
+                lng_input = ui.input("Longitude").classes("w-full").props("outlined").style(
+                    f"font-family: {FONT_MONO}"
+                ).bind_value(form, "lng")
+
+            error_label = ui.label("").classes("ht-form-error")
+            error_label.set_visibility(False)
 
         def set_error(message: str) -> None:
             error_label.set_text(message)
@@ -91,10 +94,8 @@ def create_location_modal(
         update_type_visibility()
 
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button("Cancel", on_click=modal_dialog.close).props("flat")
-            ui.button("Save", on_click=on_submit).style(
-                "background-color: var(--ht-accent); color: var(--ht-text-on-accent)"
-            )
+            secondary_button(ui.button("Cancel", on_click=modal_dialog.close))
+            primary_button(ui.button("Save", on_click=on_submit))
 
     def open_for_mode(mode: str) -> None:
         modal_title.set_text("Add Location" if mode == "create" else "Edit Location")

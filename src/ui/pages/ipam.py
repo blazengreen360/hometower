@@ -15,6 +15,10 @@ from src.ui.components.auth_guard import redirect_if_unauthenticated
 from src.ui.components.ipam_block_summary import render_ipam_block_summary
 from src.ui.components.ipam_grid import render_ipam_grid
 from src.ui.components.ipam_stats_row import render_ipam_stats_row
+from src.ui.design.primitives import card_section
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import page_container
+from src.ui.design.primitives import render_page_intro
 from src.ui.services.ipam_data import load_ipam_detail, load_ipam_summary
 from src.ui.services.ipam_search import IpamSearchTargets, resolve_visible_matches
 
@@ -101,52 +105,57 @@ async def ipam_page() -> None:
         await _scroll_to_first_match()
 
     with app_shell("IPAM", "/ipam", breadcrumb=["IPAM"]):
-        with ui.row().classes("w-full items-center gap-2"):
-            ui.label("IPAM").style(
-                "font-size:1.25rem; font-weight:700; color:var(--ht-text-primary);"
-            )
-            ui.badge("Read-only").props("color=grey rounded")
+        with page_container(ui.column()):
+            with ui.row().classes("w-full items-end justify-between gap-3 flex-wrap"):
+                render_page_intro(
+                    ui,
+                    "IPAM",
+                    "Inspect network utilization, conflicts, and device occupancy in a read-only address-management surface.",
+                    "Network View",
+                )
+                ui.badge("Read-only").classes("bg-[var(--ht-bg-surface-raised)] text-[var(--ht-text-secondary)]")
 
-        ui.input(placeholder="Search by IP or device name...").props("debounce=200").classes(
-            "w-full"
-        ).on_value_change(_on_search_change)
+            ui.input(placeholder="Search by IP or device name...").props("outlined debounce=200").classes(
+                "w-full"
+            ).on_value_change(_on_search_change)
 
-        render_ipam_stats_row(summary_payload.summary)
+            render_ipam_stats_row(summary_payload.summary)
 
-        if not summary_payload.items:
-            with ui.card().classes("w-full"):
-                ui.label("No networks found.").style("color:var(--ht-text-secondary);")
-            return
+            if not summary_payload.items:
+                with card_surface(ui.card()):
+                    with card_section(ui.column()):
+                        ui.label("No networks found.").classes("ht-muted-copy")
+                return
 
-        for network in summary_payload.items:
-            network_key = str(network.network_id)
-            title = f"{network.name} ({network.cidr})"
-            with ui.expansion(title, value=False).classes("w-full") as expansion:
-                with ui.row().classes("w-full items-center gap-2"):
-                    if network.vlan_id is not None:
-                        ui.badge(f"VLAN {network.vlan_id}").props("rounded")
-                    utilization = (
-                        f"{network.used_ip_count}/{network.usable_ip_count} used"
-                        if network.usable_ip_count is not None
-                        else "Unsupported"
-                    )
-                    ui.label(utilization).style("color:var(--ht-text-secondary); font-size:0.8rem;")
-                    if network.conflict_ip_count > 0:
-                        ui.badge(f"{network.conflict_ip_count} conflicts", color="negative").props(
-                            "rounded"
+            for network in summary_payload.items:
+                network_key = str(network.network_id)
+                title = f"{network.name} ({network.cidr})"
+                with ui.expansion(title, value=False).classes("w-full") as expansion:
+                    with ui.row().classes("w-full items-center gap-2"):
+                        if network.vlan_id is not None:
+                            ui.badge(f"VLAN {network.vlan_id}").props("rounded")
+                        utilization = (
+                            f"{network.used_ip_count}/{network.usable_ip_count} used"
+                            if network.usable_ip_count is not None
+                            else "Unsupported"
                         )
-                    if network.render_mode == IpamRenderMode.block_summary:
-                        ui.badge("Block Summary", color="info").props("rounded")
-                    if network.render_mode == IpamRenderMode.unsupported:
-                        ui.badge("Unsupported", color="grey").props("rounded")
+                        ui.label(utilization).classes("ht-small-copy")
+                        if network.conflict_ip_count > 0:
+                            ui.badge(f"{network.conflict_ip_count} conflicts", color="negative").props(
+                                "rounded"
+                            )
+                        if network.render_mode == IpamRenderMode.block_summary:
+                            ui.badge("Block Summary", color="info").props("rounded")
+                        if network.render_mode == IpamRenderMode.unsupported:
+                            ui.badge("Unsupported", color="grey").props("rounded")
 
-                detail_containers[network_key] = ui.column().classes("w-full gap-2")
+                    detail_containers[network_key] = ui.column().classes("w-full gap-2")
 
-            async def _on_expansion_change(
-                event: ValueChangeEventArguments,
-                key: str = network_key,
-            ) -> None:
-                if bool(event.value):
-                    await _load_detail_if_needed(key)
+                async def _on_expansion_change(
+                    event: ValueChangeEventArguments,
+                    key: str = network_key,
+                ) -> None:
+                    if bool(event.value):
+                        await _load_detail_if_needed(key)
 
-            expansion.on_value_change(_on_expansion_change)
+                expansion.on_value_change(_on_expansion_change)

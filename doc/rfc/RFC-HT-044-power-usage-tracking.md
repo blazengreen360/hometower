@@ -1361,7 +1361,7 @@ This order keeps the backend contract stable before any UI consumer starts wirin
 - `CHANGELOG.md` - add implementation entry when code lands
 
 ### 10. Verification
-- `bash .agents/skills/verify-gate/scripts/run.sh --fast`
+- `bash .github/skills/verify-gate/scripts/run.sh --fast`
 - run migration-safety review on `026_add_device_power_and_power_settings.py`
 
 ### Risks / open questions for Architect

@@ -13,6 +13,7 @@ import httpx
 import pytest
 
 from tests.unit.nicegui_fakes import AsyncClientStub, FakeResponse, FakeUI, install_fake_ui
+from src.models.types import Role
 
 
 @contextmanager
@@ -131,6 +132,7 @@ class TestDashboardPage:
         app = install_fake_ui(monkeypatch, dashboard_module, fake_ui, {"access_token": "token"})
         monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
         monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
+        monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
         client_stub = AsyncClientStub(
             [
                 httpx.Response(200, json={"total": 13}),
@@ -180,6 +182,7 @@ class TestDashboardPage:
         install_fake_ui(monkeypatch, dashboard_module, fake_ui, {"access_token": "token"})
         monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
         monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
+        monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
         updated_at = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
         client_stub = AsyncClientStub(
             [
@@ -220,6 +223,84 @@ class TestDashboardPage:
         assert any(label.text_value == "Office Rack" for label in fake_ui.created["label"])
         assert len(client_stub.calls) == 6
         assert any(url.endswith("/api/power/summary") for _, url in client_stub.calls)
+
+    def test_dashboard_hides_write_actions_for_reader(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import src.ui.pages.dashboard as dashboard_module
+
+        fake_ui = FakeUI()
+        install_fake_ui(monkeypatch, dashboard_module, fake_ui, {"access_token": "token"})
+        monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+        monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
+        monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Reader)
+        client_stub = AsyncClientStub(
+            [
+                httpx.Response(200, json={"total": 1}),
+                httpx.Response(200, json={"total": 0}),
+                httpx.Response(200, json=[]),
+                httpx.Response(200, json=[]),
+                httpx.Response(200, json={"items": []}),
+                httpx.Response(
+                    200,
+                    json={
+                        "total_watts": 0,
+                        "estimated_monthly_cost": None,
+                        "currency": None,
+                        "by_location": [],
+                    },
+                ),
+            ]
+        )
+        monkeypatch.setattr(
+            dashboard_module.httpx,
+            "AsyncClient",
+            lambda *args, **kwargs: client_stub,
+        )
+
+        asyncio.run(dashboard_module.dashboard_page())
+
+        button_values = [button.value for button in fake_ui.created["button"]]
+        assert "View Inventory" in button_values
+        assert "Add Device" not in button_values
+        assert "Manage Locations" not in button_values
+
+    def test_dashboard_shows_write_actions_for_contributor(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import src.ui.pages.dashboard as dashboard_module
+
+        fake_ui = FakeUI()
+        install_fake_ui(monkeypatch, dashboard_module, fake_ui, {"access_token": "token"})
+        monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+        monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
+        monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
+        client_stub = AsyncClientStub(
+            [
+                httpx.Response(200, json={"total": 1}),
+                httpx.Response(200, json={"total": 0}),
+                httpx.Response(200, json=[]),
+                httpx.Response(200, json=[]),
+                httpx.Response(200, json={"items": []}),
+                httpx.Response(
+                    200,
+                    json={
+                        "total_watts": 0,
+                        "estimated_monthly_cost": None,
+                        "currency": None,
+                        "by_location": [],
+                    },
+                ),
+            ]
+        )
+        monkeypatch.setattr(
+            dashboard_module.httpx,
+            "AsyncClient",
+            lambda *args, **kwargs: client_stub,
+        )
+
+        asyncio.run(dashboard_module.dashboard_page())
+
+        button_values = [button.value for button in fake_ui.created["button"]]
+        assert "View Inventory" in button_values
+        assert "Add Device" in button_values
+        assert "Manage Locations" in button_values
 
 
 class TestSettingsAboutPage:
@@ -600,10 +681,21 @@ class TestMapPage:
         monkeypatch.setattr(map_module, "load_geo_locations", _load_locations)
 
         asyncio.run(map_module.map_page())
+        assert any(
+            "ht-page-shell" in classes
+            for column in fake_ui.created["column"]
+            for classes in column.classes_calls
+        )
+        assert any(
+            "ht-page-header" in classes
+            for column in fake_ui.created["column"]
+            for classes in column.classes_calls
+        )
         handler = fake_ui.on_handlers["map_location_selected"]
         _run(handler(SimpleNamespace(args={"location_id": "loc-1"})))
 
         device_button = next(button for button in fake_ui.created["button"] if button.value == "Edge Router")
+        assert any("ht-btn ht-btn-secondary" in classes for classes in device_button.classes_calls)
         _run(device_button.handlers["click"]())
 
         drawer = next(

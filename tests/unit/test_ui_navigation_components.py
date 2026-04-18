@@ -123,7 +123,10 @@ class TestSidebar:
         collapse_button = fake_ui.created["button"][0]
         collapse_button.click()
         assert sidebar_module.nicegui_app.storage.user["sidebar_expanded"] is False
-        assert fake_ui.created["left_drawer"][0].toggled is True
+        drawer = fake_ui.created["left_drawer"][0]
+        assert drawer.toggled is False
+        assert any('icon="chevron_right"' in props for props in collapse_button.props_calls)
+        assert any("mini" in props for props in drawer.props_calls)
 
         dashboard_row = fake_ui.created["row"][1]
         dashboard_row.click()
@@ -193,6 +196,24 @@ class TestSidebar:
         assert any("pointer-events:none" in style for style in inventory_label.style_calls)
         assert "click" not in dashboard_row.handlers
         assert "click" not in dashboard_row.js_handlers
+
+    def test_render_sidebar_topology_route_clears_active_style_from_nav_items(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import src.ui.components.sidebar as sidebar_module
+
+        fake_ui = FakeUI()
+        install_fake_ui(monkeypatch, sidebar_module, fake_ui, {"sidebar_expanded": True})
+        monkeypatch.setattr(sidebar_module, "get_ui_role", lambda: Role.Reader)
+
+        sidebar_module.render_sidebar("/topology")
+
+        map_row = fake_ui.created["row"][5]
+        map_styles = " ".join(map_row.style_calls)
+
+        assert "background-color:transparent" in map_styles
+        assert "border-left:3px solid transparent" in map_styles
+        assert "var(--ht-accent-glow)" not in map_styles
 
 
 class TestBreadcrumb:

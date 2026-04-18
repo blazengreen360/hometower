@@ -8,6 +8,10 @@ import httpx
 from nicegui import ui
 
 from src.models.attachment import DeviceAttachmentResponse
+from src.ui.design.primitives import card_section
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import danger_button
+from src.ui.design.primitives import secondary_button
 from src.ui.components.device_detail_attachments_helpers import (
     _ACCEPT_EXTENSIONS,
     extract_upload_bytes as _extract_upload_bytes,
@@ -113,17 +117,16 @@ def render_attachments_section(
             await _run_on_change(on_change)
 
         with confirm_dlg:
-            with ui.card().style("min-width:320px"):
-                ui.label(f"Delete {html.escape(attachment.filename)}?").style(
-                    "font-weight:600;"
-                )
-                with ui.row().classes("justify-end gap-2"):
-                    ui.button("Delete", on_click=_delete_attachment).props("color=negative")
-                    ui.button("Cancel", on_click=confirm_dlg.close).props("flat")
+            with card_surface(ui.card()).classes("min-w-[320px]"):
+                with card_section(ui.column()):
+                    ui.label(f"Delete {html.escape(attachment.filename)}?").classes("ht-section-title")
+                    with ui.row().classes("justify-end gap-2"):
+                        secondary_button(ui.button("Cancel", on_click=confirm_dlg.close))
+                        danger_button(ui.button("Delete", on_click=_delete_attachment))
 
         ui.button(icon="delete", on_click=lambda dlg=confirm_dlg: dlg.open()).props(
             "flat dense round size=sm aria-label='Delete attachment'"
-        ).style("color:var(--ht-error);")
+        ).classes("text-[var(--ht-error)]")
 
     if image_attachments:
         render_image_attachments(device_id, image_attachments, _render_delete_action, ui)

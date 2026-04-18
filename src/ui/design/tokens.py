@@ -96,10 +96,17 @@ STATIC_CSS_VARS: dict[str, str] = {
     "--ht-radius-pill":     "9999px",
     "--ht-transition-fast": "150ms ease",
     "--ht-transition-norm": "200ms ease",
+    "--ht-page-max":        "1180px",
     "--ht-font-body": (
         "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,"
         " 'Helvetica Neue', Arial, sans-serif"
     ),
+    "--ht-font-body-lg":    "1rem",
+    "--ht-font-title":      "1.05rem",
+    "--ht-font-h1":         "clamp(1.85rem, 2vw + 1.15rem, 2.6rem)",
+    "--ht-font-h2":         "clamp(1.35rem, 1vw + 1rem, 1.8rem)",
+    "--ht-font-label":      "0.82rem",
+    "--ht-font-caption":    "0.74rem",
     "--ht-font-mono": (
         "'Fira Mono', 'SF Mono', 'Cascadia Mono', 'Consolas', monospace"
     ),
@@ -118,6 +125,7 @@ COLOR_TEXT_MUTED   = _dark["text_secondary"]     # #94a3b8
 COLOR_ERROR        = _dark["error"]              # #f87171
 COLOR_SUCCESS      = _dark["success"]            # #4ade80
 COLOR_WARNING      = _dark["warning"]            # #fbbf24
+DEFAULT_NETWORK_COLOR = "#3b82f6"
 
 # --- Spacing (CSS values) ---
 SPACING_XS = "4px"

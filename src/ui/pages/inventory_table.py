@@ -6,6 +6,7 @@ from nicegui import ui
 from nicegui.elements.table import Table
 
 from src.models.device import DeviceResponseEnriched
+from src.ui.design.primitives import table_surface
 from src.ui.design.tokens import (
     DEVICE_TYPE_ICONS,
 )
@@ -98,7 +99,7 @@ _POWER_SLOT = r"""
 _SERVICES_SLOT = r"""
 <q-td key="services" :props="props">
   <q-badge v-if="props.row.service_count > 0" color="blue-grey" :label="props.row.service_count + ' svc'" />
-  <span v-else style="color:var(--ht-text-secondary)">\u2014</span>
+  <span v-else class="ht-cell-empty">\u2014</span>
 </q-td>
 """
 
@@ -112,7 +113,7 @@ _NETWORKS_SLOT = r"""
     :style="'background:' + network.color + ';color:var(--ht-text-on-accent)'"
     class="q-mr-xs q-mb-xs"
   >{{ network.label }}</q-chip>
-  <span v-if="!props.row.networks || props.row.networks.length === 0" style="color:var(--ht-text-secondary)">\u2014</span>
+  <span v-if="!props.row.networks || props.row.networks.length === 0" class="ht-cell-empty">\u2014</span>
 </q-td>
 """
 
@@ -189,7 +190,7 @@ def create_inventory_table(
     """Create inventory table with optional bulk selection and custom cell slots."""
     columns = inventory_table_columns(show_power)
     if can_bulk_edit:
-        table = (
+        table = table_surface(
             ui.table(
                 columns=columns,
                 rows=[],
@@ -197,18 +198,14 @@ def create_inventory_table(
                 selection="multiple",
                 on_select=on_select,
             )
-            .classes("w-full")
-            .style("background:var(--ht-bg-surface-raised); color:var(--ht-text-primary)")
         )
     else:
-        table = (
+        table = table_surface(
             ui.table(
-          columns=columns,
+                columns=columns,
                 rows=[],
                 row_key="id",
             )
-            .classes("w-full")
-            .style("background:var(--ht-bg-surface-raised); color:var(--ht-text-primary)")
         )
 
     table.add_slot("body-cell-icon", _ICON_SLOT)

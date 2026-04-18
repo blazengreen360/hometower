@@ -49,8 +49,8 @@ _NETWORK_OVERLAY_BADGES_JS = """
                 dot.style.width = '10px';
                 dot.style.height = '10px';
                 dot.style.borderRadius = '9999px';
-                dot.style.border = '1px solid rgba(0,0,0,0.24)';
-                dot.style.boxShadow = '0 0 0 1px rgba(255,255,255,0.45)';
+                dot.style.border = '1px solid color-mix(in srgb, var(--ht-bg-base) 24%, transparent)';
+                dot.style.boxShadow = '0 0 0 1px color-mix(in srgb, var(--ht-bg-surface-raised) 45%, transparent)';
                 dot.style.background = color;
                 dot.style.marginLeft = index === 0 ? '0' : '-3px';
                 stack.appendChild(dot);
@@ -65,7 +65,7 @@ _NETWORK_OVERLAY_BADGES_JS = """
                 overflow.style.marginLeft = '4px';
                 overflow.style.padding = '1px 4px';
                 overflow.style.borderRadius = '9999px';
-                overflow.style.background = 'rgba(15,23,42,0.85)';
+                overflow.style.background = 'color-mix(in srgb, var(--ht-bg-base) 82%, var(--ht-bg-surface-raised))';
                 overflow.style.color = 'var(--ht-text-on-accent)';
                 stack.appendChild(overflow);
             }

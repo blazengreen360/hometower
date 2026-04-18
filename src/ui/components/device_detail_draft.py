@@ -7,6 +7,7 @@ import json
 
 from nicegui import ui
 
+from src.ui.design.primitives import primary_button
 from src.utils.logger import logger
 
 
@@ -40,15 +41,11 @@ async def show_draft_panel(
                     ".style.display='none'"
                 )
 
-        ui.button(
+        primary_button(ui.button(
             "Publish to Inventory",
             icon="publish",
             on_click=_on_publish,
-        ).style(
-            "background:var(--ht-warning); color:#1a1a2e;"
-            " font-weight:600; width:100%; min-height:44px;"
-        )
-
+        )).classes("w-full")
         for field_key, label_text in [
             ("draft_name", "Name"),
             ("draft_type", "Type"),

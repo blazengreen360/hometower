@@ -7,9 +7,8 @@ from nicegui import ui
 from nicegui.element import Element
 
 from src.models.types import DeviceType
-from src.ui.design.tokens import (
-    DEVICE_TYPE_COLORS,
-)
+from src.ui.design.primitives import set_filter_chip_state
+from src.ui.design.tokens import DEVICE_TYPE_COLORS
 from src.utils.logger import logger
 from src.utils.settings import settings
 
@@ -38,12 +37,10 @@ def render_type_chips(
         for dtype in present_types:
             color = DEVICE_TYPE_COLORS.get(dtype, "var(--ht-accent)")
             is_active = dtype in state["types"]
-            chip = ui.chip(
-                dtype.value,
-                color=color if is_active else "grey-8",
-                text_color="white",
-                on_click=make_chip_toggle(dtype, color),
-            ).style("cursor:pointer")
+            chip = ui.chip(dtype.value, on_click=make_chip_toggle(dtype, color)).style(
+                "cursor:pointer"
+            )
+            set_filter_chip_state(chip, color, is_active)
             meta = {
                 "chip": chip,
                 "dtype": dtype,
@@ -88,20 +85,18 @@ def render_tag_chip_filters(
                     chip_ref = meta_match["chip"]
                     if is_active:
                         selected_tag_ids.add(tag_id)
-                        getattr(chip_ref, "props")(f'color="{color}" text-color="white"')
                     else:
                         selected_tag_ids.discard(tag_id)
-                        getattr(chip_ref, "props")('color="grey-8" text-color="white"')
+                    set_filter_chip_state(chip_ref, color, is_active)
                     apply_filters()
 
                 return _toggle
 
             tchip = ui.chip(
                 str(tdata.get("name", "")),
-                color="grey-8",
-                text_color="white",
                 on_click=_make_tag_toggle(tid, tcolor),
             ).style("cursor:pointer")
+            set_filter_chip_state(tchip, tcolor, False)
             tmeta: dict[str, object] = {
                 "chip": tchip,
                 "tid": tid,

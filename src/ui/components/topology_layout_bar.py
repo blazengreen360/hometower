@@ -123,6 +123,31 @@ def render_layout_bar(
             if select_input.value != selected:
                 select_input.set_value(selected)
 
+    async def _auto_layout() -> None:
+        if not is_editor:
+            return
+        readonly = await ui.run_javascript("Boolean(window.HT_READONLY)")
+        if bool(readonly):
+            show_toast(type="info", title="Enter Edit mode to run Auto-Layout")
+            return
+        payload = await ui.run_javascript(
+            "window.htAutoLayout ? window.htAutoLayout() : ({ok:false,error:'canvas-unavailable'})"
+        )
+        if not isinstance(payload, dict):
+            show_toast(type="warning", title="Auto-Layout is unavailable")
+            return
+        if isinstance(payload, dict) and payload.get("ok") is False:
+            error_code = str(payload.get("error", ""))
+            if error_code == "readonly":
+                show_toast(type="info", title="Enter Edit mode to run Auto-Layout")
+                return
+            if error_code == "canvas-unavailable":
+                show_toast(type="warning", title="Canvas is still loading")
+                return
+            show_toast(type="error", title="Auto-Layout failed")
+            return
+        show_toast(type="success", title="Auto-Layout applied")
+
     async def _confirm_save() -> None:
         if not topology_id:
             show_toast(type="error", title="Topology context is missing")
@@ -240,6 +265,9 @@ def render_layout_bar(
 
     with ui.row().style("gap:8px; align-items:center;"):
         if is_editor:
+            ui.button("Auto-Layout", icon="account_tree", on_click=_auto_layout).props(
+                'outline title="Rearrange nodes using auto-layout"'
+            ).style("font-size:0.875rem;")
             ui.button("Save Version", on_click=_confirm_save).style(
                 "background:var(--ht-accent); color:var(--ht-text-on-accent); font-size:0.875rem;"
             )

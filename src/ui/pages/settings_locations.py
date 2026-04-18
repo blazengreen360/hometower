@@ -1,7 +1,4 @@
-"""Settings — Locations management page at /settings/locations.
-
-Renders a table of all locations with create, edit, and delete actions.
-"""
+"""Settings — Locations management page at /settings/locations."""
 import html
 from typing import Optional
 
@@ -16,6 +13,11 @@ from src.ui.components.location_modal import (
     LocationModalController,
     create_location_modal,
 )
+from src.ui.design.primitives import page_container
+from src.ui.design.primitives import primary_button
+from src.ui.design.primitives import render_page_intro
+from src.ui.design.primitives import table_surface
+from src.ui.pages.settings_page_helpers import show_destructive_confirmation
 from src.ui.utils.validation_feedback import friendly_error_message
 from src.utils.logger import logger
 from src.utils.settings import settings
@@ -52,21 +54,10 @@ async def settings_locations_page() -> None:
     if redirect_if_insufficient_role(Role.Contributor):
         return
 
-    # --- Page state ---
     locations: list[dict] = []
-    modal_mode = {"value": "create"}  # "create" | "edit"
+    modal_mode = {"value": "create"}
     editing_id: dict[str, Optional[str]] = {"value": None}
-
-    # Form field state
-    form = {
-        "name": "",
-        "type": "rack",
-        "lat": "",
-        "lng": "",
-        "rack": "",
-        "row": "",
-        "parent_id": "",
-    }
+    form = {"name": "", "type": "rack", "lat": "", "lng": "", "rack": "", "row": "", "parent_id": ""}
 
     modal: LocationModalController
 
@@ -85,20 +76,10 @@ async def settings_locations_page() -> None:
 
     def _to_rows(locs: list[dict]) -> list[dict]:
         pmap: dict[str, str] = {l["id"]: l["name"] for l in locs}
-        return [{
-            "id": l["id"], "name": l["name"], "type": l["type"],
-            "rack": l.get("rack") or "", "row": l.get("row") or "",
-            "lat": _format_coord_for_form(l.get("lat")),
-            "lng": _format_coord_for_form(l.get("lng")),
-            "parent_id": l.get("parent_id") or "",
-            "parent": pmap.get(l.get("parent_id") or "", ""),
-        } for l in locs]
+        return [{"id": l["id"], "name": l["name"], "type": l["type"], "rack": l.get("rack") or "", "row": l.get("row") or "", "lat": _format_coord_for_form(l.get("lat")), "lng": _format_coord_for_form(l.get("lng")), "parent_id": l.get("parent_id") or "", "parent": pmap.get(l.get("parent_id") or "", "")} for l in locs]
 
     def _reset_form() -> None:
-        form.update({
-            "name": "", "type": "rack", "lat": "", "lng": "",
-            "rack": "", "row": "", "parent_id": "",
-        })
+        form.update({"name": "", "type": "rack", "lat": "", "lng": "", "rack": "", "row": "", "parent_id": ""})
         modal.clear_error()
 
     def open_create_modal() -> None:
@@ -135,24 +116,13 @@ async def settings_locations_page() -> None:
             except ValueError:
                 modal.set_error("Latitude and longitude must be valid numbers.")
                 return
-            # Explicitly clear rack-only fields so type transitions work
             payload["rack"] = None
             payload["row"] = None
             payload["parent_id"] = None
         else:
-            if form["rack"]:
-                payload["rack"] = form["rack"]
-            else:
-                payload["rack"] = None
-            if form["row"]:
-                payload["row"] = form["row"]
-            else:
-                payload["row"] = None
-            if form["parent_id"]:
-                payload["parent_id"] = form["parent_id"]
-            else:
-                payload["parent_id"] = None
-            # Explicitly clear geo-only fields so type transitions work
+            payload["rack"] = form["rack"] or None
+            payload["row"] = form["row"] or None
+            payload["parent_id"] = form["parent_id"] or None
             payload["lat"] = None
             payload["lng"] = None
 
@@ -185,7 +155,7 @@ async def settings_locations_page() -> None:
             logger.error("Location save failed: {}", exc)
             modal.set_error("Couldn't save location right now. Please try again.")
 
-    async def confirm_delete(loc_id: str, loc_name: str) -> None:
+    def confirm_delete(loc_id: str, loc_name: str) -> None:
         async def do_delete() -> None:
             try:
                 async with httpx.AsyncClient() as client:
@@ -207,72 +177,57 @@ async def settings_locations_page() -> None:
                 logger.error("Location delete failed: {}", exc)
                 ui.notify("Couldn't delete location right now. Please try again.", type="negative")
 
-        with ui.dialog() as confirm_dlg, ui.card():
-            ui.label(f"Delete '{html.escape(loc_name)}'?").classes("font-bold")
-            ui.label(
-                "If devices are assigned, deletion will be blocked."
-            ).style("color: var(--ht-text-secondary); font-size: 0.875rem")
-            with ui.row():
-                ui.button("Cancel", on_click=confirm_dlg.close).props("flat")
+        show_destructive_confirmation(
+            ui_module=ui,
+            title=f"Delete '{html.escape(loc_name)}'?",
+            description="If devices are assigned, deletion will be blocked.",
+            on_confirm=do_delete,
+        )
 
-                async def _do_delete_and_close() -> None:
-                    confirm_dlg.close()
-                    await do_delete()
-
-                ui.button(
-                    "Delete",
-                    on_click=_do_delete_and_close,
-                ).props("color=negative")
-        confirm_dlg.open()
-
-    # --- Layout ---
     with app_shell("Locations", "/settings/locations", breadcrumb=["Settings", "Locations"]):
-        with ui.row().classes("w-full items-center justify-between"):
-            ui.label("Locations").classes("text-2xl font-bold").style(
-                "color: var(--ht-text-primary)"
+        with page_container(ui.column()):
+            with ui.row().classes("w-full items-end justify-between gap-4 flex-wrap"):
+                render_page_intro(
+                    ui,
+                    "Locations",
+                    "Define racks and geo points so power rollups, inventory placement, and map views all share the same physical structure.",
+                    "Settings",
+                )
+                primary_button(ui.button("+ Add Location", on_click=open_create_modal))
+
+            columns: list[dict] = [
+                {"name": "name", "label": "Name", "field": "name", "sortable": True},
+                {"name": "type", "label": "Type", "field": "type", "sortable": True},
+                {"name": "rack", "label": "Rack", "field": "rack"},
+                {"name": "row", "label": "Row", "field": "row"},
+                {"name": "lat", "label": "Lat", "field": "lat"},
+                {"name": "lng", "label": "Lng", "field": "lng"},
+                {"name": "parent", "label": "Parent", "field": "parent"},
+                {"name": "actions", "label": "Actions", "field": "actions"},
+            ]
+
+            table = table_surface(ui.table(columns=columns, rows=[], row_key="id"))
+
+            table.add_slot(
+                "body-cell-actions",
+                """
+                <q-td :props="props">
+                  <q-btn flat dense icon="edit" size="sm"
+                    @click="$parent.$emit('edit', props.row)" />
+                  <q-btn flat dense icon="delete" size="sm" class="ht-btn-icon-danger"
+                    @click="$parent.$emit('delete_row', props.row)" />
+                </q-td>
+                """,
             )
-            ui.button(
-                "+ Add Location",
-                on_click=open_create_modal,
-            ).style("background-color: var(--ht-accent); color: var(--ht-text-on-accent)")
-
-        columns: list[dict] = [
-            {"name": "name", "label": "Name", "field": "name", "sortable": True},
-            {"name": "type", "label": "Type", "field": "type", "sortable": True},
-            {"name": "rack", "label": "Rack", "field": "rack"},
-            {"name": "row", "label": "Row", "field": "row"},
-            {"name": "lat", "label": "Lat", "field": "lat"},
-            {"name": "lng", "label": "Lng", "field": "lng"},
-            {"name": "parent", "label": "Parent", "field": "parent"},
-            {"name": "actions", "label": "Actions", "field": "actions"},
-        ]
-
-        table = ui.table(
-            columns=columns,
-            rows=[],
-            row_key="id",
-        ).classes("w-full").style("background-color: var(--ht-bg-surface-raised)")
-
-        table.add_slot(
-            "body-cell-actions",
-            """
-            <q-td :props="props">
-              <q-btn flat dense icon="edit" size="sm"
-                @click="$parent.$emit('edit', props.row)" />
-              <q-btn flat dense icon="delete" size="sm" color="negative"
-                @click="$parent.$emit('delete_row', props.row)" />
-            </q-td>
-            """,
-        )
-        table.on("edit", lambda e: open_edit_modal(e.args))
-        table.on(
-            "delete_row",
-            lambda e: ui.timer(
-                0,
-                lambda: confirm_delete(e.args["id"], e.args["name"]),
-                once=True,
+            table.on("edit", lambda e: open_edit_modal(e.args))
+            table.on(
+                "delete_row",
+                lambda e: ui.timer(
+                    0,
+                    lambda: confirm_delete(e.args["id"], e.args["name"]),
+                    once=True,
+                ),
             ),
-        )
 
     modal = create_location_modal(form=form, on_submit=submit_form)
 

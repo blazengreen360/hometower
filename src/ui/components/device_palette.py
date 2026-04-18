@@ -8,6 +8,7 @@ from nicegui import ui
 from src.models.types import DeviceType
 from src.ui.components.device_type_options import get_creatable_device_types
 from src.ui.design.tokens import (
+    COLOR_PRIMARY,
     DEVICE_TYPE_COLORS,
     DEVICE_TYPE_ICONS,
 )
@@ -64,7 +65,7 @@ def render_palette() -> None:
 def _render_palette_card(device_type: DeviceType) -> None:
     """Render a single draggable palette card with icon and accent color."""
     card_id = f"palette-{device_type.value.lower()}"
-    accent = DEVICE_TYPE_COLORS.get(device_type, "#4f46e5")
+    accent = DEVICE_TYPE_COLORS.get(device_type, COLOR_PRIMARY)
     icon_name = DEVICE_TYPE_ICONS.get(device_type, "devices")
 
     with ui.element("div").props(f'id="{card_id}"').style(

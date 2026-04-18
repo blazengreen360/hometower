@@ -9,12 +9,12 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-import httpx
 import pytest
 
+from src.models.device import DeviceResponseEnriched
 from src.models.types import DeviceStatus, DeviceType, Role
 from src.ui.pages.inventory_bulk_actions import BulkActionOutcome, BulkFailure
-from tests.unit.nicegui_fakes import AsyncClientStub, FakeElement, FakeUI, install_fake_ui
+from tests.unit.nicegui_fakes import FakeElement, FakeUI, install_fake_ui
 
 
 async def _invoke(handler: Callable[..., object]) -> object:
@@ -65,6 +65,35 @@ def _bulk_toolbar_row(fake_ui: FakeUI) -> FakeElement | None:
     return None
 
 
+def _stub_inventory_loaders(
+    monkeypatch: pytest.MonkeyPatch,
+    controller_module: object,
+    device_payloads: list[dict[str, object]],
+    placed_ids: list[str],
+) -> None:
+    async def _fake_load_inventory_devices(token: str) -> list[DeviceResponseEnriched]:
+        _ = token
+        return [DeviceResponseEnriched.model_validate(item) for item in device_payloads]
+
+    async def _fake_load_inventory_placement_data(
+        token: str,
+        device_ids: set[uuid.UUID],
+    ) -> tuple[set[str], dict[str, int]]:
+        _ = token
+        all_ids = {str(device_id) for device_id in device_ids}
+        placed = set(placed_ids)
+        return all_ids.difference(placed), {
+            device_id: (1 if device_id in placed else 0) for device_id in all_ids
+        }
+
+    monkeypatch.setattr(controller_module, "load_inventory_devices", _fake_load_inventory_devices)
+    monkeypatch.setattr(
+        controller_module,
+        "load_inventory_placement_data",
+        _fake_load_inventory_placement_data,
+    )
+
+
 def test_inventory_route_delegates_to_page_controller(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -108,26 +137,12 @@ def test_contributor_search_change_clears_selection_and_hides_toolbar(
 
     first_id = str(uuid.uuid4())
     second_id = str(uuid.uuid4())
-    client_stub = AsyncClientStub(
-        [
-            httpx.Response(
-                200,
-                json={
-                    "items": [
-                        _device_payload(first_id, "Server Alpha"),
-                        _device_payload(second_id, "Server Beta"),
-                    ]
-                },
-                request=httpx.Request("GET", "http://test.local/api/devices/"),
-            ),
-            httpx.Response(
-                200,
-                json=[first_id, second_id],
-                request=httpx.Request("GET", "http://test.local/api/devices/placed-ids"),
-            ),
-        ]
+    _stub_inventory_loaders(
+        monkeypatch,
+        controller_module,
+        [_device_payload(first_id, "Server Alpha"), _device_payload(second_id, "Server Beta")],
+        [first_id, second_id],
     )
-    monkeypatch.setattr(controller_module.httpx, "AsyncClient", lambda *args, **kwargs: client_stub)
 
     async def exercise() -> None:
         await controller_module.render_inventory_page(token="token", user_role=Role.Contributor)
@@ -174,26 +189,12 @@ def test_header_select_all_with_active_filter_selects_filtered_rows_only(
 
     first_id = str(uuid.uuid4())
     second_id = str(uuid.uuid4())
-    client_stub = AsyncClientStub(
-        [
-            httpx.Response(
-                200,
-                json={
-                    "items": [
-                        _device_payload(first_id, "Server Alpha"),
-                        _device_payload(second_id, "Server Beta"),
-                    ]
-                },
-                request=httpx.Request("GET", "http://test.local/api/devices/"),
-            ),
-            httpx.Response(
-                200,
-                json=[first_id, second_id],
-                request=httpx.Request("GET", "http://test.local/api/devices/placed-ids"),
-            ),
-        ]
+    _stub_inventory_loaders(
+        monkeypatch,
+        controller_module,
+        [_device_payload(first_id, "Server Alpha"), _device_payload(second_id, "Server Beta")],
+        [first_id, second_id],
     )
-    monkeypatch.setattr(controller_module.httpx, "AsyncClient", lambda *args, **kwargs: client_stub)
 
     async def exercise() -> None:
         await controller_module.render_inventory_page(token="token", user_role=Role.Contributor)
@@ -237,26 +238,15 @@ def test_show_power_toggle_rebuilds_table_columns(
 
     first_id = str(uuid.uuid4())
     second_id = str(uuid.uuid4())
-    client_stub = AsyncClientStub(
+    _stub_inventory_loaders(
+        monkeypatch,
+        controller_module,
         [
-            httpx.Response(
-                200,
-                json={
-                    "items": [
-                        _device_payload(first_id, "Server Alpha", power_watts=120),
-                        _device_payload(second_id, "Server Beta", power_watts=None),
-                    ]
-                },
-                request=httpx.Request("GET", "http://test.local/api/devices/"),
-            ),
-            httpx.Response(
-                200,
-                json=[first_id, second_id],
-                request=httpx.Request("GET", "http://test.local/api/devices/placed-ids"),
-            ),
-        ]
+            _device_payload(first_id, "Server Alpha", power_watts=120),
+            _device_payload(second_id, "Server Beta", power_watts=None),
+        ],
+        [first_id, second_id],
     )
-    monkeypatch.setattr(controller_module.httpx, "AsyncClient", lambda *args, **kwargs: client_stub)
 
     async def exercise() -> None:
         await controller_module.render_inventory_page(token="token", user_role=Role.Contributor)
@@ -275,6 +265,105 @@ def test_show_power_toggle_rebuilds_table_columns(
         assert len(table.rows) == 2
 
     asyncio.run(exercise())
+
+
+def test_inventory_page_uses_shared_intro_and_action_primitives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.ui.pages.inventory_bulk_toolbar as bulk_toolbar_module
+    import src.ui.pages.inventory_page_controller as controller_module
+    import src.ui.pages.inventory_table as inventory_table_module
+
+    fake_ui = FakeUI()
+    monkeypatch.setattr(controller_module, "ui", fake_ui)
+    monkeypatch.setattr(inventory_table_module, "ui", fake_ui)
+    monkeypatch.setattr(bulk_toolbar_module, "ui", fake_ui)
+    monkeypatch.setattr(controller_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+    monkeypatch.setattr(controller_module, "render_type_chips", lambda *args, **kwargs: None)
+
+    async def _fake_load_tag_chips(*args: object, **kwargs: object) -> list[dict[str, object]]:
+        return []
+
+    monkeypatch.setattr(controller_module, "load_tag_chips", _fake_load_tag_chips)
+
+    device_id = str(uuid.uuid4())
+    _stub_inventory_loaders(
+        monkeypatch,
+        controller_module,
+        [_device_payload(device_id, "Server Alpha")],
+        [device_id],
+    )
+
+    async def exercise() -> None:
+        await controller_module.render_inventory_page(token="token", user_role=Role.Contributor)
+
+        assert any(
+            "ht-page-shell" in classes
+            for column in fake_ui.created["column"]
+            for classes in column.classes_calls
+        )
+        assert any(
+            "ht-page-header" in classes
+            for column in fake_ui.created["column"]
+            for classes in column.classes_calls
+        )
+
+        export_button = next(button for button in fake_ui.created["button"] if button.value == "Export CSV")
+        assert any("ht-btn ht-btn-primary" in classes for classes in export_button.classes_calls)
+
+        search_input = fake_ui.created["input"][0]
+        await _invoke(lambda: search_input.handlers["value_change"](SimpleNamespace(value="zzz")))
+
+        clear_button = next(button for button in fake_ui.created["button"] if button.value == "Clear filters")
+        assert any("ht-btn ht-btn-secondary" in classes for classes in clear_button.classes_calls)
+
+    asyncio.run(exercise())
+
+
+def test_export_csv_button_downloads_filtered_inventory_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.ui.pages.inventory_bulk_toolbar as bulk_toolbar_module
+    import src.ui.pages.inventory_page_controller as controller_module
+    import src.ui.pages.inventory_table as inventory_table_module
+
+    fake_ui = FakeUI()
+    monkeypatch.setattr(controller_module, "ui", fake_ui)
+    monkeypatch.setattr(inventory_table_module, "ui", fake_ui)
+    monkeypatch.setattr(bulk_toolbar_module, "ui", fake_ui)
+    monkeypatch.setattr(controller_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+    monkeypatch.setattr(controller_module, "render_type_chips", lambda *args, **kwargs: None)
+
+    async def _fake_load_tag_chips(*args: object, **kwargs: object) -> list[dict[str, object]]:
+        return []
+
+    monkeypatch.setattr(controller_module, "load_tag_chips", _fake_load_tag_chips)
+
+    first_id = str(uuid.uuid4())
+    second_id = str(uuid.uuid4())
+    _stub_inventory_loaders(
+        monkeypatch,
+        controller_module,
+        [_device_payload(first_id, "Server Alpha"), _device_payload(second_id, "Server Beta")],
+        [first_id, second_id],
+    )
+
+    async def exercise() -> None:
+        await controller_module.render_inventory_page(token="token", user_role=Role.Contributor)
+
+        search_input = fake_ui.created["input"][0]
+        await _invoke(lambda: search_input.handlers["value_change"](SimpleNamespace(value="alpha")))
+
+        export_button = next(
+            button for button in fake_ui.created["button"] if button.value == "Export CSV"
+        )
+        await _invoke(export_button.handlers["click"])
+
+    asyncio.run(exercise())
+
+    assert any("hometower_inventory_export.csv" in code for code in fake_ui.run_javascript_calls)
+    assert any("Server Alpha" in code for code in fake_ui.run_javascript_calls)
+    assert all("Server Beta" not in code for code in fake_ui.run_javascript_calls)
 
 
 def test_bulk_action_updates_rows_as_each_item_settles(
@@ -298,26 +387,12 @@ def test_bulk_action_updates_rows_as_each_item_settles(
 
     first_id = str(uuid.uuid4())
     second_id = str(uuid.uuid4())
-    client_stub = AsyncClientStub(
-        [
-            httpx.Response(
-                200,
-                json={
-                    "items": [
-                        _device_payload(first_id, "Server Alpha"),
-                        _device_payload(second_id, "Server Beta"),
-                    ]
-                },
-                request=httpx.Request("GET", "http://test.local/api/devices/"),
-            ),
-            httpx.Response(
-                200,
-                json=[first_id, second_id],
-                request=httpx.Request("GET", "http://test.local/api/devices/placed-ids"),
-            ),
-        ]
+    _stub_inventory_loaders(
+        monkeypatch,
+        controller_module,
+        [_device_payload(first_id, "Server Alpha"), _device_payload(second_id, "Server Beta")],
+        [first_id, second_id],
     )
-    monkeypatch.setattr(controller_module.httpx, "AsyncClient", lambda *args, **kwargs: client_stub)
 
     first_settled = asyncio.Event()
     allow_finish = asyncio.Event()
@@ -415,21 +490,12 @@ def test_reader_has_no_bulk_controls(
     monkeypatch.setattr(controller_module, "load_tag_chips", _fake_load_tag_chips)
 
     device_id = str(uuid.uuid4())
-    client_stub = AsyncClientStub(
-        [
-            httpx.Response(
-                200,
-                json={"items": [_device_payload(device_id, "Reader Device")]},
-                request=httpx.Request("GET", "http://test.local/api/devices/"),
-            ),
-            httpx.Response(
-                200,
-                json=[device_id],
-                request=httpx.Request("GET", "http://test.local/api/devices/placed-ids"),
-            ),
-        ]
+    _stub_inventory_loaders(
+        monkeypatch,
+        controller_module,
+        [_device_payload(device_id, "Reader Device")],
+        [device_id],
     )
-    monkeypatch.setattr(controller_module.httpx, "AsyncClient", lambda *args, **kwargs: client_stub)
 
     asyncio.run(controller_module.render_inventory_page(token="token", user_role=Role.Reader))
 

@@ -9,6 +9,7 @@ from src.models.device import DeviceResponseEnriched
 from src.models.location import LocationResponse
 from src.models.tag import TagResponse
 from src.ui.components.toast import show_toast
+from src.ui.design.tokens import COLOR_TEXT_MUTED
 from src.ui.pages.inventory_bulk_actions import (
     BulkActionOutcome,
     BulkProgress,
@@ -73,7 +74,7 @@ class InventoryBulkHandlers:
                 return TagResponse(
                     id=tag_id,
                     name=str(tag.get("name", "")),
-                    color=str(tag.get("color", "#64748b")),
+                    color=str(tag.get("color", COLOR_TEXT_MUTED)),
                     created_at=_parse_datetime(tag.get("created_at")),
                 )
         return None

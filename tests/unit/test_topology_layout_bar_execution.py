@@ -87,9 +87,90 @@ class TestTopologyHistoryToolbar:
         asyncio.run(exercise())
 
         button_labels = [str(button.value) for button in fake_ui.created["button"]]
+        assert "Auto-Layout" in button_labels
         assert "Save Version" in button_labels
         assert "History" in button_labels
         assert "Save Layout" not in button_labels
+
+    def test_auto_layout_button_calls_canvas_bridge(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import src.ui.components.topology_layout_bar as layout_bar_module
+        import src.ui.components.topology_layout_dialogs as layout_dialogs_module
+
+        fake_ui = FakeUI()
+        install_fake_ui(monkeypatch, layout_bar_module, fake_ui)
+        monkeypatch.setattr(layout_dialogs_module, "ui", fake_ui)
+
+        js_stub = _JavaScriptStub()
+        fake_ui.run_javascript = js_stub  # type: ignore[assignment]
+
+        async def history_stub(*args: object, **kwargs: object) -> list[dict[str, object]]:
+            return []
+
+        monkeypatch.setattr(layout_bar_module, "get_layouts", history_stub)
+        monkeypatch.setattr(layout_bar_module.httpx, "AsyncClient", lambda *args, **kwargs: AsyncClientStub([]))
+
+        async def exercise() -> None:
+            layout_bar_module.render_layout_bar(
+                token="token",
+                user_role="Contributor",
+                topology_id="topology-1",
+            )
+            await _drain_pending(fake_ui)
+            auto_button = next(button for button in fake_ui.created["button"] if button.value == "Auto-Layout")
+            await _invoke(auto_button.handlers["click"])
+
+        asyncio.run(exercise())
+
+        assert any("window.htAutoLayout" in code for code in js_stub.calls)
+
+    def test_auto_layout_in_view_mode_shows_edit_mode_guidance(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import src.ui.components.topology_layout_bar as layout_bar_module
+        import src.ui.components.topology_layout_dialogs as layout_dialogs_module
+
+        fake_ui = FakeUI()
+        install_fake_ui(monkeypatch, layout_bar_module, fake_ui)
+        monkeypatch.setattr(layout_dialogs_module, "ui", fake_ui)
+
+        class _ReadOnlyJavaScriptStub:
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+
+            def __call__(self, code: str) -> _AwaitableValue:
+                self.calls.append(code)
+                if "Boolean(window.HT_READONLY)" in code:
+                    return _AwaitableValue(True)
+                return _AwaitableValue(None)
+
+        js_stub = _ReadOnlyJavaScriptStub()
+        fake_ui.run_javascript = js_stub  # type: ignore[assignment]
+
+        toasts: list[dict[str, object]] = []
+
+        async def history_stub(*args: object, **kwargs: object) -> list[dict[str, object]]:
+            return []
+
+        monkeypatch.setattr(layout_bar_module, "get_layouts", history_stub)
+        monkeypatch.setattr(layout_bar_module.httpx, "AsyncClient", lambda *args, **kwargs: AsyncClientStub([]))
+        monkeypatch.setattr(layout_bar_module, "show_toast", lambda *args, **kwargs: toasts.append(dict(kwargs)))
+
+        async def exercise() -> None:
+            layout_bar_module.render_layout_bar(
+                token="token",
+                user_role="Contributor",
+                topology_id="topology-1",
+            )
+            await _drain_pending(fake_ui)
+            auto_button = next(button for button in fake_ui.created["button"] if button.value == "Auto-Layout")
+            await _invoke(auto_button.handlers["click"])
+
+        asyncio.run(exercise())
+
+        assert any("Boolean(window.HT_READONLY)" in code for code in js_stub.calls)
+        assert not any("window.htAutoLayout" in code for code in js_stub.calls)
+        assert any(toast.get("title") == "Enter Edit mode to run Auto-Layout" for toast in toasts)
 
     def test_render_layout_bar_saves_and_restores_history_version(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import src.ui.components.topology_layout_bar as layout_bar_module
@@ -468,6 +549,7 @@ class TestTopologyHistoryToolbar:
         asyncio.run(exercise())
 
         buttons = [button.value for button in fake_ui.created["button"]]
+        assert "Auto-Layout" not in buttons
         assert "Save Version" not in buttons
         assert "History" in buttons
         assert "Restore Selected" not in buttons

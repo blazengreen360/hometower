@@ -11,7 +11,8 @@ CANVAS_HELPERS_JS = """
 
         function _clearAssociationSelection() {
             window._htEdgeSource = null;
-            var borderColor = getComputedStyle(document.documentElement).getPropertyValue('--ht-border').trim() || '#94a3b8';
+            var rootStyle = getComputedStyle(document.documentElement);
+            var borderColor = rootStyle.getPropertyValue('--ht-border').trim() || rootStyle.getPropertyValue('--ht-text-secondary').trim();
             cy.nodes().style('border-color', borderColor);
         }
 
@@ -20,7 +21,8 @@ CANVAS_HELPERS_JS = """
             window._htEdgeSource = sourceId;
             var sourceNode = cy.getElementById(sourceId);
             if (sourceNode && sourceNode.length) {
-                var accentColor = getComputedStyle(document.documentElement).getPropertyValue('--ht-warning').trim() || '#f59e0b';
+                var rootStyle = getComputedStyle(document.documentElement);
+                var accentColor = rootStyle.getPropertyValue('--ht-warning').trim() || rootStyle.getPropertyValue('--ht-accent').trim();
                 sourceNode.style('border-color', accentColor);
             }
             _notify('Association source selected. Click a target device.', 'warning');

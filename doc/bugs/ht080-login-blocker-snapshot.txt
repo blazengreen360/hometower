@@ -1,0 +1,14 @@
+uid=9_0 RootWebArea "NiceGUI" url="http://localhost:8080/login"
+  uid=9_1 generic
+    uid=9_2 main
+      uid=9_3 StaticText "Hometower"
+      uid=9_4 StaticText "Sign in to manage your homelab inventory, topology history, and workspace settings."
+      uid=9_5 generic
+        uid=9_6 StaticText "Email"
+        uid=9_7 textbox "Email" value="admin@hometower.local"
+      uid=9_8 generic
+        uid=9_9 StaticText "Password"
+        uid=9_10 textbox "Password" value="•••••••••••"
+      uid=10_0 StaticText "Invalid email or password"
+      uid=9_11 button "Log in"
+        uid=10_1 generic focusable focused

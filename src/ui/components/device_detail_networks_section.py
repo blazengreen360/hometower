@@ -8,6 +8,11 @@ from nicegui import ui
 
 from src.models.device_network import DeviceNetworkNetworkRef
 from src.models.network import NetworkListResponse
+from src.ui.design.primitives import card_section
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import danger_button
+from src.ui.design.primitives import primary_button
+from src.ui.design.primitives import secondary_button
 from src.utils.logger import logger
 from src.utils.settings import settings
 
@@ -68,13 +73,14 @@ def render_networks_section(
                         on_change()
 
                     with confirm_dlg:
-                        with ui.card().style("min-width:320px"):
-                            ui.label(
-                                f"Remove {html.escape(membership.name)} from this device?"
-                            ).style("font-weight:600;")
-                            with ui.row().classes("justify-end gap-2"):
-                                ui.button("Remove", on_click=_detach).props("color=negative")
-                                ui.button("Cancel", on_click=confirm_dlg.close).props("flat")
+                        with card_surface(ui.card()).classes("min-w-[320px]"):
+                            with card_section(ui.column()):
+                                ui.label(
+                                    f"Remove {html.escape(membership.name)} from this device?"
+                                ).classes("ht-section-title")
+                                with ui.row().classes("justify-end gap-2"):
+                                    secondary_button(ui.button("Cancel", on_click=confirm_dlg.close))
+                                    danger_button(ui.button("Remove", on_click=_detach))
 
                     ui.button(icon="close", on_click=lambda dlg=confirm_dlg: dlg.open()).props(
                         "flat dense round size=xs aria-label='Remove network membership'"
@@ -138,6 +144,4 @@ def render_networks_section(
                 detail = f"Attach failed ({r.status_code})"
             ui.notify(detail, type="negative")
 
-        ui.button("Attach Network", on_click=_attach_membership).style(
-            "background:var(--ht-accent); color:var(--ht-text-on-accent);"
-        )
+        primary_button(ui.button("Attach Network", on_click=_attach_membership))

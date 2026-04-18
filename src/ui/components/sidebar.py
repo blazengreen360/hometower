@@ -45,13 +45,14 @@ def render_sidebar(current_route: str) -> Callable[[], None]:
     with ui.left_drawer(value=False).props(
         f"show-if-above breakpoint=768 width=220 mini-width=56 {'mini' if not expanded else ''}"
     ).style(
-        "background-color:var(--ht-bg-surface-raised); border-right:1px solid var(--ht-border);"
+        "background:color-mix(in srgb, var(--ht-bg-surface-raised) 94%, transparent);"
+        " border-right:1px solid var(--ht-border); backdrop-filter:blur(18px);"
     ) as drawer:
         with ui.row().classes("justify-end px-2 pt-2"):
-            ui.button(
+            collapse_button = ui.button(
                 icon="chevron_left" if expanded else "chevron_right",
-                on_click=lambda: _toggle_sidebar(drawer),
-            ).props("flat dense round size=sm color=grey-5")
+                on_click=lambda: _toggle_sidebar(drawer, collapse_button),
+            ).props("flat dense round size=sm").classes("text-[var(--ht-text-secondary)]")
 
         for item in _NAV_ITEMS:
             disabled = item.get("disabled") == "true"
@@ -65,9 +66,8 @@ def render_sidebar(current_route: str) -> Callable[[], None]:
             )
 
         ui.separator().classes("my-2")
-        ui.label("Settings").style(
-            "color:var(--ht-text-secondary); font-size:0.75rem;"
-            " padding:4px 12px; font-weight:600;"
+        ui.label("Settings").classes(
+            "text-[var(--ht-text-secondary)] text-[0.74rem] px-3 py-1 font-[700] tracking-[0.16em] uppercase"
         )
 
         for item in _SETTINGS_ITEMS:
@@ -97,7 +97,8 @@ def _nav_item(
     """Render a single sidebar navigation row."""
     active_style = (
         "background-color:var(--ht-accent-glow); border-left:3px solid var(--ht-accent);"
-        if active else ""
+        if active
+        else "background-color:transparent; border-left:3px solid transparent;"
     )
     text_color = "var(--ht-accent)" if active else "var(--ht-text-primary)"
     guard_child_style = " pointer-events:none;" if use_leave_guard else ""
@@ -117,7 +118,7 @@ def _nav_item(
         click_handler = _on_click_direct
 
     row = ui.row().classes(
-        "items-center px-3 py-2 cursor-pointer w-full ht-nav-item"
+        "items-center px-3 py-2 cursor-pointer w-full ht-nav-item rounded-r-[10px]"
     ).style(
         active_style + f" color:{text_color};"
         " transition:background-color var(--ht-transition-fast);"
@@ -146,11 +147,15 @@ def _nav_item(
                 icon_el.props(guard_target_props)
                 label_el.props(guard_target_props)
         if disabled:
-            ui.badge("soon", color="grey").props("rounded")
+            ui.badge("soon").classes("bg-[var(--ht-bg-base)] text-[var(--ht-text-secondary)]")
 
 
-def _toggle_sidebar(drawer: ui.left_drawer) -> None:  # type: ignore[name-defined]
+def _toggle_sidebar(drawer: ui.left_drawer, toggle_button: ui.button) -> None:  # type: ignore[name-defined]
     """Toggle sidebar expanded/collapsed and persist preference."""
     current: bool = nicegui_app.storage.user.get("sidebar_expanded", True)
-    nicegui_app.storage.user["sidebar_expanded"] = not current
-    drawer.toggle()
+    expanded = not current
+    nicegui_app.storage.user["sidebar_expanded"] = expanded
+    drawer.props(f"mini={str((not expanded)).lower()}")
+    drawer.update()
+    toggle_button.props(f'icon="{"chevron_left" if expanded else "chevron_right"}"')
+    toggle_button.update()

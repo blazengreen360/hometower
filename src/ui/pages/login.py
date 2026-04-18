@@ -14,6 +14,10 @@ from nicegui import app as nicegui_app
 from nicegui import ui
 
 from src.ui.components.auth_guard import safe_next_path
+from src.ui.design.primitives import GLOBAL_UI_CSS
+from src.ui.design.primitives import card_section
+from src.ui.design.primitives import card_surface
+from src.ui.design.primitives import primary_button
 from src.ui.design.theme_engine import get_initial_theme_css, get_theme_js_helpers
 
 
@@ -24,40 +28,37 @@ async def login_page(expired: str = "", next: str = "") -> None:  # noqa: A002
 
     ui.add_head_html(get_initial_theme_css("dark"))
     ui.add_head_html(get_theme_js_helpers())
+    ui.add_head_html(GLOBAL_UI_CSS)
     ui.query("body").style("background-color: var(--ht-bg-base); color: var(--ht-text-primary);")
 
-    with ui.card().classes("absolute-center").style(
-        "width: 360px; padding: 24px; background-color: var(--ht-bg-surface);"
-    ):
-        ui.label("Hometower").classes("text-2xl font-bold text-center w-full").style(
-            "color: var(--ht-accent)"
-        )
-
-        # HT-038: session expiry banner (shown when ?expired=1)
-        if expired == "1":
-            with ui.element("div").classes("w-full").style(
-                "background:rgba(var(--ht-success-rgb,38,79,62),0.25); border:1px solid var(--ht-success); "
-                "border-radius:var(--ht-radius-input); padding:8px; margin-bottom:8px;"
-            ):
-                ui.label("Your session expired. Please sign in again.").style(
-                    "color:var(--ht-success); font-size:0.875rem;"
+    with ui.column().classes("ht-auth-shell"):
+        with card_surface(ui.card()).classes("ht-auth-card"):
+            with card_section(ui.column()).classes("items-stretch"):
+                ui.label("Hometower").classes("ht-page-title text-center w-full")
+                ui.label("Sign in to manage your homelab inventory, topology history, and workspace settings.").classes(
+                    "ht-muted-copy text-center"
                 )
 
-        ui.separator()
+                # HT-038: session expiry banner (shown when ?expired=1)
+                if expired == "1":
+                    with ui.element("div").classes("ht-banner ht-banner-info"):
+                        ui.label("Your session expired. Please sign in again.").classes("ht-small-copy")
 
-        email_input = (
-            ui.input("Email", placeholder="admin@hometower.local")
-            .classes("w-full")
-            .props('type="email" autocomplete="email"')
-        )
-        password_input = (
-            ui.input("Password", password=True, password_toggle_button=True)
-            .classes("w-full")
-            .props('autocomplete="current-password"')
-        )
-        error_label = ui.label("").classes("text-sm").style(
-            f"color: var(--ht-error); min-height: 1.25rem"
-        )
+                ui.element("div").classes("ht-keyline")
+
+                email_input = (
+                    ui.input("Email", placeholder="admin@hometower.local")
+                    .classes("w-full")
+                    .props('outlined type="email" autocomplete="email"')
+                )
+                password_input = (
+                    ui.input("Password", password=True, password_toggle_button=True)
+                    .classes("w-full")
+                    .props('outlined autocomplete="current-password"')
+                )
+                error_label = ui.label("").style(
+                    "color: var(--ht-error); font-size: 0.875rem; min-height: 1.25rem;"
+                )
 
         # Store element IDs so the JS can read values directly from the DOM.
         # This avoids relying on NiceGUI's lazy server-side value sync, which
@@ -114,6 +115,4 @@ async def login_page(expired: str = "", next: str = "") -> None:  # noqa: A002
 
         password_input.on("keydown.enter", handle_login)
 
-        ui.button("Log in", on_click=handle_login).classes("w-full").style(
-            "background-color: var(--ht-accent); color: var(--ht-text-on-accent);"
-        )
+        primary_button(ui.button("Log in", on_click=handle_login).classes("w-full"))

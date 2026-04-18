@@ -13,6 +13,8 @@ Tests cover:
 """
 import inspect
 import json
+import re
+from pathlib import Path
 
 
 class TestThemesDict:
@@ -422,3 +424,64 @@ class TestUpdateCyThemeJsGlobal:
         from src.ui.components.canvas import render_canvas
         src = inspect.getsource(render_canvas)
         assert "build_theme_style_json" in src
+
+
+class TestHt080PremiumizationGuards:
+    _SURFACES = [
+        "src/ui/components/app_shell.py",
+        "src/ui/components/canvas_network_overlay_badges.py",
+        "src/ui/components/canvas_zoom.py",
+        "src/ui/components/device_detail_custom_fields_section.py",
+        "src/ui/design/primitives.py",
+        "src/ui/components/device_detail_tags_section.py",
+        "src/ui/pages/inventory_filters.py",
+        "src/ui/pages/inventory_page_controller.py",
+        "src/ui/pages/map.py",
+    ]
+
+    def test_remediated_ui_surfaces_have_no_hardcoded_color_literals(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        pattern = re.compile(
+            r"#[0-9A-Fa-f]{3,8}|rgba?\(|(?<![\w-])(?:white|black|grey(?:-\d{1,3})?|gray(?:-\d{1,3})?)(?![\w-])"
+        )
+        violations: dict[str, list[str]] = {}
+
+        for relative_path in self._SURFACES:
+            source = (root / relative_path).read_text(encoding="utf-8")
+            matches = sorted({match.group(0) for match in pattern.finditer(source)})
+            if matches:
+                violations[relative_path] = matches
+
+        assert violations == {}
+
+    def test_inventory_page_uses_shared_page_intro_and_actions(self) -> None:
+        import src.ui.pages.inventory_page_controller as mod
+
+        source = inspect.getsource(mod)
+        assert "page_container" in source
+        assert "render_page_intro" in source
+        assert "primary_button(" in source
+        assert "secondary_button(" in source
+        assert "set_filter_chip_state" in source
+
+    def test_map_page_uses_shared_page_intro_and_action_wrapper(self) -> None:
+        import src.ui.pages.map as mod
+
+        source = inspect.getsource(mod)
+        assert "page_container" in source
+        assert "render_page_intro" in source
+        assert "secondary_button(" in source
+
+    def test_detail_panel_sections_use_standardized_dialog_actions(self) -> None:
+        from src.ui.components.device_detail_custom_fields_section import render_custom_fields_section
+        from src.ui.components.device_detail_tags_section import render_tags_section
+
+        custom_fields_source = inspect.getsource(render_custom_fields_section)
+        tags_source = inspect.getsource(render_tags_section)
+
+        assert "card_surface(ui.card())" in custom_fields_source
+        assert 'secondary_button(ui.button("Cancel"' in custom_fields_source
+        assert 'danger_button(ui.button("Delete"' in custom_fields_source
+        assert "card_surface(ui.card())" in tags_source
+        assert 'secondary_button(ui.button("Cancel"' in tags_source
+        assert 'danger_button(ui.button("Remove"' in tags_source
