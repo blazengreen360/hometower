@@ -6,9 +6,12 @@ from sqlalchemy import func, or_
 from sqlalchemy import select as sa_select
 from sqlmodel import Session, col, select
 
+from src.repositories.dashboard_repository_support import _extract_device_ids
 from src.models.device import Device
+from src.models.diagram import DiagramLayout
 from src.models.location import Location
 from src.models.tag import DeviceTag, Tag
+from src.models.topology import Topology
 
 _SORT_EXPRESSIONS = {
     "name": lambda: col(Device.name),
@@ -19,75 +22,80 @@ _SORT_EXPRESSIONS = {
     "-created_at": lambda: col(Device.created_at).desc(),
 }
 
+def _scoped_device_ids(
+    session: Session,
+    workspace_id: uuid.UUID | None,
+) -> set[uuid.UUID] | None:
+    if workspace_id is None:
+        return None
+    statement = (
+        select(DiagramLayout.cytoscape_json)
+        .join(Topology, col(DiagramLayout.id) == col(Topology.current_diagram_id))
+        .where(col(Topology.workspace_id) == workspace_id)
+    )
+    device_ids: set[uuid.UUID] = set()
+    for cytoscape_json in session.exec(statement).all():
+        if isinstance(cytoscape_json, dict):
+            device_ids.update(_extract_device_ids(cytoscape_json))
+    return device_ids
+
+def _apply_workspace_scope(statement, device_ids: set[uuid.UUID] | None):
+    if device_ids is None:
+        return statement
+    return statement.where(col(Device.id).in_(device_ids))
 
 def create(session: Session, device: Device) -> Device:
-    """Persist a new device and return the refreshed instance."""
     session.add(device)
     session.flush()
     session.refresh(device)
     return device
 
-
 def get_by_id(session: Session, device_id: uuid.UUID) -> Device | None:
-    """Return the device with the given primary key, or None."""
     return session.get(Device, device_id)
-
 
 def get_all(
     session: Session,
     page: int = 1,
     limit: int = 50,
     sort: Optional[str] = None,
+    workspace_id: uuid.UUID | None = None,
 ) -> tuple[list[Device], int]:
-    """Return a paginated list of devices and the total count.
-
-    Args:
-        sort: Optional sort key. Valid values: name, -name, updated_at, -updated_at,
-              created_at, -created_at. Invalid values silently fall back to created_at ASC.
-    """
-    total = int(session.exec(select(func.count()).select_from(Device)).one())
+    device_ids = _scoped_device_ids(session, workspace_id)
+    base = _apply_workspace_scope(select(Device), device_ids)
+    total = int(
+        session.execute(
+            sa_select(func.count()).select_from(base.subquery())  # type: ignore[arg-type]
+        ).scalar_one()
+    )
     offset = (page - 1) * limit
     order_expr = (
         _SORT_EXPRESSIONS[sort]()
         if sort in _SORT_EXPRESSIONS
         else col(Device.created_at)
     )
-    statement = select(Device).offset(offset).limit(limit).order_by(order_expr)
+    statement = base.order_by(order_expr).offset(offset).limit(limit)
     items = list(session.exec(statement).all())
     return items, total
 
-
 def get_all_for_export(session: Session) -> list[Device]:
-    """Return all devices ordered by created_at ASC (no pagination)."""
     statement = select(Device).order_by(col(Device.created_at))
     return list(session.exec(statement).all())
 
-
 def update(session: Session, device: Device) -> Device:
-    """Persist changes to an already-fetched device and return it."""
     session.add(device)
     session.flush()
     session.refresh(device)
     return device
 
-
 def delete(session: Session, device: Device) -> None:
-    """Hard-delete a device record."""
     session.delete(device)
     session.flush()
 
-
 def count(session: Session) -> int:
-    """Return the total number of devices in the database."""
     result = session.exec(select(func.count()).select_from(Device)).one()
     return int(result)
 
-
 def get_children(session: Session, parent_id: uuid.UUID) -> list[Device]:
-    """Return child devices whose parent_id points to parent_id (HT-021).
-
-    Ordered by name ASC so the UI renders a stable children list.
-    """
     statement = (
         select(Device)
         .where(col(Device.parent_id) == parent_id)
@@ -95,9 +103,7 @@ def get_children(session: Session, parent_id: uuid.UUID) -> list[Device]:
     )
     return list(session.exec(statement).all())
 
-
 def count_children(session: Session, parent_id: uuid.UUID) -> int:
-    """Return the number of direct child devices for parent_id (HT-021)."""
     result = session.exec(
         select(func.count())
         .select_from(Device)
@@ -105,60 +111,49 @@ def count_children(session: Session, parent_id: uuid.UUID) -> int:
     ).one()
     return int(result)
 
-
 def get_parent_map(
     session: Session,
 ) -> dict[uuid.UUID, Optional[uuid.UUID]]:
-    """Return a flat {id: parent_id} dict for all devices (HT-021).
-
-    Used by the service layer to pass to detect_parent_cycle without
-    exposing a DB session to the domain layer.
-    """
     statement = select(Device.id, Device.parent_id)
     rows = session.exec(statement).all()
     return {row[0]: row[1] for row in rows}
 
-
 def get_all_with_location(
     session: Session, page: int = 1, limit: int = 1000,
     sort: Optional[str] = None,
+    workspace_id: uuid.UUID | None = None,
 ) -> tuple[list[tuple[Device, str | None]], int]:
-    """LEFT JOIN devices onto locations; return (Device, location_name) pairs + total."""
-    total = int(session.exec(select(func.count()).select_from(Device)).one())
+    device_ids = _scoped_device_ids(session, workspace_id)
     offset = (page - 1) * limit
     order_expr = (
         _SORT_EXPRESSIONS[sort]()
         if sort in _SORT_EXPRESSIONS
         else col(Device.created_at)
     )
-    stmt = (
+    base = (
         sa_select(Device, Location.name)  # type: ignore[call-overload]
         .outerjoin(Location, Device.location_id == Location.id)
-        .offset(offset)
-        .limit(limit)
-        .order_by(order_expr)
     )
-    rows = list(session.execute(stmt).all())
+    stmt = _apply_workspace_scope(base, device_ids)
+    total = int(
+        session.execute(
+            sa_select(func.count()).select_from(stmt.subquery())  # type: ignore[arg-type]
+        ).scalar_one()
+    )
+    rows = list(session.execute(stmt.order_by(order_expr).offset(offset).limit(limit)).all())
     return [(row[0], row[1]) for row in rows], total
 
-
 def get_all_names(session: Session) -> list[str]:
-    """Return a flat list of all device names in the database."""
     statement = select(Device.name).order_by(col(Device.created_at))
     return list(session.exec(statement).all())
-
 
 def search(
     session: Session,
     parsed: "ParsedQuery",  # type: ignore[name-defined]
     page: int = 1,
     limit: int = 50,
+    workspace_id: uuid.UUID | None = None,
 ) -> tuple[list[tuple[Device, str | None]], int]:
-    """Filter devices using a ParsedQuery and return (Device, location_name) pairs + total.
-
-    All populated fields apply as AND conditions.
-    Within each field, multiple values use OR (any-match).
-    """
     from src.domain.search import ParsedQuery, to_sql_like
     from src.models.service import Service
 
@@ -166,6 +161,8 @@ def search(
         sa_select(Device, Location.name)  # type: ignore[call-overload]
         .outerjoin(Location, Device.location_id == Location.id)
     )
+
+    device_ids = _scoped_device_ids(session, workspace_id)
 
     if parsed.types:
         stmt = stmt.where(or_(*[func.lower(col(Device.type)).ilike(v.lower()) for v in parsed.types]))
@@ -215,6 +212,9 @@ def search(
             col(Device.notes).ilike(ft),
             col(Location.name).ilike(ft),
         ))
+
+    if device_ids is not None:
+        stmt = stmt.where(col(Device.id).in_(device_ids))
 
     count_stmt = sa_select(func.count()).select_from(stmt.subquery())
     total = int(session.execute(count_stmt).scalar_one())

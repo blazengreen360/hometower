@@ -33,13 +33,16 @@ def _device_payload(
     device_id: str,
     name: str,
     power_watts: int | None = None,
+    *,
+    device_type: DeviceType = DeviceType.Server,
+    status: DeviceStatus = DeviceStatus.Active,
 ) -> dict[str, object]:
     now = datetime.now(timezone.utc).isoformat()
     return {
         "id": device_id,
         "name": name,
-        "type": DeviceType.Server.value,
-        "status": DeviceStatus.Active.value,
+        "type": device_type.value,
+        "status": status.value,
         "ip": "10.0.0.10",
         "mac": "aa:bb:cc:dd:ee:ff",
         "os": "Linux",
@@ -71,15 +74,19 @@ def _stub_inventory_loaders(
     device_payloads: list[dict[str, object]],
     placed_ids: list[str],
 ) -> None:
-    async def _fake_load_inventory_devices(token: str) -> list[DeviceResponseEnriched]:
-        _ = token
+    async def _fake_load_inventory_devices(
+        token: str,
+        workspace_id: str | None,
+    ) -> list[DeviceResponseEnriched]:
+        _ = token, workspace_id
         return [DeviceResponseEnriched.model_validate(item) for item in device_payloads]
 
     async def _fake_load_inventory_placement_data(
         token: str,
         device_ids: set[uuid.UUID],
+        workspace_id: str | None,
     ) -> tuple[set[str], dict[str, int]]:
-        _ = token
+        _ = token, workspace_id
         all_ids = {str(device_id) for device_id in device_ids}
         placed = set(placed_ids)
         return all_ids.difference(placed), {
@@ -104,16 +111,267 @@ def test_inventory_route_delegates_to_page_controller(
     monkeypatch.setattr(inventory_module, "redirect_if_unauthenticated", lambda **kwargs: False)
     monkeypatch.setattr(inventory_module, "get_ui_role", lambda: Role.Contributor)
 
-    captured: list[tuple[str, Role | None]] = []
+    captured: list[tuple[str, Role | None, str | None, str | None, str | None, str | None]] = []
 
-    async def _fake_render_inventory_page(token: str, user_role: Role | None) -> None:
-        captured.append((token, user_role))
+    async def _fake_render_inventory_page(
+        token: str,
+        user_role: Role | None,
+        *,
+        initial_workspace_id: str | None = None,
+        initial_search: str | None = None,
+        initial_type: str | None = None,
+        initial_status: str | None = None,
+    ) -> None:
+        captured.append(
+            (
+                token,
+                user_role,
+                initial_workspace_id,
+                initial_search,
+                initial_type,
+                initial_status,
+            )
+        )
 
     monkeypatch.setattr(inventory_module, "render_inventory_page", _fake_render_inventory_page)
 
-    asyncio.run(inventory_module.inventory_page())
+    asyncio.run(
+        inventory_module.inventory_page(
+            SimpleNamespace(
+                query_params={
+                    "workspace_id": "ws-1",
+                    "search": "VM",
+                    "type": "Server",
+                    "status": "Offline",
+                }
+            )
+        )
+    )
 
-    assert captured == [("token-123", Role.Contributor)]
+    assert captured == [("token-123", Role.Contributor, "ws-1", "VM", "Server", "Offline")]
+
+
+def test_inventory_workspace_scope_is_forwarded_to_loaders(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.ui.pages.inventory_bulk_toolbar as bulk_toolbar_module
+    import src.ui.pages.inventory_page_controller as controller_module
+    import src.ui.pages.inventory_table as inventory_table_module
+
+    fake_ui = FakeUI()
+    monkeypatch.setattr(controller_module, "ui", fake_ui)
+    monkeypatch.setattr(inventory_table_module, "ui", fake_ui)
+    monkeypatch.setattr(bulk_toolbar_module, "ui", fake_ui)
+    monkeypatch.setattr(controller_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+    monkeypatch.setattr(controller_module, "render_type_chips", lambda *args, **kwargs: None)
+
+    captured_workspace_ids: list[str | None] = []
+    device_id = str(uuid.uuid4())
+
+    async def _fake_load_inventory_devices(
+        token: str,
+        workspace_id: str | None,
+    ) -> list[DeviceResponseEnriched]:
+        _ = token
+        captured_workspace_ids.append(workspace_id)
+        return [DeviceResponseEnriched.model_validate(_device_payload(device_id, "Scoped Server"))]
+
+    async def _fake_load_inventory_placement_data(
+        token: str,
+        device_ids: set[uuid.UUID],
+        workspace_id: str | None,
+    ) -> tuple[set[str], dict[str, int]]:
+        _ = token, device_ids
+        captured_workspace_ids.append(workspace_id)
+        return set(), {}
+
+    async def _fake_load_tag_chips(*args: object, **kwargs: object) -> list[dict[str, object]]:
+        return []
+
+    monkeypatch.setattr(controller_module, "load_inventory_devices", _fake_load_inventory_devices)
+    monkeypatch.setattr(
+        controller_module,
+        "load_inventory_placement_data",
+        _fake_load_inventory_placement_data,
+    )
+    monkeypatch.setattr(controller_module, "load_tag_chips", _fake_load_tag_chips)
+
+    asyncio.run(
+        controller_module.render_inventory_page(
+            token="token",
+            user_role=Role.Reader,
+            initial_workspace_id="ws-1",
+        )
+    )
+
+    assert captured_workspace_ids == ["ws-1", "ws-1"]
+
+
+def test_inventory_initial_query_filters_apply_on_first_render(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.ui.pages.inventory_bulk_toolbar as bulk_toolbar_module
+    import src.ui.pages.inventory_page_controller as controller_module
+    import src.ui.pages.inventory_table as inventory_table_module
+
+    fake_ui = FakeUI()
+    monkeypatch.setattr(controller_module, "ui", fake_ui)
+    monkeypatch.setattr(inventory_table_module, "ui", fake_ui)
+    monkeypatch.setattr(bulk_toolbar_module, "ui", fake_ui)
+    monkeypatch.setattr(controller_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+    monkeypatch.setattr(controller_module, "render_type_chips", lambda *args, **kwargs: None)
+
+    async def _fake_load_tag_chips(*args: object, **kwargs: object) -> list[dict[str, object]]:
+        return []
+
+    monkeypatch.setattr(controller_module, "load_tag_chips", _fake_load_tag_chips)
+
+    matching_id = str(uuid.uuid4())
+    other_id = str(uuid.uuid4())
+    _stub_inventory_loaders(
+        monkeypatch,
+        controller_module,
+        [
+            _device_payload(
+                matching_id,
+                "Offline Server",
+                device_type=DeviceType.Server,
+                status=DeviceStatus.Offline,
+            ),
+            _device_payload(
+                other_id,
+                "Offline Switch",
+                device_type=DeviceType.Switch,
+                status=DeviceStatus.Offline,
+            ),
+        ],
+        [matching_id, other_id],
+    )
+
+    async def exercise() -> None:
+        await controller_module.render_inventory_page(
+            token="token",
+            user_role=Role.Contributor,
+            initial_type=DeviceType.Server.value,
+            initial_status=DeviceStatus.Offline.value,
+        )
+
+        table = fake_ui.created["table"][0]
+        assert len(table.rows) == 1
+        assert str(table.rows[0]["id"]) == matching_id
+        assert table.rows[0]["status"] == DeviceStatus.Offline.value
+        assert table.rows[0]["type"] == DeviceType.Server.value
+
+    asyncio.run(exercise())
+
+
+def test_inventory_status_filter_affordance_is_clearable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.ui.pages.inventory_bulk_toolbar as bulk_toolbar_module
+    import src.ui.pages.inventory_page_controller as controller_module
+    import src.ui.pages.inventory_table as inventory_table_module
+
+    fake_ui = FakeUI()
+    monkeypatch.setattr(controller_module, "ui", fake_ui)
+    monkeypatch.setattr(inventory_table_module, "ui", fake_ui)
+    monkeypatch.setattr(bulk_toolbar_module, "ui", fake_ui)
+    monkeypatch.setattr(controller_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+    monkeypatch.setattr(controller_module, "render_type_chips", lambda *args, **kwargs: None)
+
+    async def _fake_load_tag_chips(*args: object, **kwargs: object) -> list[dict[str, object]]:
+        return []
+
+    monkeypatch.setattr(controller_module, "load_tag_chips", _fake_load_tag_chips)
+
+    active_id = str(uuid.uuid4())
+    offline_id = str(uuid.uuid4())
+    _stub_inventory_loaders(
+        monkeypatch,
+        controller_module,
+        [
+            _device_payload(active_id, "Server Active"),
+            _device_payload(offline_id, "Server Offline", status=DeviceStatus.Offline),
+        ],
+        [active_id, offline_id],
+    )
+
+    async def exercise() -> None:
+        await controller_module.render_inventory_page(
+            token="token",
+            user_role=Role.Contributor,
+            initial_status=DeviceStatus.Offline.value,
+        )
+
+        table = fake_ui.created["table"][0]
+        status_scope = next(
+            element
+            for element in fake_ui.created["element"]
+            if any("ht-banner ht-banner-info" in classes for classes in element.classes_calls)
+        )
+        assert [str(row.get("name")) for row in table.rows] == ["Server Offline"]
+        assert any(label.text_value == "Status filter: Offline" for label in fake_ui.created["label"])
+        assert status_scope.visible is True
+
+        clear_status_button = next(
+            button for button in fake_ui.created["button"] if button.value == "Clear status filter"
+        )
+        assert clear_status_button.visible is True
+        await _invoke(clear_status_button.handlers["click"])
+
+        assert {str(row.get("name")) for row in table.rows} == {"Server Active", "Server Offline"}
+        assert status_scope.visible is False
+        assert clear_status_button.visible is False
+        assert any("searchParams.delete('status')" in call for call in fake_ui.run_javascript_calls)
+
+    asyncio.run(exercise())
+
+
+def test_inventory_initial_search_filters_apply_on_first_render(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.ui.pages.inventory_bulk_toolbar as bulk_toolbar_module
+    import src.ui.pages.inventory_page_controller as controller_module
+    import src.ui.pages.inventory_table as inventory_table_module
+
+    fake_ui = FakeUI()
+    monkeypatch.setattr(controller_module, "ui", fake_ui)
+    monkeypatch.setattr(inventory_table_module, "ui", fake_ui)
+    monkeypatch.setattr(bulk_toolbar_module, "ui", fake_ui)
+    monkeypatch.setattr(controller_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+    monkeypatch.setattr(controller_module, "render_type_chips", lambda *args, **kwargs: None)
+
+    async def _fake_load_tag_chips(*args: object, **kwargs: object) -> list[dict[str, object]]:
+        return []
+
+    monkeypatch.setattr(controller_module, "load_tag_chips", _fake_load_tag_chips)
+
+    matching_id = str(uuid.uuid4())
+    other_id = str(uuid.uuid4())
+    _stub_inventory_loaders(
+        monkeypatch,
+        controller_module,
+        [
+            _device_payload(matching_id, "VM Cluster"),
+            _device_payload(other_id, "Switch Core", device_type=DeviceType.Switch),
+        ],
+        [matching_id, other_id],
+    )
+
+    async def exercise() -> None:
+        await controller_module.render_inventory_page(
+            token="token",
+            user_role=Role.Contributor,
+            initial_search="vm",
+        )
+
+        table = fake_ui.created["table"][0]
+        search_input = fake_ui.created["input"][0]
+        assert search_input.value == "vm"
+        assert len(table.rows) == 1
+        assert str(table.rows[0]["id"]) == matching_id
+
+    asyncio.run(exercise())
 
 
 def test_contributor_search_change_clears_selection_and_hides_toolbar(

@@ -8,6 +8,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+import uuid
 
 import httpx
 import pytest
@@ -135,24 +136,24 @@ class TestDashboardPage:
         monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
         client_stub = AsyncClientStub(
             [
-                httpx.Response(200, json={"total": 13}),
-                httpx.Response(200, json={"total": 3}),
-                httpx.Response(200, json=[{"id": "loc-1"}]),
-                httpx.Response(200, json=[{"id": "tag-1"}, {"id": "tag-2"}]),
-                httpx.Response(200, json={"items": []}),
                 httpx.Response(
                     200,
                     json={
-                        "total_watts": 480,
-                        "estimated_monthly_cost": 54.3,
-                        "currency": "USD",
-                        "by_location": [
-                            {
-                                "location_name": "Rack A",
-                                "total_watts": 480,
-                                "parent_location_id": None,
-                            }
-                        ],
+                        "devices": 13,
+                        "workspaces": 3,
+                        "topologies": 5,
+                        "offline_devices": 1,
+                        "recent_edits": 7,
+                        "power": {
+                            "workspace_options": [{"id": None, "name": "All Workspaces"}],
+                            "selected_workspace_id": None,
+                            "selected_workspace_name": "All Workspaces",
+                            "total_watts": 480,
+                            "estimated_monthly_cost": 54.3,
+                            "currency": "USD",
+                        },
+                        "inventory_breakdown": {"status_counts": [], "type_counts": []},
+                        "recent_activity": [],
                     },
                 ),
             ]
@@ -169,13 +170,18 @@ class TestDashboardPage:
         assert any(label.text_value == "3" for label in fake_ui.created["label"])
         assert any(label.text_value == "480W" for label in fake_ui.created["label"])
         assert any(label.text_value == "54.30 USD / month" for label in fake_ui.created["label"])
-        assert any(label.text_value == "Rack A" for label in fake_ui.created["label"])
-        assert any(label.text_value == "No devices yet — add one from Topology" for label in fake_ui.created["label"])
-        assert len(client_stub.calls) == 6
-        assert any(url.endswith("/api/power/summary") for _, url in client_stub.calls)
+        assert any(
+            label.text_value == "No recent activity yet"
+            for label in fake_ui.created["label"]
+        )
+        assert len(client_stub.calls) == 1
+        assert client_stub.calls[0][1].endswith("/api/dashboard/summary")
         assert app.storage.user["access_token"] == "token"
 
-    def test_dashboard_renders_recent_devices(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_dashboard_renders_recent_activity_and_breakdown_links(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         import src.ui.pages.dashboard as dashboard_module
 
         fake_ui = FakeUI()
@@ -186,22 +192,45 @@ class TestDashboardPage:
         updated_at = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
         client_stub = AsyncClientStub(
             [
-                httpx.Response(200, json={"total": 5}),
-                httpx.Response(200, json={"total": 2}),
-                httpx.Response(200, json=[{"id": "loc-1"}]),
-                httpx.Response(200, json=[{"id": "tag-1"}]),
-                httpx.Response(200, json={"items": [{"name": "VM", "type": "Server", "updated_at": updated_at}]}),
                 httpx.Response(
                     200,
                     json={
-                        "total_watts": 140,
-                        "estimated_monthly_cost": 18.55,
-                        "currency": "USD",
-                        "by_location": [
+                        "devices": 5,
+                        "workspaces": 2,
+                        "topologies": 3,
+                        "offline_devices": 0,
+                        "recent_edits": 1,
+                        "power": {
+                            "workspace_options": [{"id": None, "name": "All Workspaces"}],
+                            "selected_workspace_id": None,
+                            "selected_workspace_name": "All Workspaces",
+                            "total_watts": 140,
+                            "estimated_monthly_cost": 18.55,
+                            "currency": "USD",
+                        },
+                        "inventory_breakdown": {
+                            "status_counts": [
+                                {
+                                    "key": "Offline",
+                                    "count": 2,
+                                    "route": "/inventory?status=Offline",
+                                }
+                            ],
+                            "type_counts": [
+                                {
+                                    "key": "Server",
+                                    "count": 5,
+                                    "route": "/inventory?type=Server",
+                                }
+                            ],
+                        },
+                        "recent_activity": [
                             {
-                                "location_name": "Office Rack",
-                                "total_watts": 140,
-                                "parent_location_id": None,
+                                "kind": "device_updated",
+                                "title": "VM",
+                                "subtitle": "Device updated",
+                                "timestamp": updated_at,
+                                "route": "/inventory?search=VM",
                             }
                         ],
                     },
@@ -216,13 +245,294 @@ class TestDashboardPage:
 
         asyncio.run(dashboard_module.dashboard_page())
 
-        assert any(label.text_value == "VM" for label in fake_ui.created["label"])
-        assert any(label.text_value == "Server" for label in fake_ui.created["label"])
+        assert any(link.value == "VM" for link in fake_ui.created["link"])
+        assert any(link.value == "Offline" for link in fake_ui.created["link"])
+        assert any(link.value == "Server" for link in fake_ui.created["link"])
+        assert any(
+            'data-ht-route="/inventory?search=VM"' in prop
+            for link in fake_ui.created["link"]
+            for prop in link.props_calls
+        )
+        assert any(
+            'data-ht-route="/inventory?status=Offline"' in prop
+            for link in fake_ui.created["link"]
+            for prop in link.props_calls
+        )
+        assert any(
+            'data-ht-route="/inventory?type=Server"' in prop
+            for link in fake_ui.created["link"]
+            for prop in link.props_calls
+        )
+        recent_link = next(link for link in fake_ui.created["link"] if link.value == "VM")
+        assert "click" not in recent_link.js_handlers
+        _run(recent_link.handlers["click"](SimpleNamespace()))
+        assert fake_ui.navigate.to_calls[-1] == ("/inventory?search=VM", False)
+
+        status_link = next(link for link in fake_ui.created["link"] if link.value == "Offline")
+        assert "click" not in status_link.js_handlers
+        _run(status_link.handlers["click"](SimpleNamespace()))
+        assert fake_ui.navigate.to_calls[-1] == ("/inventory?status=Offline", False)
+
+        type_link = next(link for link in fake_ui.created["link"] if link.value == "Server")
+        assert "click" not in type_link.js_handlers
+        _run(type_link.handlers["click"](SimpleNamespace()))
+        assert fake_ui.navigate.to_calls[-1] == ("/inventory?type=Server", False)
+        assert any(label.text_value == "Device updated" for label in fake_ui.created["label"])
         assert any(label.text_value == "2m ago" for label in fake_ui.created["label"])
         assert any(label.text_value == "140W" for label in fake_ui.created["label"])
-        assert any(label.text_value == "Office Rack" for label in fake_ui.created["label"])
-        assert len(client_stub.calls) == 6
-        assert any(url.endswith("/api/power/summary") for _, url in client_stub.calls)
+        assert len(client_stub.calls) == 1
+        assert client_stub.calls[0][1].endswith("/api/dashboard/summary")
+
+    def test_dashboard_workspace_switch_refreshes_summary_breakdown_and_activity(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import src.ui.pages.dashboard as dashboard_module
+
+        fake_ui = FakeUI()
+        install_fake_ui(monkeypatch, dashboard_module, fake_ui, {"access_token": "token"})
+        monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+        monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
+        monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
+        updated_at = datetime.now(timezone.utc).isoformat()
+        client_stub = AsyncClientStub(
+            [
+                httpx.Response(
+                    200,
+                    json={
+                        "devices": 5,
+                        "workspaces": 2,
+                        "topologies": 3,
+                        "offline_devices": 0,
+                        "recent_edits": 1,
+                        "power": {
+                            "workspace_options": [
+                                {"id": None, "name": "All Workspaces"},
+                                {"id": "ws-1", "name": "Lab One"},
+                            ],
+                            "selected_workspace_id": None,
+                            "selected_workspace_name": "All Workspaces",
+                            "total_watts": 140,
+                            "estimated_monthly_cost": 18.55,
+                            "currency": "USD",
+                        },
+                        "inventory_breakdown": {
+                            "status_counts": [
+                                {
+                                    "key": "Offline",
+                                    "count": 2,
+                                    "route": "/inventory?status=Offline",
+                                }
+                            ],
+                            "type_counts": [
+                                {
+                                    "key": "Server",
+                                    "count": 5,
+                                    "route": "/inventory?type=Server",
+                                }
+                            ],
+                        },
+                        "recent_activity": [
+                            {
+                                "kind": "device_updated",
+                                "title": "VM",
+                                "subtitle": "Device updated",
+                                "timestamp": updated_at,
+                                "route": "/inventory?search=VM",
+                            }
+                        ],
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "devices": 19,
+                        "workspaces": 1,
+                        "topologies": 7,
+                        "offline_devices": 4,
+                        "recent_edits": 11,
+                        "power": {
+                            "workspace_options": [
+                                {"id": None, "name": "All Workspaces"},
+                                {"id": "ws-1", "name": "Lab One"},
+                            ],
+                            "selected_workspace_id": "ws-1",
+                            "selected_workspace_name": "Lab One",
+                            "total_watts": 220,
+                            "estimated_monthly_cost": 28.75,
+                            "currency": "USD",
+                        },
+                        "inventory_breakdown": {
+                            "status_counts": [
+                                {
+                                    "key": "Online",
+                                    "count": 9,
+                                    "route": "/inventory?status=Online",
+                                }
+                            ],
+                            "type_counts": [
+                                {
+                                    "key": "Switch",
+                                    "count": 6,
+                                    "route": "/inventory?type=Switch",
+                                }
+                            ],
+                        },
+                        "recent_activity": [
+                            {
+                                "kind": "device_updated",
+                                "title": "Scoped VM",
+                                "subtitle": "Device updated",
+                                "timestamp": updated_at,
+                                "route": "/inventory?search=Scoped%20VM",
+                            }
+                        ],
+                    },
+                ),
+            ]
+        )
+        monkeypatch.setattr(
+            dashboard_module.httpx,
+            "AsyncClient",
+            lambda *args, **kwargs: client_stub,
+        )
+
+        asyncio.run(dashboard_module.dashboard_page())
+
+        workspace_select = fake_ui.created["select"][0]
+        asyncio.run(workspace_select.handlers["value_change"](SimpleNamespace(value="ws-1")))
+
+        labels = [label.text_value for label in fake_ui.created["label"]]
+        links = [link.value for link in fake_ui.created["link"]]
+
+        assert "19" in labels
+        assert "7" in labels
+        assert "11" in labels
+        assert "220W" in labels
+        assert "28.75 USD / month" in labels
+        assert "Lab One" in labels
+        assert "Online" in links
+        assert "Switch" in links
+        assert "Scoped VM" in links
+        assert len(client_stub.calls) == 2
+        assert any("history.replaceState" in script for script in fake_ui.run_javascript_calls)
+        assert client_stub.call_kwargs[1]["params"] == {"workspace_id": "ws-1"}
+        scoped_recent_link = [link for link in fake_ui.created["link"] if link.value == "Scoped VM"][-1]
+        assert "click" not in scoped_recent_link.js_handlers
+        _run(scoped_recent_link.handlers["click"](SimpleNamespace()))
+        assert fake_ui.navigate.to_calls[-1] == ("/inventory?workspace_id=ws-1&search=Scoped%20VM", False)
+
+        scoped_status_link = [link for link in fake_ui.created["link"] if link.value == "Online"][-1]
+        assert "click" not in scoped_status_link.js_handlers
+        _run(scoped_status_link.handlers["click"](SimpleNamespace()))
+        assert fake_ui.navigate.to_calls[-1] == ("/inventory?workspace_id=ws-1&status=Online", False)
+
+        inventory_button = [
+            button for button in fake_ui.created["button"] if button.value == "View Inventory"
+        ][-1]
+        assert "click" not in inventory_button.js_handlers
+        _run(inventory_button.handlers["click"]())
+        assert fake_ui.navigate.to_calls[-1] == ("/inventory?workspace_id=ws-1", False)
+
+    def test_dashboard_scope_query_renders_filtered_summary_on_first_load(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import src.ui.pages.dashboard as dashboard_module
+
+        fake_ui = FakeUI()
+        install_fake_ui(monkeypatch, dashboard_module, fake_ui, {"access_token": "token"})
+        monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+        monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
+        monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
+        updated_at = datetime.now(timezone.utc).isoformat()
+        client_stub = AsyncClientStub(
+            [
+                httpx.Response(
+                    200,
+                    json={
+                        "devices": 12,
+                        "workspaces": 1,
+                        "topologies": 4,
+                        "offline_devices": 2,
+                        "recent_edits": 6,
+                        "power": {
+                            "workspace_options": [
+                                {"id": None, "name": "All Workspaces"},
+                                {"id": "ws-1", "name": "Lab One"},
+                            ],
+                            "selected_workspace_id": "ws-1",
+                            "selected_workspace_name": "Lab One",
+                            "total_watts": 215,
+                            "estimated_monthly_cost": 27.5,
+                            "currency": "USD",
+                        },
+                        "inventory_breakdown": {
+                            "status_counts": [
+                                {
+                                    "key": "Online",
+                                    "count": 8,
+                                    "route": "/inventory?status=Online",
+                                }
+                            ],
+                            "type_counts": [
+                                {
+                                    "key": "Switch",
+                                    "count": 3,
+                                    "route": "/inventory?type=Switch",
+                                }
+                            ],
+                        },
+                        "recent_activity": [
+                            {
+                                "kind": "device_updated",
+                                "title": "Scoped VM",
+                                "subtitle": "Device updated",
+                                "timestamp": updated_at,
+                                "route": "/inventory?search=Scoped%20VM",
+                            }
+                        ],
+                    },
+                ),
+            ]
+        )
+        monkeypatch.setattr(
+            dashboard_module.httpx,
+            "AsyncClient",
+            lambda *args, **kwargs: client_stub,
+        )
+
+        asyncio.run(dashboard_module.dashboard_page(workspace_id="ws-1"))
+
+        labels = [label.text_value for label in fake_ui.created["label"]]
+        links = [link.value for link in fake_ui.created["link"]]
+        inventory_button = next(
+            button for button in fake_ui.created["button"] if button.value == "View Inventory"
+        )
+
+        assert "12" in labels
+        assert "4" in labels
+        assert "6" in labels
+        assert "215W" in labels
+        assert "27.50 USD / month" in labels
+        assert "Lab One" in labels
+        assert "Online" in links
+        assert "Switch" in links
+        assert "Scoped VM" in links
+        scoped_recent_link = next(link for link in fake_ui.created["link"] if link.value == "Scoped VM")
+        assert "click" not in scoped_recent_link.js_handlers
+        _run(scoped_recent_link.handlers["click"](SimpleNamespace()))
+        assert fake_ui.navigate.to_calls[-1] == ("/inventory?workspace_id=ws-1&search=Scoped%20VM", False)
+
+        scoped_status_link = next(link for link in fake_ui.created["link"] if link.value == "Online")
+        assert "click" not in scoped_status_link.js_handlers
+        _run(scoped_status_link.handlers["click"](SimpleNamespace()))
+        assert fake_ui.navigate.to_calls[-1] == ("/inventory?workspace_id=ws-1&status=Online", False)
+
+        assert "click" not in inventory_button.js_handlers
+        _run(inventory_button.handlers["click"]())
+        assert fake_ui.navigate.to_calls[-1] == ("/inventory?workspace_id=ws-1", False)
+        assert client_stub.call_kwargs[0]["params"] == {"workspace_id": "ws-1"}
 
     def test_dashboard_hides_write_actions_for_reader(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import src.ui.pages.dashboard as dashboard_module
@@ -234,18 +544,24 @@ class TestDashboardPage:
         monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Reader)
         client_stub = AsyncClientStub(
             [
-                httpx.Response(200, json={"total": 1}),
-                httpx.Response(200, json={"total": 0}),
-                httpx.Response(200, json=[]),
-                httpx.Response(200, json=[]),
-                httpx.Response(200, json={"items": []}),
                 httpx.Response(
                     200,
                     json={
-                        "total_watts": 0,
-                        "estimated_monthly_cost": None,
-                        "currency": None,
-                        "by_location": [],
+                        "devices": 1,
+                        "workspaces": 1,
+                        "topologies": 1,
+                        "offline_devices": 0,
+                        "recent_edits": 0,
+                        "power": {
+                            "workspace_options": [{"id": None, "name": "All Workspaces"}],
+                            "selected_workspace_id": None,
+                            "selected_workspace_name": "All Workspaces",
+                            "total_watts": 0,
+                            "estimated_monthly_cost": None,
+                            "currency": None,
+                        },
+                        "inventory_breakdown": {"status_counts": [], "type_counts": []},
+                        "recent_activity": [],
                     },
                 ),
             ]
@@ -273,18 +589,24 @@ class TestDashboardPage:
         monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
         client_stub = AsyncClientStub(
             [
-                httpx.Response(200, json={"total": 1}),
-                httpx.Response(200, json={"total": 0}),
-                httpx.Response(200, json=[]),
-                httpx.Response(200, json=[]),
-                httpx.Response(200, json={"items": []}),
                 httpx.Response(
                     200,
                     json={
-                        "total_watts": 0,
-                        "estimated_monthly_cost": None,
-                        "currency": None,
-                        "by_location": [],
+                        "devices": 1,
+                        "workspaces": 1,
+                        "topologies": 1,
+                        "offline_devices": 0,
+                        "recent_edits": 0,
+                        "power": {
+                            "workspace_options": [{"id": None, "name": "All Workspaces"}],
+                            "selected_workspace_id": None,
+                            "selected_workspace_name": "All Workspaces",
+                            "total_watts": 0,
+                            "estimated_monthly_cost": None,
+                            "currency": None,
+                        },
+                        "inventory_breakdown": {"status_counts": [], "type_counts": []},
+                        "recent_activity": [],
                     },
                 ),
             ]
@@ -301,6 +623,322 @@ class TestDashboardPage:
         assert "View Inventory" in button_values
         assert "Add Device" in button_values
         assert "Manage Locations" in button_values
+
+
+class TestInventoryPage:
+    def test_inventory_hydrates_initial_type_and_status_filters(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import src.ui.pages.inventory_page_controller as controller_module
+        import src.ui.pages.inventory_table as inventory_table_module
+
+        fake_ui = FakeUI()
+        monkeypatch.setattr(controller_module, "ui", fake_ui)
+        monkeypatch.setattr(inventory_table_module, "ui", fake_ui)
+        monkeypatch.setattr(controller_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+        monkeypatch.setattr(controller_module, "render_type_chips", lambda *args, **kwargs: None)
+
+        async def _fake_load_tag_chips(*args: object, **kwargs: object) -> list[dict[str, object]]:
+            return []
+
+        async def _fake_load_inventory_devices(
+            token: str,
+            workspace_id: str | None,
+        ) -> list[object]:
+            _ = token, workspace_id
+            now = datetime.now(timezone.utc).isoformat()
+            return [
+                controller_module.DeviceResponseEnriched.model_validate(
+                    {
+                        "id": str(uuid.uuid4()),
+                        "name": "Server Active",
+                        "type": "Server",
+                        "status": "Active",
+                        "ip": "10.0.0.10",
+                        "mac": "aa:bb:cc:dd:ee:ff",
+                        "os": "Linux",
+                        "notes": "A",
+                        "power_watts": None,
+                        "location_name": "Rack 1",
+                        "tags": [],
+                        "custom_fields": [],
+                        "services": [],
+                        "networks": [],
+                        "children": [],
+                        "parent_chain": [],
+                        "version": 1,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                ),
+                controller_module.DeviceResponseEnriched.model_validate(
+                    {
+                        "id": str(uuid.uuid4()),
+                        "name": "Server Offline",
+                        "type": "Server",
+                        "status": "Offline",
+                        "ip": "10.0.0.20",
+                        "mac": "aa:bb:cc:dd:ee:11",
+                        "os": "Linux",
+                        "notes": "B",
+                        "power_watts": None,
+                        "location_name": "Rack 1",
+                        "tags": [],
+                        "custom_fields": [],
+                        "services": [],
+                        "networks": [],
+                        "children": [],
+                        "parent_chain": [],
+                        "version": 1,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                ),
+                controller_module.DeviceResponseEnriched.model_validate(
+                    {
+                        "id": str(uuid.uuid4()),
+                        "name": "Switch Offline",
+                        "type": "Switch",
+                        "status": "Offline",
+                        "ip": "10.0.0.30",
+                        "mac": "aa:bb:cc:dd:ee:22",
+                        "os": "Linux",
+                        "notes": "C",
+                        "power_watts": None,
+                        "location_name": "Rack 1",
+                        "tags": [],
+                        "custom_fields": [],
+                        "services": [],
+                        "networks": [],
+                        "children": [],
+                        "parent_chain": [],
+                        "version": 1,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                ),
+            ]
+
+        async def _fake_load_inventory_placement_data(
+            token: str,
+            device_ids: set[object],
+            workspace_id: str | None,
+        ) -> tuple[set[str], dict[str, int]]:
+            _ = token, device_ids, workspace_id
+            return set(), {}
+
+        monkeypatch.setattr(controller_module, "load_tag_chips", _fake_load_tag_chips)
+        monkeypatch.setattr(controller_module, "load_inventory_devices", _fake_load_inventory_devices)
+        monkeypatch.setattr(
+            controller_module,
+            "load_inventory_placement_data",
+            _fake_load_inventory_placement_data,
+        )
+
+        asyncio.run(
+            controller_module.render_inventory_page(
+                token="token",
+                user_role=Role.Reader,
+                initial_type="Server",
+                initial_status="Offline",
+            )
+        )
+
+        table = fake_ui.created["table"][0]
+        status_scope = next(
+            element
+            for element in fake_ui.created["element"]
+            if any("ht-banner ht-banner-info" in classes for classes in element.classes_calls)
+        )
+        clear_status_button = next(
+            button for button in fake_ui.created["button"] if button.value == "Clear status filter"
+        )
+        assert any(label.text_value == "Status filter: Offline" for label in fake_ui.created["label"])
+        assert status_scope.visible is True
+        assert clear_status_button.visible is True
+        assert [str(row.get("name")) for row in table.rows] == ["Server Offline"]
+
+    def test_inventory_hydrates_initial_search_filter(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import src.ui.pages.inventory_page_controller as controller_module
+        import src.ui.pages.inventory_table as inventory_table_module
+
+        fake_ui = FakeUI()
+        monkeypatch.setattr(controller_module, "ui", fake_ui)
+        monkeypatch.setattr(inventory_table_module, "ui", fake_ui)
+        monkeypatch.setattr(controller_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+        monkeypatch.setattr(controller_module, "render_type_chips", lambda *args, **kwargs: None)
+
+        async def _fake_load_tag_chips(*args: object, **kwargs: object) -> list[dict[str, object]]:
+            return []
+
+        device_one_id = str(uuid.uuid4())
+        device_two_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+
+        async def _fake_load_inventory_devices(
+            token: str,
+            workspace_id: str | None,
+        ) -> list[object]:
+            _ = token, workspace_id
+            return [
+                controller_module.DeviceResponseEnriched.model_validate(
+                    {
+                        "id": device_one_id,
+                        "name": "VM Cluster",
+                        "type": "Server",
+                        "status": "Active",
+                        "ip": "10.0.0.10",
+                        "mac": "aa:bb:cc:dd:ee:ff",
+                        "os": "Linux",
+                        "notes": "A",
+                        "power_watts": None,
+                        "location_name": "Rack 1",
+                        "tags": [],
+                        "custom_fields": [],
+                        "services": [],
+                        "networks": [],
+                        "children": [],
+                        "parent_chain": [],
+                        "version": 1,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                ),
+                controller_module.DeviceResponseEnriched.model_validate(
+                    {
+                        "id": device_two_id,
+                        "name": "Core Switch",
+                        "type": "Switch",
+                        "status": "Active",
+                        "ip": "10.0.0.20",
+                        "mac": "aa:bb:cc:dd:ee:11",
+                        "os": "Linux",
+                        "notes": "B",
+                        "power_watts": None,
+                        "location_name": "Rack 1",
+                        "tags": [],
+                        "custom_fields": [],
+                        "services": [],
+                        "networks": [],
+                        "children": [],
+                        "parent_chain": [],
+                        "version": 1,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                ),
+            ]
+
+        async def _fake_load_inventory_placement_data(
+            token: str,
+            device_ids: set[object],
+            workspace_id: str | None,
+        ) -> tuple[set[str], dict[str, int]]:
+            _ = token, device_ids, workspace_id
+            return set(), {}
+
+        monkeypatch.setattr(controller_module, "load_tag_chips", _fake_load_tag_chips)
+        monkeypatch.setattr(controller_module, "load_inventory_devices", _fake_load_inventory_devices)
+        monkeypatch.setattr(
+            controller_module,
+            "load_inventory_placement_data",
+            _fake_load_inventory_placement_data,
+        )
+
+        asyncio.run(
+            controller_module.render_inventory_page(
+                token="token",
+                user_role=Role.Reader,
+                initial_search="vm",
+            )
+        )
+
+        search_input = fake_ui.created["input"][0]
+        table = fake_ui.created["table"][0]
+        assert search_input.value == "vm"
+        assert [str(row.get("id")) for row in table.rows] == [device_one_id]
+
+    def test_inventory_hydrates_initial_workspace_scope_for_loaders(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import src.ui.pages.inventory_page_controller as controller_module
+        import src.ui.pages.inventory_table as inventory_table_module
+
+        fake_ui = FakeUI()
+        monkeypatch.setattr(controller_module, "ui", fake_ui)
+        monkeypatch.setattr(inventory_table_module, "ui", fake_ui)
+        monkeypatch.setattr(controller_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+        monkeypatch.setattr(controller_module, "render_type_chips", lambda *args, **kwargs: None)
+
+        captured_workspace_ids: list[str | None] = []
+        now = datetime.now(timezone.utc).isoformat()
+
+        async def _fake_load_tag_chips(*args: object, **kwargs: object) -> list[dict[str, object]]:
+            return []
+
+        async def _fake_load_inventory_devices(
+            token: str,
+            workspace_id: str | None,
+        ) -> list[object]:
+            _ = token
+            captured_workspace_ids.append(workspace_id)
+            return [
+                controller_module.DeviceResponseEnriched.model_validate(
+                    {
+                        "id": str(uuid.uuid4()),
+                        "name": "Scoped Server",
+                        "type": "Server",
+                        "status": "Active",
+                        "ip": "10.0.0.10",
+                        "mac": "aa:bb:cc:dd:ee:ff",
+                        "os": "Linux",
+                        "notes": "A",
+                        "power_watts": None,
+                        "location_name": "Rack 1",
+                        "tags": [],
+                        "custom_fields": [],
+                        "services": [],
+                        "networks": [],
+                        "children": [],
+                        "parent_chain": [],
+                        "version": 1,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                )
+            ]
+
+        async def _fake_load_inventory_placement_data(
+            token: str,
+            device_ids: set[object],
+            workspace_id: str | None,
+        ) -> tuple[set[str], dict[str, int]]:
+            _ = token, device_ids
+            captured_workspace_ids.append(workspace_id)
+            return set(), {}
+
+        monkeypatch.setattr(controller_module, "load_tag_chips", _fake_load_tag_chips)
+        monkeypatch.setattr(controller_module, "load_inventory_devices", _fake_load_inventory_devices)
+        monkeypatch.setattr(
+            controller_module,
+            "load_inventory_placement_data",
+            _fake_load_inventory_placement_data,
+        )
+
+        asyncio.run(
+            controller_module.render_inventory_page(
+                token="token",
+                user_role=Role.Reader,
+                initial_workspace_id="ws-1",
+            )
+        )
+
+        assert captured_workspace_ids == ["ws-1", "ws-1"]
 
 
 class TestSettingsAboutPage:

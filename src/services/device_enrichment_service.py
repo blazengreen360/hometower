@@ -100,15 +100,26 @@ def _apply_collection_enrichment(
 
 
 def get_all_enriched(
-    session: Session, page: int, limit: int, include: set[str],
-    q: str | None = None, sort: str | None = None,
+    session: Session,
+    page: int,
+    limit: int,
+    include: set[str],
+    q: str | None = None,
+    sort: str | None = None,
+    workspace_id: uuid.UUID | None = None,
 ) -> tuple[list[DeviceResponseEnriched], int]:
     """Return enriched device list. Supports include={'location', 'tags', 'custom_fields', 'services', 'networks'}."""
     if q:
         from src.domain.search import parse_query
         parsed = parse_query(q)
         if not parsed.is_empty():
-            pairs, total = device_repository.search(session, parsed, page, limit)
+            pairs, total = device_repository.search(
+                session,
+                parsed,
+                page,
+                limit,
+                workspace_id=workspace_id,
+            )
             items = [
                 DeviceResponseEnriched.model_validate(
                     {**device.model_dump(), "location_name": loc_name}
@@ -119,7 +130,13 @@ def get_all_enriched(
             return items, total
 
     if "location" in include:
-        pairs, total = device_repository.get_all_with_location(session, page, limit, sort=sort)
+        pairs, total = device_repository.get_all_with_location(
+            session,
+            page,
+            limit,
+            sort=sort,
+            workspace_id=workspace_id,
+        )
         items = [
             DeviceResponseEnriched.model_validate(
                 {**device.model_dump(), "location_name": loc_name}
@@ -127,7 +144,13 @@ def get_all_enriched(
             for device, loc_name in pairs
         ]
     else:
-        devices, total = device_repository.get_all(session, page, limit, sort=sort)
+        devices, total = device_repository.get_all(
+            session,
+            page,
+            limit,
+            sort=sort,
+            workspace_id=workspace_id,
+        )
         items = [
             DeviceResponseEnriched.model_validate(device.model_dump())
             for device in devices

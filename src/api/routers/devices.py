@@ -1,7 +1,7 @@
 """Devices router — CRUD endpoints for the Device entity."""
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlmodel import Session, SQLModel
 
 from src.api.dependencies.rbac import require_role
@@ -18,6 +18,10 @@ from src.services import device_service
 from src.utils.db import get_session
 
 router = APIRouter(prefix="/devices", tags=["devices"])
+
+
+def _owner_id(request: Request) -> uuid.UUID:
+    return uuid.UUID(request.state.user_id)
 
 
 class PaginatedDeviceResponse(SQLModel):
@@ -62,11 +66,13 @@ def create_device(
     dependencies=[Depends(require_role(Role.Reader))],
 )
 def list_devices(
+    request: Request,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=1000),
     include: str = Query(default=""),
     sort: str | None = Query(default=None),
     q: str | None = Query(default=None, max_length=500),
+    workspace_id: uuid.UUID | None = Query(default=None),
     session: Session = Depends(get_session),
 ) -> PaginatedDeviceResponseEnriched | PaginatedDeviceResponse:
     """List devices with pagination.
@@ -79,12 +85,26 @@ def list_devices(
     include_set: set[str] = {k.strip() for k in include.split(",") if k.strip()}
     if include_set or q:
         items, total = device_service.get_all_enriched(
-            session, page, limit, include_set, q=q, sort=sort
+            session,
+            page,
+            limit,
+            include_set,
+            q=q,
+            sort=sort,
+            workspace_id=workspace_id,
+            owner_id=_owner_id(request),
         )
         return PaginatedDeviceResponseEnriched(
             items=items, total=total, page=page, limit=limit
         )
-    raw, total = device_service.get_all(session, page, limit, sort=sort)
+    raw, total = device_service.get_all(
+        session,
+        page,
+        limit,
+        sort=sort,
+        workspace_id=workspace_id,
+        owner_id=_owner_id(request),
+    )
     return PaginatedDeviceResponse(
         items=[DeviceResponse.model_validate(d.model_dump()) for d in raw],
         total=total,

@@ -17,51 +17,72 @@ from src.models.diagram import DiagramLayout
 from src.models.power_settings import PowerSettings
 from src.models.topology import Topology
 from src.models.topology_history_entry import TopologyHistoryEntry
-from src.models.types import DeviceStatus
-from src.models.types import DeviceType
+from src.models.types import DeviceStatus, DeviceType
 from src.models.workspace import Workspace
-
 _ALL_WORKSPACES = "All Workspaces"
-_MONTHLY_HOURS = 24 * 30
+_MONTHLY_HOURS = 24 * 30.44
 _RECENT_ACTIVITY_LIMIT = 5
 _RECENT_EDIT_WINDOW_DAYS = 7
 
-def list_workspaces(
-    session: Session,
-    owner_id: uuid.UUID | None,
-) -> list[tuple[uuid.UUID, str]]:
+
+class ScopedDeviceIds(set[uuid.UUID]):
+    def __init__(
+        self,
+        values: set[uuid.UUID],
+        selected_workspace_id: uuid.UUID | None,
+    ) -> None:
+        super().__init__(values)
+        self.selected_workspace_id = selected_workspace_id
+
+
+def list_workspaces(session: Session, owner_id: uuid.UUID | None) -> list[tuple[uuid.UUID, str]]:
     statement = select(Workspace.id, Workspace.name)
     if owner_id is not None:
         statement = statement.where(col(Workspace.owner_id) == owner_id)
     rows = session.exec(statement.order_by(col(Workspace.name))).all()
     return [(workspace_id, name) for workspace_id, name in rows]
-
-def resolve_workspace_selection(
-    workspaces: list[tuple[uuid.UUID, str]],
-    selected_workspace_id: uuid.UUID | None,
-) -> tuple[uuid.UUID | None, str]:
+def resolve_workspace_selection(workspaces: list[tuple[uuid.UUID, str]], selected_workspace_id: uuid.UUID | None) -> tuple[uuid.UUID | None, str]:
     names = {workspace_id: name for workspace_id, name in workspaces}
     if selected_workspace_id is not None and selected_workspace_id in names:
         return selected_workspace_id, names[selected_workspace_id]
     return None, _ALL_WORKSPACES
-
-def count_devices(session: Session, offline_only: bool = False) -> int:
-    statement = select(func.count()).select_from(Device)
+def scoped_device_ids(session: Session, selected_workspace_id: uuid.UUID | None, owner_id: uuid.UUID | None) -> set[uuid.UUID]:
+    statement = (
+        select(DiagramLayout.cytoscape_json)
+        .join(Topology, col(DiagramLayout.id) == col(Topology.current_diagram_id))
+        .join(Workspace, col(Topology.workspace_id) == col(Workspace.id))
+    )
+    if owner_id is not None:
+        statement = statement.where(col(Workspace.owner_id) == owner_id)
+    if selected_workspace_id is not None:
+        statement = statement.where(col(Workspace.id) == selected_workspace_id)
+    device_ids: set[uuid.UUID] = set()
+    for cytoscape_json in session.exec(statement).all():
+        device_ids.update(_extract_device_ids(cytoscape_json))
+    return ScopedDeviceIds(device_ids, selected_workspace_id)
+def count_devices(session: Session, device_ids: set[uuid.UUID], offline_only: bool = False) -> int:
+    if not device_ids:
+        return 0
+    statement = select(func.count()).select_from(Device).where(col(Device.id).in_(device_ids))
     if offline_only:
         statement = statement.where(col(Device.status) == DeviceStatus.Offline)
     return int(session.exec(statement).one())
-
-def count_topologies(session: Session, owner_id: uuid.UUID | None) -> int:
-    base = select(Topology.id)
+def count_topologies(session: Session, selected_workspace_id: uuid.UUID | None, owner_id: uuid.UUID | None) -> int:
+    statement = (
+        select(func.count())
+        .select_from(Topology)
+        .join(Workspace, col(Topology.workspace_id) == col(Workspace.id))
+    )
     if owner_id is not None:
-        base = (
-            base.join(Workspace, col(Topology.workspace_id) == col(Workspace.id))
-            .where(col(Workspace.owner_id) == owner_id)
-        )
-    return int(session.exec(select(func.count()).select_from(base.subquery())).one())
-
-def build_status_counts(session: Session) -> list[DashboardBreakdownCount]:
-    rows = session.exec(select(Device.status, func.count()).group_by(col(Device.status))).all()
+        statement = statement.where(col(Workspace.owner_id) == owner_id)
+    if selected_workspace_id is not None:
+        statement = statement.where(col(Workspace.id) == selected_workspace_id)
+    return int(session.exec(statement).one())
+def build_status_counts(session: Session, device_ids: set[uuid.UUID]) -> list[DashboardBreakdownCount]:
+    if not device_ids:
+        return []
+    selected_workspace_id = getattr(device_ids, "selected_workspace_id", None)
+    rows = session.exec(select(Device.status, func.count()).where(col(Device.id).in_(device_ids)).group_by(col(Device.status))).all()
     counts = {
         (status.value if isinstance(status, DeviceStatus) else str(status)): int(total)
         for status, total in rows
@@ -70,14 +91,16 @@ def build_status_counts(session: Session) -> list[DashboardBreakdownCount]:
         DashboardBreakdownCount(
             key=status.value,
             count=counts.get(status.value, 0),
-            route=f"/inventory?status={quote(status.value, safe='')}",
+            route=_inventory_route(selected_workspace_id, "status", status.value),
         )
         for status in DeviceStatus
         if counts.get(status.value, 0) > 0
     ]
-
-def build_type_counts(session: Session) -> list[DashboardBreakdownCount]:
-    rows = session.exec(select(Device.type, func.count()).group_by(col(Device.type))).all()
+def build_type_counts(session: Session, device_ids: set[uuid.UUID]) -> list[DashboardBreakdownCount]:
+    if not device_ids:
+        return []
+    selected_workspace_id = getattr(device_ids, "selected_workspace_id", None)
+    rows = session.exec(select(Device.type, func.count()).where(col(Device.id).in_(device_ids)).group_by(col(Device.type))).all()
     counts = {
         (device_type.value if isinstance(device_type, DeviceType) else str(device_type)): int(total)
         for device_type, total in rows
@@ -86,38 +109,30 @@ def build_type_counts(session: Session) -> list[DashboardBreakdownCount]:
         DashboardBreakdownCount(
             key=device_type.value,
             count=counts.get(device_type.value, 0),
-            route=f"/inventory?type={quote(device_type.value, safe='')}",
+            route=_inventory_route(selected_workspace_id, "type", device_type.value),
         )
         for device_type in DeviceType
         if counts.get(device_type.value, 0) > 0
     ]
-
-def count_recent_edits(session: Session, owner_id: uuid.UUID | None) -> int:
+def count_recent_edits(session: Session, device_ids: set[uuid.UUID], selected_workspace_id: uuid.UUID | None, owner_id: uuid.UUID | None) -> int:
     cutoff = datetime.now(timezone.utc) - timedelta(days=_RECENT_EDIT_WINDOW_DAYS)
-    device_total = int(
-        session.exec(
-            select(func.count()).select_from(Device).where(col(Device.updated_at) >= cutoff)
-        ).one()
-    )
-    history_base = (
-        select(TopologyHistoryEntry.id)
+    device_total = 0
+    if device_ids:
+        device_total = int(session.exec(select(func.count()).select_from(Device).where(col(Device.id).in_(device_ids)).where(col(Device.updated_at) >= cutoff)).one())
+    statement = (
+        select(func.count())
+        .select_from(TopologyHistoryEntry)
         .join(Topology, col(TopologyHistoryEntry.topology_id) == col(Topology.id))
         .join(Workspace, col(Topology.workspace_id) == col(Workspace.id))
         .where(col(TopologyHistoryEntry.created_at) >= cutoff)
     )
     if owner_id is not None:
-        history_base = history_base.where(col(Workspace.owner_id) == owner_id)
-    topology_total = int(session.exec(select(func.count()).select_from(history_base.subquery())).one())
+        statement = statement.where(col(Workspace.owner_id) == owner_id)
+    if selected_workspace_id is not None:
+        statement = statement.where(col(Workspace.id) == selected_workspace_id)
+    topology_total = int(session.exec(statement).one())
     return device_total + topology_total
-
-def build_power_widget(
-    session: Session,
-    workspaces: list[tuple[uuid.UUID, str]],
-    selected_workspace_id: uuid.UUID | None,
-    selected_workspace_name: str,
-    owner_id: uuid.UUID | None,
-) -> DashboardPowerWidget:
-    device_ids = _placed_device_ids(session, selected_workspace_id, owner_id)
+def build_power_widget(session: Session, device_ids: set[uuid.UUID], workspaces: list[tuple[uuid.UUID, str]], selected_workspace_id: uuid.UUID | None, selected_workspace_name: str) -> DashboardPowerWidget:
     total_watts = _sum_device_watts(session, device_ids)
     settings = session.get(PowerSettings, "global")
     estimated_monthly_cost = None
@@ -133,35 +148,21 @@ def build_power_widget(
         estimated_monthly_cost=estimated_monthly_cost,
         currency=settings.currency if settings is not None else None,
     )
-
-def build_recent_activity(
-    session: Session,
-    owner_id: uuid.UUID | None,
-) -> list[DashboardRecentActivityItem]:
-    activity = _recent_device_activity(session) + _recent_topology_activity(session, owner_id)
+def build_recent_activity(session: Session, device_ids: set[uuid.UUID], selected_workspace_id: uuid.UUID | None, owner_id: uuid.UUID | None) -> list[DashboardRecentActivityItem]:
+    activity = _recent_device_activity(session, device_ids, selected_workspace_id) + _recent_topology_activity(session, selected_workspace_id, owner_id)
     activity.sort(key=lambda item: item.timestamp, reverse=True)
     return activity[:_RECENT_ACTIVITY_LIMIT]
 
-def _placed_device_ids(
-    session: Session,
+
+def _inventory_route(
     selected_workspace_id: uuid.UUID | None,
-    owner_id: uuid.UUID | None,
-) -> set[uuid.UUID]:
-    statement = (
-        select(DiagramLayout.cytoscape_json)
-        .join(Topology, col(DiagramLayout.id) == col(Topology.current_diagram_id))
-        .join(Workspace, col(Topology.workspace_id) == col(Workspace.id))
-    )
-    if owner_id is not None:
-        statement = statement.where(col(Workspace.owner_id) == owner_id)
-    if selected_workspace_id is not None:
-        statement = statement.where(col(Workspace.id) == selected_workspace_id)
-    device_ids: set[uuid.UUID] = set()
-    for cytoscape_json in session.exec(statement).all():
-        device_ids.update(_extract_device_ids(cytoscape_json))
-    return device_ids
-
-
+    key: str,
+    value: str,
+) -> str:
+    suffix = f"{key}={quote(value, safe='')}"
+    if selected_workspace_id is None:
+        return f"/inventory?{suffix}"
+    return f"/inventory?workspace_id={selected_workspace_id}&{suffix}"
 def _extract_device_ids(cytoscape_json: Mapping[str, object]) -> set[uuid.UUID]:
     elements = cytoscape_json.get("elements")
     nodes = elements.get("nodes") if isinstance(elements, dict) else elements
@@ -185,38 +186,26 @@ def _extract_device_ids(cytoscape_json: Mapping[str, object]) -> set[uuid.UUID]:
         except ValueError:
             continue
     return device_ids
-
-
 def _sum_device_watts(session: Session, device_ids: set[uuid.UUID]) -> int:
     if not device_ids:
         return 0
     rows = session.exec(select(Device.power_watts).where(col(Device.id).in_(device_ids))).all()
     return sum(watts or 0 for watts in rows)
-
-
-def _recent_device_activity(session: Session) -> list[DashboardRecentActivityItem]:
-    statement = (
-        select(Device.name, Device.version, Device.updated_at)
-        .order_by(col(Device.updated_at).desc())
-        .limit(_RECENT_ACTIVITY_LIMIT)
-    )
-    rows = session.exec(statement).all()
+def _recent_device_activity(session: Session, device_ids: set[uuid.UUID], selected_workspace_id: uuid.UUID | None) -> list[DashboardRecentActivityItem]:
+    if not device_ids:
+        return []
+    rows = session.exec(select(Device.name, Device.version, Device.updated_at).where(col(Device.id).in_(device_ids)).order_by(col(Device.updated_at).desc()).limit(_RECENT_ACTIVITY_LIMIT)).all()
     return [
         DashboardRecentActivityItem(
             kind="device_created" if version <= 1 else "device_updated",
             title=name,
             subtitle="Device added" if version <= 1 else "Device updated",
             timestamp=timestamp,
-            route=f"/inventory?search={quote(name, safe='')}",
+            route=_inventory_route(selected_workspace_id, "search", name),
         )
         for name, version, timestamp in rows
     ]
-
-
-def _recent_topology_activity(
-    session: Session,
-    owner_id: uuid.UUID | None,
-) -> list[DashboardRecentActivityItem]:
+def _recent_topology_activity(session: Session, selected_workspace_id: uuid.UUID | None, owner_id: uuid.UUID | None) -> list[DashboardRecentActivityItem]:
     statement = (
         sa_select(  # type: ignore[call-overload]
             TopologyHistoryEntry.action,
@@ -232,6 +221,8 @@ def _recent_topology_activity(
     )
     if owner_id is not None:
         statement = statement.where(col(Workspace.owner_id) == owner_id)
+    if selected_workspace_id is not None:
+        statement = statement.where(col(Workspace.id) == selected_workspace_id)
     rows = session.exec(statement.order_by(col(TopologyHistoryEntry.created_at).desc()).limit(_RECENT_ACTIVITY_LIMIT)).all()
     return [
         DashboardRecentActivityItem(

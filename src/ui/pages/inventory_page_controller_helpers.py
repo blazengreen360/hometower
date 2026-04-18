@@ -42,13 +42,23 @@ def relative_time(dt: datetime) -> str:
     return f"{diff // 86400}d ago"
 
 
-async def load_inventory_devices(token: str) -> list[DeviceResponseEnriched]:
+def _inventory_query_params(workspace_id: str | None) -> dict[str, str]:
+    params = {"include": "location,tags,services,networks", "limit": "1000"}
+    if workspace_id:
+        params["workspace_id"] = workspace_id
+    return params
+
+
+async def load_inventory_devices(
+    token: str,
+    workspace_id: str | None,
+) -> list[DeviceResponseEnriched]:
     """Load enriched inventory devices for the page controller."""
     try:
         async with httpx.AsyncClient() as http:
             response = await http.get(
                 f"{settings.api_base_url}/api/devices/",
-                params={"include": "location,tags,services,networks", "limit": "1000"},
+                params=_inventory_query_params(workspace_id),
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=10.0,
             )
@@ -69,6 +79,7 @@ async def load_inventory_devices(token: str) -> list[DeviceResponseEnriched]:
 async def load_inventory_placement_data(
     token: str,
     device_ids: set[uuid.UUID],
+    workspace_id: str | None,
 ) -> tuple[set[str], dict[str, int]]:
     """Return orphan IDs and placement counts for the inventory table."""
     all_ids = {str(device_id) for device_id in device_ids}
@@ -76,6 +87,7 @@ async def load_inventory_placement_data(
         async with httpx.AsyncClient() as http:
             response = await http.get(
                 f"{settings.api_base_url}/api/devices/placed-ids",
+                params={"workspace_id": workspace_id} if workspace_id else None,
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=10.0,
             )

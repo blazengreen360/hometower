@@ -13,7 +13,7 @@ from nicegui.elements.table import Table
 
 from src.models.device import DeviceResponseEnriched
 from src.models.location import LocationResponse
-from src.models.types import DeviceType
+from src.models.types import DeviceStatus, DeviceType
 from src.ui.pages.inventory_bulk_actions import BulkActionOutcome
 from src.ui.pages.inventory_bulk_toolbar import BulkToolbarRefs
 
@@ -28,8 +28,10 @@ class UiJavascriptRunner(Protocol):
 class InventoryStateProtocol(Protocol):
     all_devices: list[DeviceResponseEnriched]
     filtered_devices: list[DeviceResponseEnriched]
+    workspace_id: str | None
     search: str
     types: set[DeviceType]
+    statuses: set[DeviceStatus]
     tag_ids: set[uuid.UUID]
     orphan_ids: set[str]
     placement_counts: dict[str, int]
@@ -64,6 +66,9 @@ class InventoryRuntimeRefs:
     empty: Element | None = None
     search: Input | None = None
     orphan_cb: Checkbox | None = None
+    status_scope: Element | None = None
+    status_scope_label: Element | None = None
+    clear_status_button: Element | None = None
     chips_row: Element | None = None
     tag_chip_row: Element | None = None
     bulk_toolbar: BulkToolbarRefs | None = None
@@ -81,9 +86,9 @@ class InventoryPageDeps:
     inventory_table_columns: Callable[[bool], list[dict[str, object]]]
     build_inventory_csv: Callable[[list[DeviceResponseEnriched]], str]
     build_inventory_csv_download_js: Callable[[str], str]
-    load_inventory_devices: Callable[[str], Awaitable[list[DeviceResponseEnriched]]]
+    load_inventory_devices: Callable[[str, str | None], Awaitable[list[DeviceResponseEnriched]]]
     load_inventory_placement_data: Callable[
-        [str, set[uuid.UUID]],
+        [str, set[uuid.UUID], str | None],
         Awaitable[tuple[set[str], dict[str, int]]],
     ]
     load_tag_chips: Callable[

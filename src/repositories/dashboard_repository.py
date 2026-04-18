@@ -14,6 +14,7 @@ from src.repositories.dashboard_repository_support import count_recent_edits
 from src.repositories.dashboard_repository_support import count_topologies
 from src.repositories.dashboard_repository_support import list_workspaces
 from src.repositories.dashboard_repository_support import resolve_workspace_selection
+from src.repositories.dashboard_repository_support import scoped_device_ids
 
 
 def get_summary(
@@ -27,22 +28,28 @@ def get_summary(
         workspaces,
         selected_workspace_id,
     )
+    device_ids = scoped_device_ids(session, selected_workspace_id, owner_id)
     return DashboardSummaryResponse(
-        devices=count_devices(session),
+        devices=count_devices(session, device_ids),
         workspaces=len(workspaces),
-        topologies=count_topologies(session, owner_id),
-        offline_devices=count_devices(session, offline_only=True),
-        recent_edits=count_recent_edits(session, owner_id),
+        topologies=count_topologies(session, selected_workspace_id, owner_id),
+        offline_devices=count_devices(session, device_ids, offline_only=True),
+        recent_edits=count_recent_edits(session, device_ids, selected_workspace_id, owner_id),
         power=build_power_widget(
             session,
+            device_ids,
             workspaces,
             selected_workspace_id,
             selected_workspace_name,
-            owner_id,
         ),
         inventory_breakdown=DashboardInventoryBreakdown(
-            status_counts=build_status_counts(session),
-            type_counts=build_type_counts(session),
+            status_counts=build_status_counts(session, device_ids),
+            type_counts=build_type_counts(session, device_ids),
         ),
-        recent_activity=build_recent_activity(session, owner_id),
+        recent_activity=build_recent_activity(
+            session,
+            device_ids,
+            selected_workspace_id,
+            owner_id,
+        ),
     )

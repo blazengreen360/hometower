@@ -1,4 +1,3 @@
-"""Device service — orchestrates domain logic and device repository."""
 import uuid
 from datetime import datetime, timezone
 
@@ -7,44 +6,42 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
 from src.domain import devices as device_domain
-from src.models.device import Device, DeviceCreate, DevicePlacement, DeviceUpdate
+from src.models.device import Device, DeviceCreate, DevicePlacement, DeviceResponseEnriched, DeviceUpdate
 from src.repositories import (
     connection_repository,
     device_repository,
     diagram_repository,
     location_repository,
     topology_repository,
+    workspace_repository,
 )
 from src.services import attachment_service
-from src.services.device_enrichment_service import (  # noqa: F401 — re-export
-    get_all_enriched,
-    get_by_id_enriched,
-)
+from src.services.device_enrichment_service import get_all_enriched as _get_all_enriched
+from src.services.device_enrichment_service import get_by_id_enriched
 from src.utils.logger import logger
 
-
 def _assert_location_exists(location_id: uuid.UUID, session: Session) -> None:
-    """Raise HTTP 400 if the given location_id does not exist."""
     loc = location_repository.get_by_id(session, location_id)
     if loc is None:
         raise HTTPException(status_code=400, detail="Location not found")
 
-
 def _assert_parent_exists(parent_id: uuid.UUID, session: Session) -> None:
-    """Raise HTTP 400 if the given parent_id does not exist (HT-021)."""
     parent = device_repository.get_by_id(session, parent_id)
     if parent is None:
         raise HTTPException(status_code=400, detail="Parent device not found")
 
-
 def _raise_device_conflict(exc: IntegrityError, session: Session, detail: str) -> None:
-    """Rollback a failed write transaction and return a consistent conflict response."""
     session.rollback()
     raise HTTPException(status_code=409, detail=detail) from exc
 
+def _assert_workspace_owned(workspace_id: uuid.UUID | None, owner_id: uuid.UUID | None, session: Session) -> None:
+    if workspace_id is None:
+        return
+    workspace = workspace_repository.get_by_id(session, workspace_id)
+    if workspace is None or owner_id is None or workspace.owner_id != owner_id:
+        raise HTTPException(status_code=404, detail="Workspace not found")
 
 def create(data: DeviceCreate, session: Session) -> Device:
-    """Validate and persist a new device."""
     validated_ip = device_domain.validate_ip(data.ip)
     if data.location_id is not None:
         _assert_location_exists(data.location_id, session)
@@ -70,24 +67,51 @@ def create(data: DeviceCreate, session: Session) -> Device:
     logger.info("Device created: id={} name={}", result.id, result.name)
     return result
 
-
 def get_by_id(device_id: uuid.UUID, session: Session) -> Device:
-    """Return the device or raise HTTP 404."""
     device = device_repository.get_by_id(session, device_id)
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
     return device
 
-
 def get_all(
-    session: Session, page: int, limit: int, sort: str | None = None
+    session: Session,
+    page: int,
+    limit: int,
+    sort: str | None = None,
+    workspace_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
 ) -> tuple[list[Device], int]:
-    """Return a paginated list of devices and total count."""
-    return device_repository.get_all(session, page, limit, sort=sort)
+    _assert_workspace_owned(workspace_id, owner_id, session)
+    return device_repository.get_all(
+        session,
+        page,
+        limit,
+        sort=sort,
+        workspace_id=workspace_id,
+    )
 
+def get_all_enriched(
+    session: Session,
+    page: int,
+    limit: int,
+    include: set[str],
+    q: str | None = None,
+    sort: str | None = None,
+    workspace_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
+) -> tuple[list[DeviceResponseEnriched], int]:
+    _assert_workspace_owned(workspace_id, owner_id, session)
+    return _get_all_enriched(
+        session,
+        page,
+        limit,
+        include,
+        q=q,
+        sort=sort,
+        workspace_id=workspace_id,
+    )
 
 def update(device_id: uuid.UUID, data: DeviceUpdate, session: Session) -> Device:
-    """Partially update a device; raise HTTP 404 if not found."""
     device = device_repository.get_by_id(session, device_id)
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -134,11 +158,7 @@ def update(device_id: uuid.UUID, data: DeviceUpdate, session: Session) -> Device
     logger.info("Device updated: id={} name={}", result.id, result.name)
     return result
 
-
-def get_device_placements(
-    device_id: uuid.UUID, session: Session
-) -> list[DevicePlacement]:
-    """Scan all diagram layouts for nodes matching *device_id*."""
+def get_device_placements(device_id: uuid.UUID, session: Session) -> list[DevicePlacement]:
     device_id_str = str(device_id)
     layouts = diagram_repository.get_all_layouts(session)
     placements: list[DevicePlacement] = []
@@ -161,9 +181,7 @@ def get_device_placements(
             )
     return placements
 
-
 def get_placed_device_ids(session: Session) -> set[uuid.UUID]:
-    """Return the set of device UUIDs that appear in at least one View."""
     layouts = diagram_repository.get_all_layouts(session)
     placed: set[uuid.UUID] = set()
     for layout in layouts:
@@ -183,16 +201,11 @@ def get_placed_device_ids(session: Session) -> set[uuid.UUID]:
                     continue
     return placed
 
-
-def _clean_device_from_views(
-    device_id: uuid.UUID, session: Session
-) -> int:
-    """Remove device nodes/edges from legacy non-topology views only."""
+def _clean_device_from_views(device_id: uuid.UUID, session: Session) -> int:
     device_id_str = str(device_id)
     layouts = diagram_repository.get_all_layouts(session)
     modified = 0
     for layout in layouts:
-        # Topology-linked layouts are immutable history/current snapshots; preserve refs for ghost synthesis.
         if layout.topology_id is not None:
             continue
         cj = layout.cytoscape_json
@@ -208,34 +221,24 @@ def _clean_device_from_views(
             modified += 1
     return modified
 
-
 def delete(device_id: uuid.UUID, session: Session) -> None:
-    """Delete a device with cascade: connections, view placements, then the device itself."""
     device = device_repository.get_by_id(session, device_id)
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
-
-    # Children still block deletion
     child_count = device_repository.count_children(session, device_id)
     try:
         device_domain.validate_device_no_children(child_count)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    # Cascade: delete connections
     conn_count = connection_repository.delete_by_device(session, device_id)
     if conn_count:
         logger.info("Cascade-deleted {} connection(s) for device={}", conn_count, device_id)
-
     attachment_count = attachment_service.delete_all_for_device(device_id, session, commit=False)
     if attachment_count:
         logger.info("Cascade-deleted {} attachment(s) for device={}", attachment_count, device_id)
-
-    # Cascade: clean cytoscape_json in all views
     view_count = _clean_device_from_views(device_id, session)
     if view_count:
         logger.info("Cleaned device={} from {} view(s)", device_id, view_count)
-
     device_repository.delete(session, device)
     session.commit()
     if attachment_count:

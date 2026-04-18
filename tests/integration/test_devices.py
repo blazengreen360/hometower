@@ -7,6 +7,72 @@ from fastapi.testclient import TestClient
 DEVICE_PAYLOAD: dict[str, str] = {"name": "test-server", "type": "Server"}
 
 
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _create_workspace(
+    client: TestClient,
+    token: str,
+    name: str,
+) -> dict[str, object]:
+    response = client.post(
+        "/api/workspaces/",
+        json={"name": name},
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
+def _create_topology(
+    client: TestClient,
+    token: str,
+    workspace_id: str,
+    name: str,
+) -> dict[str, object]:
+    response = client.post(
+        f"/api/workspaces/{workspace_id}/topologies/",
+        json={"name": name},
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
+def _save_topology_version(
+    client: TestClient,
+    token: str,
+    topology_id: str,
+    snapshot_name: str,
+    device_ids: list[str],
+) -> None:
+    nodes = [
+        {
+            "data": {
+                "id": f"node-{index}",
+                "device_id": device_id,
+            },
+            "position": {"x": index * 120, "y": 100},
+        }
+        for index, device_id in enumerate(device_ids, start=1)
+    ]
+    response = client.post(
+        f"/api/topologies/{topology_id}/save-version",
+        json={
+            "snapshot_name": snapshot_name,
+            "cytoscape_json": {
+                "elements": {"nodes": nodes, "edges": []},
+                "zoom": 1,
+                "pan": {"x": 0, "y": 0},
+                "collapsedNodes": [],
+            },
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 200
+
+
 class TestCreateDevice:
     def test_create_device_as_contributor_returns_201(
         self, client: TestClient, contributor_token: str
@@ -106,6 +172,91 @@ class TestListDevices:
         data = response.json()
         assert data["page"] == 2
         assert data["limit"] == 10
+
+    def test_list_devices_workspace_scope_uses_current_diagram_membership(
+        self, client: TestClient, contributor_token: str
+    ) -> None:
+        headers = _auth(contributor_token)
+        workspace_one = _create_workspace(client, contributor_token, "Scoped One")
+        workspace_two = _create_workspace(client, contributor_token, "Scoped Two")
+        topology_one = _create_topology(
+            client, contributor_token, str(workspace_one["id"]), "Topo One"
+        )
+        topology_two = _create_topology(
+            client, contributor_token, str(workspace_two["id"]), "Topo Two"
+        )
+
+        stale_device = client.post(
+            "/api/devices/",
+            json={"name": "Stale Device", "type": "Server"},
+            headers=headers,
+        ).json()
+        current_device = client.post(
+            "/api/devices/",
+            json={"name": "Current Device", "type": "Server"},
+            headers=headers,
+        ).json()
+        other_workspace_device = client.post(
+            "/api/devices/",
+            json={"name": "Other Workspace Device", "type": "Switch"},
+            headers=headers,
+        ).json()
+
+        _save_topology_version(
+            client,
+            contributor_token,
+            str(topology_one["id"]),
+            "Initial",
+            [str(stale_device["id"])],
+        )
+        _save_topology_version(
+            client,
+            contributor_token,
+            str(topology_one["id"]),
+            "Current",
+            [str(current_device["id"])],
+        )
+        _save_topology_version(
+            client,
+            contributor_token,
+            str(topology_two["id"]),
+            "Other Workspace",
+            [str(other_workspace_device["id"])],
+        )
+
+        raw_response = client.get(
+            f"/api/devices/?workspace_id={workspace_one['id']}&limit=1000",
+            headers=headers,
+        )
+        enriched_response = client.get(
+            f"/api/devices/?workspace_id={workspace_one['id']}&include=location&limit=1000",
+            headers=headers,
+        )
+
+        assert raw_response.status_code == 200
+        assert enriched_response.status_code == 200
+        assert raw_response.json()["total"] == 1
+        assert [item["name"] for item in raw_response.json()["items"]] == ["Current Device"]
+        assert enriched_response.json()["total"] == 1
+        assert [item["name"] for item in enriched_response.json()["items"]] == [
+            "Current Device"
+        ]
+
+    def test_list_devices_workspace_scope_rejects_non_owned_workspace(
+        self,
+        client: TestClient,
+        contributor_token: str,
+        reader_token: str,
+    ) -> None:
+        workspace = _create_workspace(client, contributor_token, "Hidden Workspace")
+
+        response = client.get(
+            f"/api/devices/?workspace_id={workspace['id']}",
+            headers=_auth(reader_token),
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Workspace not found"
 
 
 class TestUpdateDevice:

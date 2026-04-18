@@ -1,9 +1,8 @@
-"""Unit tests for dashboard power card rendering contract (HT-044 regression).
-"""
-
+"""Unit tests for HT-082 dashboard power widget behavior."""
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import httpx
@@ -23,114 +22,229 @@ def _noop_shell():
     return _C()
 
 
-def test_dashboard_power_card_shows_monthly_cost_and_top_locations(
-    monkeypatch,
-) -> None:
+def _summary_payload(*, watts: int, cost: float | None, selected_workspace_id: str | None = None) -> dict[str, object]:
+    return {
+        "devices": 7,
+        "workspaces": 2,
+        "topologies": 3,
+        "offline_devices": 1,
+        "recent_edits": 4,
+        "power": {
+            "workspace_options": [
+                {"id": None, "name": "All Workspaces"},
+                {"id": "ws-1", "name": "Lab One"},
+            ],
+            "selected_workspace_id": selected_workspace_id,
+            "selected_workspace_name": "All Workspaces" if selected_workspace_id is None else "Lab One",
+            "total_watts": watts,
+            "estimated_monthly_cost": cost,
+            "currency": "USD" if cost is not None else None,
+        },
+        "inventory_breakdown": {"status_counts": [], "type_counts": []},
+        "recent_activity": [],
+    }
+
+
+def _scoped_summary_payload(
+    *,
+    devices: int,
+    workspaces: int,
+    topologies: int,
+    offline_devices: int,
+    recent_edits: int,
+    watts: int,
+    cost: float,
+    selected_workspace_id: str | None,
+    selected_workspace_name: str,
+    status_key: str,
+    type_key: str,
+    activity_title: str,
+) -> dict[str, object]:
+    return {
+        "devices": devices,
+        "workspaces": workspaces,
+        "topologies": topologies,
+        "offline_devices": offline_devices,
+        "recent_edits": recent_edits,
+        "power": {
+            "workspace_options": [
+                {"id": None, "name": "All Workspaces"},
+                {"id": "ws-1", "name": "Lab One"},
+            ],
+            "selected_workspace_id": selected_workspace_id,
+            "selected_workspace_name": selected_workspace_name,
+            "total_watts": watts,
+            "estimated_monthly_cost": cost,
+            "currency": "USD",
+        },
+        "inventory_breakdown": {
+            "status_counts": [{"key": status_key, "count": 3, "route": f"/inventory?status={status_key}"}],
+            "type_counts": [{"key": type_key, "count": 4, "route": f"/inventory?type={type_key}"}],
+        },
+        "recent_activity": [
+            {
+                "kind": "device_updated",
+                "title": activity_title,
+                "subtitle": "Device updated",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "route": f"/inventory?search={activity_title}",
+            }
+        ],
+    }
+
+
+def test_dashboard_power_card_shows_monthly_cost(monkeypatch) -> None:
     import src.ui.pages.dashboard as dashboard_module
 
     fake_ui = FakeUI()
     install_fake_ui(monkeypatch, dashboard_module, fake_ui, {"access_token": "token"})
-
-    # Prevent auth redirect and app shell rendering
     monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
     monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
     monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
-
-    # Prepare HTTP responses for the six client.get calls in dashboard_page()
-    client_stub = AsyncClientStub(
-        [
-            httpx.Response(200, json={"total": 1}),  # devices
-            httpx.Response(200, json={"total": 2}),  # connections
-            httpx.Response(200, json=[]),  # locations
-            httpx.Response(200, json=[]),  # tags
-            httpx.Response(200, json={"items": []}),  # recent devices
-            httpx.Response(
-                200,
-                json={
-                    "total_watts": 666,
-                    "estimated_monthly_cost": 12.3456,
-                    "currency": "USD",
-                    "by_location": [
-                        {
-                            "location_id": "loc-1",
-                            "location_name": "Rack 1",
-                            "parent_location_id": None,
-                            "total_watts": 250,
-                        },
-                        {
-                            "location_id": "loc-2",
-                            "location_name": "Rack 2",
-                            "parent_location_id": None,
-                            "total_watts": 500,
-                        },
-                        {
-                            "location_id": "child-1",
-                            "location_name": "Child",
-                            "parent_location_id": "loc-1",
-                            "total_watts": 10,
-                        },
-                    ],
-                },
-            ),
-        ]
+    monkeypatch.setattr(
+        dashboard_module.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: AsyncClientStub(
+            [httpx.Response(200, json=_summary_payload(watts=666, cost=12.3456))]
+        ),
     )
 
-    monkeypatch.setattr(dashboard_module.httpx, "AsyncClient", lambda *args, **kwargs: client_stub)
-
-    # Invoke the page
     asyncio.run(dashboard_module.dashboard_page())
 
-    labels = [l.text_value for l in fake_ui.created.get("label", [])]
-
-    # Total watts label should be present
-    assert any(lbl == "666W" for lbl in labels)
-
-    # Monthly cost should be formatted to two decimals and include currency
-    assert any("12.35 USD / month" in lbl for lbl in labels)
-
-    # Top locations should include Rack 1 and Rack 2 and their watt labels
-    assert any("Rack 1" == lbl for lbl in labels)
-    assert any("250W" == lbl for lbl in labels)
-    assert any("Rack 2" == lbl for lbl in labels)
-    assert any("500W" == lbl for lbl in labels)
+    labels = [label.text_value for label in fake_ui.created["label"]]
+    assert "666W" in labels
+    assert "12.35 USD / month" in labels
+    workspace_select = fake_ui.created["select"][0]
+    inventory_button = next(button for button in fake_ui.created["button"] if button.value == "View Inventory")
+    assert workspace_select.label == "Workspace Scope"
+    assert workspace_select.options == {"": "All Workspaces", "ws-1": "Lab One"}
+    assert "update:model-value" not in workspace_select.js_handlers
+    assert "click" not in inventory_button.js_handlers
+    inventory_button.handlers["click"]()
+    assert fake_ui.navigate.to_calls[-1] == ("/inventory", False)
 
 
-def test_dashboard_power_card_shows_rate_not_configured_when_missing(
-    monkeypatch,
-) -> None:
+def test_dashboard_workspace_switch_rerenders_full_summary(monkeypatch) -> None:
     import src.ui.pages.dashboard as dashboard_module
 
     fake_ui = FakeUI()
     install_fake_ui(monkeypatch, dashboard_module, fake_ui, {"access_token": "token"})
-
     monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
     monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
     monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
 
     client_stub = AsyncClientStub(
         [
-            httpx.Response(200, json={"total": 0}),
-            httpx.Response(200, json={"total": 0}),
-            httpx.Response(200, json=[]),
-            httpx.Response(200, json=[]),
-            httpx.Response(200, json={"items": []}),
             httpx.Response(
                 200,
-                json={
-                    "total_watts": 0,
-                    "estimated_monthly_cost": None,
-                    "currency": None,
-                    "by_location": [],
-                },
+                json=_scoped_summary_payload(
+                    devices=7,
+                    workspaces=2,
+                    topologies=3,
+                    offline_devices=1,
+                    recent_edits=4,
+                    watts=666,
+                    cost=12.34,
+                    selected_workspace_id=None,
+                    selected_workspace_name="All Workspaces",
+                    status_key="Offline",
+                    type_key="Server",
+                    activity_title="Global VM",
+                ),
+            ),
+            httpx.Response(
+                200,
+                json=_scoped_summary_payload(
+                    devices=21,
+                    workspaces=1,
+                    topologies=8,
+                    offline_devices=5,
+                    recent_edits=13,
+                    watts=250,
+                    cost=4.56,
+                    selected_workspace_id="ws-1",
+                    selected_workspace_name="Lab One",
+                    status_key="Online",
+                    type_key="Switch",
+                    activity_title="Scoped VM",
+                ),
             ),
         ]
     )
-
     monkeypatch.setattr(dashboard_module.httpx, "AsyncClient", lambda *args, **kwargs: client_stub)
 
     asyncio.run(dashboard_module.dashboard_page())
 
-    labels = [l.text_value for l in fake_ui.created.get("label", [])]
+    workspace_select = fake_ui.created["select"][0]
+    asyncio.run(workspace_select.handlers["value_change"](SimpleNamespace(value="ws-1")))
 
-    # When rate not configured the dashboard displays a hint string
-    assert any(lbl == "Rate not configured" for lbl in labels)
+    labels = [label.text_value for label in fake_ui.created["label"]]
+    links = [link.value for link in fake_ui.created["link"]]
+
+    assert "21" in labels
+    assert "8" in labels
+    assert "13" in labels
+    assert "Lab One" in labels
+    assert "250W" in labels
+    assert "4.56 USD / month" in labels
+    assert "Online" in links
+    assert "Switch" in links
+    assert "Scoped VM" in links
+    assert any("history.replaceState" in script for script in fake_ui.run_javascript_calls)
+    assert client_stub.call_kwargs[1]["params"] == {"workspace_id": "ws-1"}
+    inventory_button = [button for button in fake_ui.created["button"] if button.value == "View Inventory"][-1]
+    inventory_button.handlers["click"]()
+    assert fake_ui.navigate.to_calls[-1] == ("/inventory?workspace_id=ws-1", False)
+
+
+def test_dashboard_scope_query_loads_filtered_summary(monkeypatch) -> None:
+    import src.ui.pages.dashboard as dashboard_module
+
+    fake_ui = FakeUI()
+    install_fake_ui(monkeypatch, dashboard_module, fake_ui, {"access_token": "token"})
+    monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
+    monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+    monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
+
+    client_stub = AsyncClientStub(
+        [
+            httpx.Response(
+                200,
+                json=_scoped_summary_payload(
+                    devices=9,
+                    workspaces=1,
+                    topologies=6,
+                    offline_devices=2,
+                    recent_edits=5,
+                    watts=120,
+                    cost=3.21,
+                    selected_workspace_id="ws-1",
+                    selected_workspace_name="Lab One",
+                    status_key="Online",
+                    type_key="Switch",
+                    activity_title="Scoped VM",
+                ),
+            ),
+        ]
+    )
+    monkeypatch.setattr(dashboard_module.httpx, "AsyncClient", lambda *args, **kwargs: client_stub)
+
+    asyncio.run(dashboard_module.dashboard_page(workspace_id="ws-1"))
+
+    labels = [label.text_value for label in fake_ui.created["label"]]
+    links = [link.value for link in fake_ui.created["link"]]
+    inventory_button = next(button for button in fake_ui.created["button"] if button.value == "View Inventory")
+
+    assert "9" in labels
+    assert "6" in labels
+    assert "5" in labels
+    assert "Lab One" in labels
+    assert "120W" in labels
+    assert "3.21 USD / month" in labels
+    assert "Online" in links
+    assert "Switch" in links
+    assert "Scoped VM" in links
+    assert "click" not in inventory_button.js_handlers
+    inventory_button.handlers["click"]()
+    assert fake_ui.navigate.to_calls[-1] == ("/inventory?workspace_id=ws-1", False)
+    assert client_stub.call_kwargs[0]["params"] == {"workspace_id": "ws-1"}

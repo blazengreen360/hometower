@@ -1,13 +1,14 @@
 """Filter, chip, and loading helpers for the inventory page runtime."""
 from __future__ import annotations
 
-from typing import Callable, cast
+from typing import Callable, Protocol, cast
 
 from nicegui.element import Element
 from nicegui.elements.table import Table
 
 from src.domain import inventory as inventory_domain
-from src.models.types import DeviceType
+from src.models.device import DeviceResponseEnriched
+from src.models.types import DeviceStatus, DeviceType
 from src.ui.components.toast import show_toast
 from src.ui.design.primitives import set_filter_chip_state
 from src.ui.pages.inventory_page_runtime_contracts import (
@@ -43,44 +44,13 @@ class InventoryRuntimeFilters:
         self._sync_toolbar = sync_toolbar
 
     def apply_filters(self, *, clear_selection: bool) -> None:
-        filtered = inventory_domain.filter_devices(
-            self._state.all_devices,
-            self._state.search,
-            self._state.types,
-            self._state.tag_ids,
-        )
-        if self._state.orphan_only:
-            filtered = [device for device in filtered if str(device.id) in self._state.orphan_ids]
+        filtered = self._filter_devices()
         self._state.filtered_devices = filtered
-
-        rows = self._deps.build_inventory_rows(
-            filtered,
-            self._deps.relative_time,
-            orphan_ids=self._state.orphan_ids,
-            can_delete=self._can_delete,
-            placement_counts=self._state.placement_counts,
-        )
+        rows = self._build_rows(filtered)
         self._table().update_rows(rows, clear_selection=clear_selection)
-
-        if clear_selection:
-            self._state.selected_ids.clear()
-            setattr(self._table(), "selected", [])
-        else:
-            visible_ids = {
-                str(row.get("id", ""))
-                for row in rows
-                if isinstance(row, dict) and row.get("id")
-            }
-            self._state.selected_ids.intersection_update(visible_ids)
-            self._sync_selected_rows()
-
-        has_filter = bool(
-            self._state.search
-            or self._state.types
-            or self._state.tag_ids
-            or self._state.orphan_only
-        )
-        self._empty().set_visibility(len(rows) == 0 and has_filter)
+        self._sync_selection(rows, clear_selection=clear_selection)
+        self._empty().set_visibility(len(rows) == 0 and self._has_active_filters())
+        self._sync_status_scope()
         self._sync_toolbar()
 
     async def export_csv(self) -> None:
@@ -94,6 +64,8 @@ class InventoryRuntimeFilters:
     def clear_filters(self) -> None:
         self._state.search = ""
         self._state.types.clear()
+        if hasattr(self._state, "statuses"):
+            getattr(self._state, "statuses").clear()
         self._state.tag_ids.clear()
         self._state.orphan_only = False
         _require(self._refs.search, "search").set_value("")
@@ -137,11 +109,15 @@ class InventoryRuntimeFilters:
         self._refs.chips = cast(list[dict[str, object]], helper_refs["chips"])
 
     async def load_devices(self) -> None:
-        self._state.all_devices = await self._deps.load_inventory_devices(self._token)
+        self._state.all_devices = await self._deps.load_inventory_devices(
+            self._token,
+            self._state.workspace_id,
+        )
         self._state.orphan_ids, self._state.placement_counts = (
             await self._deps.load_inventory_placement_data(
                 self._token,
                 {device.id for device in self._state.all_devices},
+                self._state.workspace_id,
             )
         )
         self.render_type_chips()
@@ -156,6 +132,60 @@ class InventoryRuntimeFilters:
             lambda: self.apply_filters(clear_selection=True),
         )
 
+    def _filter_devices(self) -> list[DeviceResponseEnriched]:
+        filtered = inventory_domain.filter_devices(
+            self._state.all_devices,
+            self._state.search,
+            self._state.types,
+            self._state.tag_ids,
+        )
+        filtered = self._filter_orphans(filtered)
+        return self._filter_statuses(filtered)
+
+    def _filter_orphans(self, devices: list[DeviceResponseEnriched]) -> list[DeviceResponseEnriched]:
+        if not self._state.orphan_only:
+            return devices
+        return [device for device in devices if str(getattr(device, "id", "")) in self._state.orphan_ids]
+
+    def _filter_statuses(self, devices: list[DeviceResponseEnriched]) -> list[DeviceResponseEnriched]:
+        statuses: set[object] = getattr(self._state, "statuses", set())
+        if not statuses:
+            return devices
+        return [device for device in devices if getattr(device, "status", None) in statuses]
+
+    def _build_rows(self, filtered: list[DeviceResponseEnriched]) -> list[dict[str, object]]:
+        return self._deps.build_inventory_rows(
+            filtered,
+            self._deps.relative_time,
+            orphan_ids=self._state.orphan_ids,
+            can_delete=self._can_delete,
+            placement_counts=self._state.placement_counts,
+        )
+
+    def _sync_selection(self, rows: list[dict[str, object]], *, clear_selection: bool) -> None:
+        if clear_selection:
+            self._state.selected_ids.clear()
+            setattr(self._table(), "selected", [])
+            return
+        self._state.selected_ids.intersection_update(self._visible_ids(rows))
+        self._sync_selected_rows()
+
+    def _visible_ids(self, rows: list[dict[str, object]]) -> set[str]:
+        return {
+            str(row.get("id", ""))
+            for row in rows
+            if isinstance(row, dict) and row.get("id")
+        }
+
+    def _has_active_filters(self) -> bool:
+        return bool(
+            self._state.search
+            or self._state.types
+            or getattr(self._state, "statuses", set())
+            or self._state.tag_ids
+            or self._state.orphan_only
+        )
+
     def _reset_chip_group(self, chips: list[dict[str, object]], required_name: str) -> None:
         for meta in chips:
             meta["active"] = False
@@ -164,3 +194,37 @@ class InventoryRuntimeFilters:
                 str(meta.get("color", "var(--ht-accent)")),
                 False,
             )
+
+    def _sync_status_scope(self) -> None:
+        if self._refs.status_scope is None or self._refs.status_scope_label is None:
+            return
+        label_text = describe_status_scope(self._state.statuses)
+        is_visible = bool(label_text)
+        _set_element_visibility(self._refs.status_scope, is_visible)
+        cast(_TextLabel, self._refs.status_scope_label).set_text(label_text)
+        _update_element(self._refs.status_scope_label)
+        if self._refs.clear_status_button is not None:
+            _set_element_visibility(self._refs.clear_status_button, is_visible)
+
+
+class _TextLabel(Protocol):
+    def set_text(self, text: str) -> None:
+        ...
+
+
+def describe_status_scope(statuses: set[DeviceStatus]) -> str:
+    active_statuses = sorted(status.value for status in statuses)
+    if not active_statuses:
+        return ""
+    return "Status filter: " + ", ".join(active_statuses)
+
+
+def _set_element_visibility(element: Element, visible: bool) -> None:
+    element.set_visibility(visible)
+    _update_element(element)
+
+
+def _update_element(element: object) -> None:
+    updater = getattr(element, "update", None)
+    if callable(updater):
+        updater()

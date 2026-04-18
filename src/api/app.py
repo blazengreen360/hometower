@@ -22,6 +22,7 @@ from src.api.middleware.security_headers import SecurityHeadersMiddleware
 from src.utils.settings import settings
 from src.api.routers.auth import router as auth_router
 from src.api.routers.connections import router as connections_router
+from src.api.routers.dashboard import router as dashboard_router
 from src.api.routers.devices import router as devices_router
 from src.api.routers.device_attachments import router as device_attachments_router
 from src.api.routers.device_sub_routes import router as device_sub_routes_router
@@ -92,6 +93,7 @@ app.add_middleware(
 )
 app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(auth_router, prefix="/api")
+app.include_router(dashboard_router, prefix="/api")
 app.include_router(devices_router, prefix="/api")
 app.include_router(device_attachments_router, prefix="/api")
 app.include_router(device_sub_routes_router, prefix="/api")
@@ -112,6 +114,5 @@ app.include_router(topologies_nested_router, prefix="/api")
 app.include_router(topologies_standalone_router, prefix="/api")
 app.include_router(topology_editor_router, prefix="/api")
 app.include_router(views_router, prefix="/api")
-
 
 
