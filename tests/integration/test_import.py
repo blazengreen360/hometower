@@ -277,7 +277,7 @@ class TestImportValidation:
 
         detail_resp = client.get(
             f"/api/devices/{existing['id']}",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert detail_resp.status_code == 200
         assert detail_resp.json()["id"] == existing["id"]

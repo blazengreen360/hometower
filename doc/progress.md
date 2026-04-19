@@ -1,36 +1,40 @@
-# HT-082 Progress — Dashboard Revamp And Power Widgets
+# HT-082 Follow-Up Progress — Dashboard Semantic Remediation
 
-**Story:** HT-082 (L)
-**Started:** 18 April 2026
-**Status:** In Progress
+**Story:** HT-082 follow-up (review remediation)
+**Started:** 19 Apr 2026
+**Status:** Done
 
 ## Work Plan (CPM)
-B1 implement a backend dashboard aggregate endpoint + model + tests -> B2 implement the premium dashboard UI against that aggregate contract + focused UI tests -> B3 run mandatory live user validation on dashboard widgets, filtering, and navigation -> B4 formal code review with mandatory gates and local commit on approval -> B5 close out story bookkeeping
 
-Critical path: B1 -> B2 -> B3 -> B4 -> B5
-Parallelizable work is intentionally limited: the backend contract must settle before the frontend lane finalizes the dashboard widget wiring, but UI styling/component extraction can begin once the response shape is clear.
+Critical path:
+1. QA-Fixer reproduces the review findings fail-first with focused regressions
+2. QA-Fixer corrects dashboard aggregation scope and recent-activity routing semantics
+3. User-Simulator validates the real dashboard click paths and scoped totals in the live app
+4. CI-Gatekeeper runs mandatory gates on the reviewed scope
+5. Code-Reviewer lane A and lane B independently review against the passing gate report
 
-## Decisive Proof
-- Dashboard `/` renders a balanced overview with real aggregate data from a single dashboard summary contract rather than scatter-gather page fetches.
-- Power widget supports `All` vs workspace filtering without a full page reload.
-- Inventory/status widgets navigate to pre-filtered `/inventory`.
-- Recent activity shows the latest relevant changes and links to the resource.
-- Mandatory review gates pass: `docker compose exec api pytest`, `docker compose exec api mypy src/ --ignore-missing-imports`, `docker compose build`.
-- Code-Reviewer returns a valid verdict with exact gate evidence, then commits locally via Git-Committer.
+Parallelizable work:
+- Code-Reviewer A and Code-Reviewer B can run in parallel only after User-Simulator passes and CI-Gatekeeper returns a passing current-pipeline report.
 
 ## Bundle Progress
 | # | Bundle | Agent | Status | Notes |
 |---|---|---|---|---|
-| B1 | Backend aggregate contract + tests | PM -> Backend-Engineer | Pending | Build a single dashboard summary endpoint/service contract with efficient aggregate queries and recent-activity payload. |
-| B2 | Dashboard UI revamp + focused tests | PM -> Frontend-Engineer | Pending | Rebuild `/` against the aggregate endpoint with premium widget cards, workspace-aware power card, inventory/status drill-through, and recent-activity links. |
-| B3 | Mandatory live validation | PM -> User-Simulator | Pending | Validate dashboard load, power workspace switching, inventory drill-through, and recent activity link behavior in the browser. |
-| B4 | Formal review + local commit | PM -> Code-Reviewer | Pending | Review scoped diff, rerun mandatory gates in the review run, and commit locally if APPROVED. |
-| B5 | Close-out bookkeeping | PM | Pending | Update changelog, backlog, story archive, tracker if needed, and clear progress state after approval. |
+| B1 | Reproduce dashboard defects | QA-Fixer | Completed | Added focused fail-first proofs in `tests/unit/test_dashboard_repository.py` and route-opacity guard coverage in `tests/unit/test_dashboard_page.py`; preserved architect-confirmed workspace aggregate scope semantics. |
+| B2 | Patch dashboard semantics | QA-Fixer | Completed | QA-Fixer reconciled the live/runtime discrepancy by handling live schema compatibility in `src/repositories/dashboard_repository_support.py`; the previously failing recent device item now resolves to a concrete scoped topology route in the live app. |
+| B3 | Validate live dashboard flows | User-Simulator | Completed | Focused live recheck passed after the devices-router regression fix: dashboard loaded, recent-device click-through landed on the intended scoped topology route, and no environment blocker was observed. Residual evidence gap remains only for a recent topology item not being visible during the rerun. |
+| B4 | Run mandatory gates | CI-Gatekeeper | Completed | Final current-head verify gate PASS: `pytest` (`1918 passed, 2 warnings`), `mypy` PASS, architecture greps PASS, and `docker compose build` PASS. |
+| B5 | Review lane A | Code-Reviewer | Completed | Final approval on current HEAD after the last placed-ids owner-scope fix; no remaining blockers. |
+| B6 | Review lane B | Code-Reviewer | Completed | Final approval on current HEAD after the last placed-ids owner-scope fix; no remaining blockers. |
 
 ## Decisions
-- No Architect lane up front: the story already fixes the dashboard direction and the most efficient path is a direct backend aggregate contract plus frontend implementation.
-- The backend should own aggregation so the NiceGUI page does not issue multiple independent collection calls on load.
-- Recent activity should start with the simplest reliable sources already in the data model: recent devices and recent topology history/version events, then normalize them into one dashboard activity list.
+- Treat HT-082 review findings as an active follow-up remediation pipeline, not a new backlog story.
+- Keep scope bounded to dashboard aggregation semantics, dashboard-to-resource routing, and the corresponding proof tests.
+- Architect ruling (19 Apr 2026): workspace-scoped HT-082 aggregates should remain aligned to devices present in the current published topology state for the selected workspace, not all unplaced owner-visible devices; unplaced devices belong only in `All Workspaces` until a separate workspace-device ownership model exists.
+- Architect ruling (19 Apr 2026): recent-activity device links must resolve to a concrete resource. Preferred route is `/topology?workspace_id=<workspace_id>&topology_id=<topology_id>&device_id=<device_id>` when the device has a qualifying current published placement in scope; otherwise fall back to `/inventory/edit/<device_id>`.
+- Architect ruling (19 Apr 2026): no standalone RFC is required; proceed with direct remediation plus stronger semantic proof tests.
+
+## Blockers
+- Final verify truth on current HEAD: dashboard load PASS, recent-device click-through PASS, inventory load PASS, delete-confirmation placement count PASS (`1 topology diagram(s)`), full gate PASS, dual Code-Reviewer approval PASS.
 
 ## Blockers
 - None.

@@ -20,3 +20,9 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Runtime / cache
+.nicegui/
+.mypy_cache/
+.pytest_cache/
+.serena/

@@ -1,6 +1,7 @@
 """Row insertion helpers for full snapshot imports."""
 
 import secrets
+import uuid
 
 from sqlmodel import Session
 
@@ -22,11 +23,19 @@ from src.models.workspace import Workspace
 from src.utils.auth import hash_password
 
 
+def _default_device_owner_id(payload: ExportSchema) -> uuid.UUID | None:
+    owner_ids = {workspace.owner_id for workspace in payload.workspaces}
+    if len(owner_ids) == 1:
+        return next(iter(owner_ids))
+    return None
+
+
 def insert_snapshot_rows(session: Session, payload: ExportSchema) -> None:
     """Insert all payload rows in dependency-safe order for full imports."""
     user_password_sentinel = (
         hash_password(secrets.token_hex(32)) if payload.users else ""
     )
+    default_device_owner_id = _default_device_owner_id(payload)
 
     for user in payload.users:
         session.add(
@@ -131,6 +140,7 @@ def insert_snapshot_rows(session: Session, payload: ExportSchema) -> None:
                 notes=device.notes,
                 location_id=device.location_id,
                 parent_id=device.parent_id,
+                owner_id=default_device_owner_id,
                 created_at=device.created_at,
                 updated_at=device.updated_at,
             )

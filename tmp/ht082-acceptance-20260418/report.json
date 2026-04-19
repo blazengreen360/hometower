@@ -1,0 +1,56 @@
+{
+  "status": "FAIL",
+  "validation_results": {
+    "1": {
+      "status": "PASS",
+      "details": "Dashboard rendered the balanced widget set and matched live aggregate counts 44/118/119/0/156."
+    },
+    "2": {
+      "status": "PASS",
+      "details": "Power widget showed 0W and a visible workspace selector."
+    },
+    "3": {
+      "status": "PARTIAL",
+      "details": "Workspace switching updated the visible scope in place with no document reload, but the current live data has 0W in every workspace so a numeric power-total change was not observable."
+    },
+    "4": {
+      "status": "PASS",
+      "details": "The dashboard Type link navigated to http://localhost:8080/inventory?type=Server and hydrated the active Server chip."
+    },
+    "5": {
+      "status": "FAIL",
+      "details": "Status drill-through reached http://localhost:8080/inventory?status=Active, but the active status state was not visibly understandable/clearable in the UI (status_banner=False, clear_button=False)."
+    },
+    "6": {
+      "status": "PASS",
+      "details": "Device activity opened /inventory?search=HT078%20Live%20Publish%2020260418-2 with the search filter hydrated, and topology activity opened http://localhost:8080/topology?workspace_id=93c22220-36ab-4c70-8c32-dc9b94ac9257&topology_id=b4b9ccdc-5a7d-48bb-8422-1e1f3568625d."
+    },
+    "7": {
+      "status": "PASS",
+      "details": "The signed-in admin persona still had sensible session context and write-capable quick actions."
+    }
+  },
+  "artifacts": [
+    "/Users/jayharry28/Projects/hometower/tmp/ht082-acceptance-20260418/01-dashboard.png",
+    "/Users/jayharry28/Projects/hometower/tmp/ht082-acceptance-20260418/02-dashboard-workspace-switch.png",
+    "/Users/jayharry28/Projects/hometower/tmp/ht082-acceptance-20260418/03-inventory-type-server.png",
+    "/Users/jayharry28/Projects/hometower/tmp/ht082-acceptance-20260418/04-inventory-status-active.png",
+    "/Users/jayharry28/Projects/hometower/tmp/ht082-acceptance-20260418/05-recent-activity-device.png",
+    "/Users/jayharry28/Projects/hometower/tmp/ht082-acceptance-20260418/06-recent-activity-topology.png"
+  ],
+  "blockers": [],
+  "live_context": {
+    "dashboard_summary": {
+      "devices": 44,
+      "workspaces": 118,
+      "topologies": 119,
+      "offline_devices": 0,
+      "recent_edits": 156,
+      "power_total_watts": 0,
+      "power_currency": "EUR"
+    },
+    "distinct_power_totals_by_workspace": {
+      "0": 119
+    }
+  }
+}

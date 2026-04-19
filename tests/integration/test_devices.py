@@ -1,14 +1,39 @@
 """Integration tests for /api/devices/ CRUD endpoints and access control."""
+import uuid
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session, select
+
+from src.models.device import Device
+from src.models.types import Role
+from src.models.user import User
+from src.repositories import device_repository_support
+from src.services import device_layout_service_support
+from src.utils.auth import create_jwt, hash_password
 
 DEVICE_PAYLOAD: dict[str, str] = {"name": "test-server", "type": "Server"}
 
 
 def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _make_user(session: Session, role: Role = Role.Contributor) -> tuple[User, str]:
+    user = User(
+        username=f"devices_{uuid.uuid4().hex[:8]}",
+        email=f"{uuid.uuid4().hex[:8]}@devices.local",
+        password_hash=hash_password("x"),
+        role=role,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    token = create_jwt(
+        {"sub": str(user.id), "role": role.value, "version": user.token_version}
+    )
+    return user, token
 
 
 def _create_workspace(
@@ -100,6 +125,24 @@ class TestCreateDevice:
         assert response.status_code == 201
         assert response.json()["power_watts"] == 65
 
+    def test_create_device_stamps_authenticated_owner_id(
+        self, client: TestClient, session: Session
+    ) -> None:
+        owner, owner_token = _make_user(session, Role.Contributor)
+
+        response = client.post(
+            "/api/devices/",
+            json={"name": "owned-device", "type": "Server"},
+            headers=_auth(owner_token),
+        )
+
+        assert response.status_code == 201
+        created_id = uuid.UUID(response.json()["id"])
+        persisted = session.exec(
+            select(Device).where(Device.id == created_id)
+        ).one()
+        assert persisted.owner_id == owner.id
+
     def test_create_device_as_reader_returns_403(
         self, client: TestClient, reader_token: str
     ) -> None:
@@ -113,19 +156,32 @@ class TestCreateDevice:
 
 class TestGetDevice:
     def test_get_device_by_id_returns_200(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, session: Session, client: TestClient
     ) -> None:
+        owner, owner_token = _make_user(session, Role.Contributor)
         create_resp = client.post(
             "/api/devices/",
             json={"name": "get-me", "type": "Router"},
-            headers={"Authorization": f"Bearer {contributor_token}"},
+            headers=_auth(owner_token),
         )
         assert create_resp.status_code == 201
         device_id = create_resp.json()["id"]
 
+        owner.role = Role.Reader
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+        owner_reader_token = create_jwt(
+            {
+                "sub": str(owner.id),
+                "role": Role.Reader.value,
+                "version": owner.token_version,
+            }
+        )
+
         response = client.get(
             f"/api/devices/{device_id}",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(owner_reader_token),
         )
         assert response.status_code == 200
         assert response.json()["name"] == "get-me"
@@ -137,6 +193,27 @@ class TestGetDevice:
             f"/api/devices/{uuid4()}",
             headers={"Authorization": f"Bearer {reader_token}"},
         )
+        assert response.status_code == 404
+
+    def test_get_other_owner_device_returns_404(
+        self, session: Session, client: TestClient
+    ) -> None:
+        _, owner_token = _make_user(session, Role.Contributor)
+        _, other_reader_token = _make_user(session, Role.Reader)
+
+        create_resp = client.post(
+            "/api/devices/",
+            json={"name": "owner-only", "type": "Router"},
+            headers=_auth(owner_token),
+        )
+        assert create_resp.status_code == 201
+        device_id = create_resp.json()["id"]
+
+        response = client.get(
+            f"/api/devices/{device_id}",
+            headers=_auth(other_reader_token),
+        )
+
         assert response.status_code == 404
 
 
@@ -242,6 +319,66 @@ class TestListDevices:
             "Current Device"
         ]
 
+    def test_list_devices_workspace_scope_excludes_foreign_same_diagram_devices(
+        self,
+        client: TestClient,
+        session: Session,
+    ) -> None:
+        _, owner_one_token = _make_user(session, Role.Contributor)
+        _, owner_two_token = _make_user(session, Role.Contributor)
+
+        workspace = _create_workspace(client, owner_one_token, "Mixed Scope Workspace")
+        topology = _create_topology(
+            client,
+            owner_one_token,
+            str(workspace["id"]),
+            "Mixed Scope Topology",
+        )
+        owned_device_response = client.post(
+            "/api/devices/",
+            json={"name": "Mixed Scope Owned Device", "type": "Server"},
+            headers=_auth(owner_one_token),
+        )
+        foreign_device_response = client.post(
+            "/api/devices/",
+            json={"name": "Mixed Scope Foreign Device", "type": "Switch"},
+            headers=_auth(owner_two_token),
+        )
+
+        assert owned_device_response.status_code == 201
+        assert foreign_device_response.status_code == 201
+
+        owned_device = owned_device_response.json()
+        foreign_device = foreign_device_response.json()
+
+        _save_topology_version(
+            client,
+            owner_one_token,
+            str(topology["id"]),
+            "Mixed Scope Snapshot",
+            [str(owned_device["id"]), str(foreign_device["id"])],
+        )
+
+        raw_response = client.get(
+            f"/api/devices/?workspace_id={workspace['id']}&limit=1000",
+            headers=_auth(owner_one_token),
+        )
+        enriched_response = client.get(
+            f"/api/devices/?workspace_id={workspace['id']}&include=location&limit=1000",
+            headers=_auth(owner_one_token),
+        )
+
+        assert raw_response.status_code == 200
+        assert enriched_response.status_code == 200
+        assert raw_response.json()["total"] == 1
+        assert [item["name"] for item in raw_response.json()["items"]] == [
+            "Mixed Scope Owned Device"
+        ]
+        assert enriched_response.json()["total"] == 1
+        assert [item["name"] for item in enriched_response.json()["items"]] == [
+            "Mixed Scope Owned Device"
+        ]
+
     def test_list_devices_workspace_scope_rejects_non_owned_workspace(
         self,
         client: TestClient,
@@ -257,6 +394,94 @@ class TestListDevices:
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Workspace not found"
+
+    def test_list_devices_default_scope_excludes_other_owner_devices(
+        self,
+        client: TestClient,
+        session: Session,
+    ) -> None:
+        owner, owner_token = _make_user(session, Role.Contributor)
+        _, intruder_token = _make_user(session, Role.Contributor)
+
+        owner_device_response = client.post(
+            "/api/devices/",
+            json={"name": "Owner Device", "type": "Server"},
+            headers=_auth(owner_token),
+        )
+        intruder_device_response = client.post(
+            "/api/devices/",
+            json={"name": "Intruder Device", "type": "Switch"},
+            headers=_auth(intruder_token),
+        )
+
+        assert owner_device_response.status_code == 201
+        assert intruder_device_response.status_code == 201
+
+        owner.role = Role.Reader
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+        owner_reader_token = create_jwt(
+            {
+                "sub": str(owner.id),
+                "role": Role.Reader.value,
+                "version": owner.token_version,
+            }
+        )
+
+        response = client.get(
+            "/api/devices/?limit=1000",
+            headers=_auth(owner_reader_token),
+        )
+
+        assert response.status_code == 200
+        names = [item["name"] for item in response.json()["items"]]
+        assert "Owner Device" in names
+        assert "Intruder Device" not in names
+
+    def test_list_devices_default_enriched_scope_excludes_other_owner_devices(
+        self,
+        client: TestClient,
+        session: Session,
+    ) -> None:
+        owner, owner_token = _make_user(session, Role.Contributor)
+        _, intruder_token = _make_user(session, Role.Contributor)
+
+        owner_device_response = client.post(
+            "/api/devices/",
+            json={"name": "Owner Device Enriched", "type": "Server"},
+            headers=_auth(owner_token),
+        )
+        intruder_device_response = client.post(
+            "/api/devices/",
+            json={"name": "Intruder Device Enriched", "type": "Switch"},
+            headers=_auth(intruder_token),
+        )
+
+        assert owner_device_response.status_code == 201
+        assert intruder_device_response.status_code == 201
+
+        owner.role = Role.Reader
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+        owner_reader_token = create_jwt(
+            {
+                "sub": str(owner.id),
+                "role": Role.Reader.value,
+                "version": owner.token_version,
+            }
+        )
+
+        response = client.get(
+            "/api/devices/?include=location&limit=1000",
+            headers=_auth(owner_reader_token),
+        )
+
+        assert response.status_code == 200
+        names = [item["name"] for item in response.json()["items"]]
+        assert "Owner Device Enriched" in names
+        assert "Intruder Device Enriched" not in names
 
 
 class TestUpdateDevice:
@@ -322,6 +547,412 @@ class TestUpdateDevice:
             headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert response.status_code == 404
+
+    def test_update_other_owner_device_returns_404(
+        self, session: Session, client: TestClient
+    ) -> None:
+        _, owner_token = _make_user(session, Role.Contributor)
+        _, other_token = _make_user(session, Role.Contributor)
+
+        create_resp = client.post(
+            "/api/devices/",
+            json={"name": "owner-update-only", "type": "Server"},
+            headers=_auth(owner_token),
+        )
+        assert create_resp.status_code == 201
+        device = create_resp.json()
+
+        response = client.patch(
+            f"/api/devices/{device['id']}",
+            json={"name": "stolen-update", "version": device["version"]},
+            headers=_auth(other_token),
+        )
+
+        assert response.status_code == 404
+
+class TestPlacedIdsCurrentTopologyShape:
+    def test_placed_ids_support_nested_topology_elements_nodes_shape(
+        self, session: Session, client: TestClient
+    ) -> None:
+        owner, owner_token = _make_user(session, Role.Contributor)
+
+        workspace = _create_workspace(client, owner_token, "Placed IDs Workspace")
+        topology = _create_topology(
+            client,
+            owner_token,
+            str(workspace["id"]),
+            "Placed IDs Topology",
+        )
+
+        placed_response = client.post(
+            "/api/devices/",
+            json={"name": "nested-placed", "type": "Server"},
+            headers=_auth(owner_token),
+        )
+        unplaced_response = client.post(
+            "/api/devices/",
+            json={"name": "nested-unplaced", "type": "Switch"},
+            headers=_auth(owner_token),
+        )
+
+        assert placed_response.status_code == 201
+        assert unplaced_response.status_code == 201
+
+        placed_id = placed_response.json()["id"]
+        unplaced_id = unplaced_response.json()["id"]
+
+        _save_topology_version(
+            client,
+            owner_token,
+            str(topology["id"]),
+            "Nested Shape Snapshot",
+            [placed_id],
+        )
+
+        owner.role = Role.Reader
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+        owner_reader_token = create_jwt(
+            {
+                "sub": str(owner.id),
+                "role": Role.Reader.value,
+                "version": owner.token_version,
+            }
+        )
+
+        response = client.get(
+            f"/api/devices/placed-ids?workspace_id={workspace['id']}",
+            headers=_auth(owner_reader_token),
+        )
+
+        assert response.status_code == 200
+        placed_ids = response.json()
+        assert placed_id in placed_ids
+        assert unplaced_id not in placed_ids
+
+    def test_placed_ids_workspace_scope_excludes_other_owner_devices(
+        self, session: Session, client: TestClient
+    ) -> None:
+        owner, owner_token = _make_user(session, Role.Contributor)
+        _, intruder_token = _make_user(session, Role.Contributor)
+
+        owner_workspace = _create_workspace(client, owner_token, "Owner Workspace")
+        owner_topology = _create_topology(
+            client,
+            owner_token,
+            str(owner_workspace["id"]),
+            "Owner Topology",
+        )
+        intruder_workspace = _create_workspace(
+            client,
+            intruder_token,
+            "Intruder Workspace",
+        )
+        intruder_topology = _create_topology(
+            client,
+            intruder_token,
+            str(intruder_workspace["id"]),
+            "Intruder Topology",
+        )
+
+        owner_device = client.post(
+            "/api/devices/",
+            json={"name": "owner-placed", "type": "Server"},
+            headers=_auth(owner_token),
+        )
+        intruder_device = client.post(
+            "/api/devices/",
+            json={"name": "intruder-placed", "type": "Switch"},
+            headers=_auth(intruder_token),
+        )
+
+        assert owner_device.status_code == 201
+        assert intruder_device.status_code == 201
+
+        owner_device_id = owner_device.json()["id"]
+        intruder_device_id = intruder_device.json()["id"]
+
+        _save_topology_version(
+            client,
+            owner_token,
+            str(owner_topology["id"]),
+            "Owner Snapshot",
+            [owner_device_id],
+        )
+        _save_topology_version(
+            client,
+            intruder_token,
+            str(intruder_topology["id"]),
+            "Intruder Snapshot",
+            [intruder_device_id],
+        )
+
+        owner.role = Role.Reader
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+        owner_reader_token = create_jwt(
+            {
+                "sub": str(owner.id),
+                "role": Role.Reader.value,
+                "version": owner.token_version,
+            }
+        )
+
+        response = client.get(
+            f"/api/devices/placed-ids?workspace_id={owner_workspace['id']}",
+            headers=_auth(owner_reader_token),
+        )
+
+        assert response.status_code == 200
+        assert owner_device_id in response.json()
+        assert intruder_device_id not in response.json()
+
+    def test_placed_ids_legacy_owner_scope_uses_current_diagram_membership(
+        self, session: Session, client: TestClient, monkeypatch
+    ) -> None:
+        owner, owner_token = _make_user(session, Role.Contributor)
+        _, intruder_token = _make_user(session, Role.Contributor)
+
+        owner_workspace = _create_workspace(client, owner_token, "Legacy Owner Workspace")
+        owner_topology = _create_topology(
+            client,
+            owner_token,
+            str(owner_workspace["id"]),
+            "Legacy Owner Topology",
+        )
+        intruder_workspace = _create_workspace(
+            client,
+            intruder_token,
+            "Legacy Intruder Workspace",
+        )
+        intruder_topology = _create_topology(
+            client,
+            intruder_token,
+            str(intruder_workspace["id"]),
+            "Legacy Intruder Topology",
+        )
+
+        owner_device = client.post(
+            "/api/devices/",
+            json={"name": "legacy-owner-placed", "type": "Server"},
+            headers=_auth(owner_token),
+        )
+        intruder_device = client.post(
+            "/api/devices/",
+            json={"name": "legacy-intruder-placed", "type": "Switch"},
+            headers=_auth(intruder_token),
+        )
+
+        assert owner_device.status_code == 201
+        assert intruder_device.status_code == 201
+
+        owner_device_id = owner_device.json()["id"]
+        intruder_device_id = intruder_device.json()["id"]
+
+        _save_topology_version(
+            client,
+            owner_token,
+            str(owner_topology["id"]),
+            "Legacy Owner Snapshot",
+            [owner_device_id],
+        )
+        _save_topology_version(
+            client,
+            intruder_token,
+            str(intruder_topology["id"]),
+            "Legacy Intruder Snapshot",
+            [intruder_device_id],
+        )
+
+        monkeypatch.setattr(
+            device_layout_service_support,
+            "_device_owner_scope_available",
+            lambda _session: False,
+        )
+        monkeypatch.setattr(
+            device_layout_service_support.device_layout_repository_support,
+            "get_visible_device_ids",
+            lambda _session, _device_ids, _owner_id: set(),
+        )
+
+        owner.role = Role.Reader
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+        owner_reader_token = create_jwt(
+            {
+                "sub": str(owner.id),
+                "role": Role.Reader.value,
+                "version": owner.token_version,
+            }
+        )
+
+        response = client.get(
+            "/api/devices/placed-ids",
+            headers=_auth(owner_reader_token),
+        )
+
+        assert response.status_code == 200
+        placed_ids = response.json()
+        assert owner_device_id in placed_ids
+        assert intruder_device_id not in placed_ids
+
+    def test_placed_ids_ignore_historical_only_layouts(
+        self, session: Session, client: TestClient
+    ) -> None:
+        owner, owner_token = _make_user(session, Role.Contributor)
+
+        workspace = _create_workspace(client, owner_token, "History Scope Workspace")
+        topology = _create_topology(
+            client,
+            owner_token,
+            str(workspace["id"]),
+            "History Scope Topology",
+        )
+
+        historical_device = client.post(
+            "/api/devices/",
+            json={"name": "historical-only-device", "type": "Server"},
+            headers=_auth(owner_token),
+        )
+        current_device = client.post(
+            "/api/devices/",
+            json={"name": "current-device", "type": "Switch"},
+            headers=_auth(owner_token),
+        )
+
+        assert historical_device.status_code == 201
+        assert current_device.status_code == 201
+
+        historical_device_id = historical_device.json()["id"]
+        current_device_id = current_device.json()["id"]
+
+        _save_topology_version(
+            client,
+            owner_token,
+            str(topology["id"]),
+            "Historical Snapshot",
+            [historical_device_id],
+        )
+        _save_topology_version(
+            client,
+            owner_token,
+            str(topology["id"]),
+            "Current Snapshot",
+            [current_device_id],
+        )
+
+        owner.role = Role.Reader
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+        owner_reader_token = create_jwt(
+            {
+                "sub": str(owner.id),
+                "role": Role.Reader.value,
+                "version": owner.token_version,
+            }
+        )
+
+        response = client.get(
+            f"/api/devices/placed-ids?workspace_id={workspace['id']}",
+            headers=_auth(owner_reader_token),
+        )
+
+        assert response.status_code == 200
+        placed_ids = response.json()
+        assert current_device_id in placed_ids
+        assert historical_device_id not in placed_ids
+
+    def test_get_device_legacy_owner_scope_uses_current_diagram_membership(
+        self, session: Session, client: TestClient, monkeypatch
+    ) -> None:
+        owner, owner_token = _make_user(session, Role.Contributor)
+        _, intruder_token = _make_user(session, Role.Contributor)
+
+        owner_workspace = _create_workspace(client, owner_token, "Legacy Device Workspace")
+        owner_topology = _create_topology(
+            client,
+            owner_token,
+            str(owner_workspace["id"]),
+            "Legacy Device Topology",
+        )
+        intruder_workspace = _create_workspace(
+            client,
+            intruder_token,
+            "Legacy Intruder Device Workspace",
+        )
+        intruder_topology = _create_topology(
+            client,
+            intruder_token,
+            str(intruder_workspace["id"]),
+            "Legacy Intruder Device Topology",
+        )
+
+        owner_device = client.post(
+            "/api/devices/",
+            json={"name": "legacy-readable-device", "type": "Server"},
+            headers=_auth(owner_token),
+        )
+        intruder_device = client.post(
+            "/api/devices/",
+            json={"name": "legacy-hidden-device", "type": "Switch"},
+            headers=_auth(intruder_token),
+        )
+
+        assert owner_device.status_code == 201
+        assert intruder_device.status_code == 201
+
+        owner_device_id = owner_device.json()["id"]
+        intruder_device_id = intruder_device.json()["id"]
+
+        _save_topology_version(
+            client,
+            owner_token,
+            str(owner_topology["id"]),
+            "Legacy Device Snapshot",
+            [owner_device_id],
+        )
+        _save_topology_version(
+            client,
+            intruder_token,
+            str(intruder_topology["id"]),
+            "Legacy Hidden Snapshot",
+            [intruder_device_id],
+        )
+
+        monkeypatch.setattr(
+            device_repository_support,
+            "device_owner_scope_available",
+            lambda _session: False,
+        )
+
+        owner.role = Role.Reader
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+        owner_reader_token = create_jwt(
+            {
+                "sub": str(owner.id),
+                "role": Role.Reader.value,
+                "version": owner.token_version,
+            }
+        )
+
+        response = client.get(
+            f"/api/devices/{owner_device_id}",
+            headers=_auth(owner_reader_token),
+        )
+        hidden_response = client.get(
+            f"/api/devices/{intruder_device_id}",
+            headers=_auth(owner_reader_token),
+        )
+
+        assert response.status_code == 200
+        assert response.json()["id"] == owner_device_id
+        assert hidden_response.status_code == 404
 
     def test_update_without_version_returns_422(
         self, client: TestClient, contributor_token: str

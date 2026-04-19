@@ -153,6 +153,37 @@ class TestFilterDeviceFromCytoscapeJson:
         assert edges == []
         assert result["collapsedNodes"] == ["other"]
 
+    def test_removes_device_id_node_edges_and_collapsed_node_alias(self) -> None:
+        cj: dict[str, object] = {
+            "elements": {
+                "nodes": [
+                    {"group": "nodes", "data": {"id": "node-1", "device_id": "dev-1"}},
+                    {"group": "nodes", "data": {"id": "node-2", "device_id": "dev-2"}},
+                ],
+                "edges": [
+                    {
+                        "group": "edges",
+                        "data": {"id": "edge-1", "source": "node-1", "target": "node-2"},
+                    }
+                ],
+            },
+            "collapsedNodes": ["node-1", "other"],
+        }
+
+        result, changed = filter_device_from_cytoscape_json(cj, "dev-1")
+
+        assert changed is True
+        elements = result["elements"]
+        assert isinstance(elements, dict)
+        nodes = elements["nodes"]
+        assert isinstance(nodes, list)
+        assert len(nodes) == 1
+        assert nodes[0]["data"]["device_id"] == "dev-2"  # type: ignore[index]
+        edges = elements["edges"]
+        assert isinstance(edges, list)
+        assert edges == []
+        assert result["collapsedNodes"] == ["other"]
+
 
 class TestDeviceViewSnapshots:
     def test_extract_device_snapshot_from_list_elements(self) -> None:
@@ -239,6 +270,41 @@ class TestDeviceViewSnapshots:
         assert isinstance(collapsed, list)
         assert collapsed.count("dev-1") == 1
 
+    def test_extract_and_restore_support_device_id_nodes(self) -> None:
+        node_snapshot: dict[str, object] = {
+            "group": "nodes",
+            "data": {"id": "node-1", "device_id": "dev-1", "label": "Node 1"},
+            "position": {"x": 10, "y": 20},
+        }
+        cj: dict[str, object] = {
+            "elements": {
+                "nodes": [node_snapshot],
+                "edges": [],
+            },
+            "collapsedNodes": ["node-1"],
+        }
+
+        snapshot, was_collapsed = extract_device_view_snapshot(cj, "dev-1")
+
+        assert snapshot is not None
+        assert snapshot["data"]["id"] == "node-1"  # type: ignore[index]
+        assert was_collapsed is True
+
+        restored, changed = restore_device_to_cytoscape_json(
+            {"elements": {"nodes": [], "edges": []}, "collapsedNodes": []},
+            snapshot,
+            was_collapsed,
+        )
+
+        assert changed is True
+        elements = restored["elements"]
+        assert isinstance(elements, dict)
+        nodes = elements["nodes"]
+        assert isinstance(nodes, list)
+        assert len(nodes) == 1
+        assert nodes[0]["data"]["device_id"] == "dev-1"  # type: ignore[index]
+        assert restored["collapsedNodes"] == ["node-1"]
+
 
 class TestDeviceInCytoscapeJson:
     def test_device_present(self) -> None:
@@ -256,6 +322,14 @@ class TestDeviceInCytoscapeJson:
     def test_empty_elements(self) -> None:
         cj: dict[str, object] = {"elements": []}
         assert device_in_cytoscape_json(cj, "dev-1") is False
+
+    def test_device_present_via_device_id_field(self) -> None:
+        cj: dict[str, object] = {
+            "elements": [
+                {"group": "nodes", "data": {"id": "node-1", "device_id": "dev-1"}}
+            ]
+        }
+        assert device_in_cytoscape_json(cj, "dev-1") is True
 
 
 class TestDetectParentCycle:

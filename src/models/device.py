@@ -62,6 +62,11 @@ class Device(DeviceBase, table=True):
     __tablename__ = "devices"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    # Persist ownership on the inventory record itself so owner-scoped reads do
+    # not have to infer visibility from current topology placement.
+    owner_id: Optional[uuid.UUID] = Field(
+        default=None, foreign_key="users.id", index=True, ondelete="SET NULL"
+    )
     version: int = Field(default=1)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)

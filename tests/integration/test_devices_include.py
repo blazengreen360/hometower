@@ -1,24 +1,92 @@
 """Integration tests for GET /api/devices/?include=location enriched endpoint."""
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session
+
+from src.models.device import Device
+from src.models.location import Location
+from src.models.tag import DeviceTag, Tag
+from src.models.types import Role
+from src.models.types import DeviceType, LocationType
+from src.models.user import User
+from src.utils.auth import create_jwt, hash_password
 
 _DEVICE = {"name": "test-device", "type": "Server"}
 _LOCATION = {"name": "Main Rack", "type": "rack", "rack": "A", "row": "1"}
 
 
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _make_user(session: Session, role: Role = Role.Contributor) -> tuple[User, str]:
+    user = User(
+        username=f"devices_include_{uuid.uuid4().hex[:8]}",
+        email=f"{uuid.uuid4().hex[:8]}@devices-include.local",
+        password_hash=hash_password("x"),
+        role=role,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    token = create_jwt(
+        {"sub": str(user.id), "role": role.value, "version": user.token_version}
+    )
+    return user, token
+
+
+def _make_owned_device(
+    session: Session,
+    owner: User,
+    name: str,
+    *,
+    location_id: str | None = None,
+) -> Device:
+    device = Device(
+        name=name,
+        type=DeviceType.Server,
+        owner_id=owner.id,
+        location_id=uuid.UUID(location_id) if location_id is not None else None,
+    )
+    session.add(device)
+    session.commit()
+    session.refresh(device)
+    return device
+
+
+def _make_location(session: Session, name: str = "Main Rack") -> Location:
+    location = Location(name=name, type=LocationType.rack, rack="A", row="1")
+    session.add(location)
+    session.commit()
+    session.refresh(location)
+    return location
+
+
+def _make_tag(session: Session, name: str, color: str = "#22aa66") -> Tag:
+    tag = Tag(name=name, color=color)
+    session.add(tag)
+    session.commit()
+    session.refresh(tag)
+    return tag
+
+
+def _attach_tag(session: Session, device: Device, tag: Tag) -> None:
+    session.add(DeviceTag(device_id=device.id, tag_id=tag.id))
+    session.commit()
+
+
 class TestNoIncludeBackwardCompat:
     def test_list_without_include_returns_classic_format(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, session: Session
     ) -> None:
         """GET /api/devices/ without include returns PaginatedDeviceResponse (no location_name)."""
-        client.post(
-            "/api/devices/",
-            json=_DEVICE,
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
+        owner, reader_token = _make_user(session, role=Role.Reader)
+        _make_owned_device(session, owner, _DEVICE["name"])
         resp = client.get(
             "/api/devices/",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(reader_token),
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -26,151 +94,107 @@ class TestNoIncludeBackwardCompat:
         assert "total" in data
         assert "page" in data
         assert "limit" in data
-        if data["items"]:
-            assert "location_name" not in data["items"][0]
+        assert data["items"]
+        assert "location_name" not in data["items"][0]
 
     def test_include_empty_string_is_backward_compat(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, session: Session
     ) -> None:
         """?include= (empty) behaves the same as omitting the param."""
-        client.post(
-            "/api/devices/",
-            json=_DEVICE,
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
+        owner, reader_token = _make_user(session, role=Role.Reader)
+        _make_owned_device(session, owner, _DEVICE["name"])
         resp = client.get(
             "/api/devices/?include=",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(reader_token),
         )
         assert resp.status_code == 200
         data = resp.json()
-        if data["items"]:
-            assert "location_name" not in data["items"][0]
+        assert data["items"]
+        assert "location_name" not in data["items"][0]
 
 
 class TestIncludeLocation:
     def test_include_location_adds_location_name_field(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, session: Session
     ) -> None:
         """?include=location returns items with location_name key in each item."""
-        client.post(
-            "/api/devices/",
-            json=_DEVICE,
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
+        owner, reader_token = _make_user(session, role=Role.Reader)
+        _make_owned_device(session, owner, _DEVICE["name"])
         resp = client.get(
             "/api/devices/?include=location",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(reader_token),
         )
         assert resp.status_code == 200
         data = resp.json()
         assert "items" in data
+        assert data["items"]
         for item in data["items"]:
             assert "location_name" in item
 
     def test_include_location_with_actual_location(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, session: Session
     ) -> None:
         """Device with location_id returns the correct location_name."""
-        loc_resp = client.post(
-            "/api/locations/",
-            json=_LOCATION,
-            headers={"Authorization": f"Bearer {contributor_token}"},
+        owner, reader_token = _make_user(session, role=Role.Reader)
+        location = _make_location(session, name=_LOCATION["name"])
+        device = _make_owned_device(
+            session,
+            owner,
+            "located-server",
+            location_id=str(location.id),
         )
-        assert loc_resp.status_code == 201
-        location_id = loc_resp.json()["id"]
-
-        dev_resp = client.post(
-            "/api/devices/",
-            json={"name": "located-server", "type": "Server", "location_id": location_id},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert dev_resp.status_code == 201
-        device_id = dev_resp.json()["id"]
-
         list_resp = client.get(
             "/api/devices/?include=location&limit=1000",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(reader_token),
         )
         assert list_resp.status_code == 200
         items = list_resp.json()["items"]
-        device = next((d for d in items if d["id"] == device_id), None)
-        assert device is not None
-        assert device["location_name"] == "Main Rack"
+        payload = next((d for d in items if d["id"] == str(device.id)), None)
+        assert payload is not None
+        assert payload["location_name"] == "Main Rack"
 
     def test_include_location_device_without_location(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, session: Session
     ) -> None:
         """Device with no location_id returns location_name=null in enriched response."""
-        dev_resp = client.post(
-            "/api/devices/",
-            json={"name": "no-loc-server", "type": "Server"},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert dev_resp.status_code == 201
-        device_id = dev_resp.json()["id"]
-
+        owner, reader_token = _make_user(session, role=Role.Reader)
+        device = _make_owned_device(session, owner, "no-loc-server")
         list_resp = client.get(
             "/api/devices/?include=location&limit=1000",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(reader_token),
         )
         assert list_resp.status_code == 200
         items = list_resp.json()["items"]
-        device = next((d for d in items if d["id"] == device_id), None)
-        assert device is not None
-        assert device["location_name"] is None
+        payload = next((d for d in items if d["id"] == str(device.id)), None)
+        assert payload is not None
+        assert payload["location_name"] is None
 
     def test_include_multiple_keys_returns_location_and_tags(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, session: Session
     ) -> None:
         """?include=location,tags returns both enriched location_name and populated tags."""
-        loc_resp = client.post(
-            "/api/locations/",
-            json=_LOCATION,
-            headers={"Authorization": f"Bearer {contributor_token}"},
+        owner, reader_token = _make_user(session, role=Role.Reader)
+        location = _make_location(session, name=_LOCATION["name"])
+        tag = _make_tag(session, name="prod")
+        device = _make_owned_device(
+            session,
+            owner,
+            "enriched-server",
+            location_id=str(location.id),
         )
-        assert loc_resp.status_code == 201
-        location_id = loc_resp.json()["id"]
-
-        tag_resp = client.post(
-            "/api/tags/",
-            json={"name": "prod", "color": "#22aa66"},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert tag_resp.status_code == 201
-        tag = tag_resp.json()
-
-        dev_resp = client.post(
-            "/api/devices/",
-            json={
-                "name": "enriched-server",
-                "type": "Server",
-                "location_id": location_id,
-            },
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert dev_resp.status_code == 201
-        device_id = dev_resp.json()["id"]
-
-        attach_resp = client.post(
-            f"/api/devices/{device_id}/tags",
-            json={"tag_id": tag["id"]},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert attach_resp.status_code == 204
-
+        _attach_tag(session, device, tag)
         resp = client.get(
             "/api/devices/?include=location,tags&limit=1000",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(reader_token),
         )
         assert resp.status_code == 200
         items = resp.json()["items"]
-        device = next((d for d in items if d["id"] == device_id), None)
-        assert device is not None
-        assert device["location_name"] == "Main Rack"
-        assert len(device["tags"]) == 1
-        assert device["tags"][0]["id"] == tag["id"]
-        assert device["tags"][0]["name"] == tag["name"]
+        payload = next((d for d in items if d["id"] == str(device.id)), None)
+        assert payload is not None
+        assert payload["location_name"] == "Main Rack"
+        assert len(payload["tags"]) == 1
+        assert payload["tags"][0]["id"] == str(tag.id)
+        assert payload["tags"][0]["name"] == tag.name
 
     def test_include_unknown_key_returns_enriched_without_crash(
         self, client: TestClient, reader_token: str
@@ -222,18 +246,15 @@ class TestLimitCap:
 
 class TestIncludeLocationWithSort:
     def test_include_location_sort_by_name_ascending(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, session: Session
     ) -> None:
         """GET /api/devices/?include=location&sort=name orders by name ascending."""
-        headers = {"Authorization": f"Bearer {contributor_token}"}
-        r1 = client.post("/api/devices/", json={"name": "Zebra-IncSort", "type": "Server"}, headers=headers)
-        r2 = client.post("/api/devices/", json={"name": "Alpha-IncSort", "type": "Server"}, headers=headers)
-        assert r1.status_code == 201
-        assert r2.status_code == 201
-
+        owner, reader_token = _make_user(session, role=Role.Reader)
+        _make_owned_device(session, owner, "Zebra-IncSort")
+        _make_owned_device(session, owner, "Alpha-IncSort")
         resp = client.get(
             "/api/devices/?include=location&sort=name&limit=1000",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(reader_token),
         )
         assert resp.status_code == 200
         items = resp.json()["items"]
@@ -244,18 +265,15 @@ class TestIncludeLocationWithSort:
             assert "location_name" in item
 
     def test_include_location_sort_by_name_descending(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, session: Session
     ) -> None:
         """GET /api/devices/?include=location&sort=-name orders by name descending."""
-        headers = {"Authorization": f"Bearer {contributor_token}"}
-        r1 = client.post("/api/devices/", json={"name": "Zebra-IncSortD", "type": "Server"}, headers=headers)
-        r2 = client.post("/api/devices/", json={"name": "Alpha-IncSortD", "type": "Server"}, headers=headers)
-        assert r1.status_code == 201
-        assert r2.status_code == 201
-
+        owner, reader_token = _make_user(session, role=Role.Reader)
+        _make_owned_device(session, owner, "Zebra-IncSortD")
+        _make_owned_device(session, owner, "Alpha-IncSortD")
         resp = client.get(
             "/api/devices/?include=location&sort=-name&limit=1000",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(reader_token),
         )
         assert resp.status_code == 200
         items = resp.json()["items"]

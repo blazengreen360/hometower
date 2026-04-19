@@ -1,0 +1,57 @@
+{
+  "report_id": "user-sim-report-20260419.3",
+  "persona_summary": {
+    "name": "Focused HT-082 Final Sanity Check",
+    "archetype": "Admin smoke verification",
+    "total_ui_actions": 5
+  },
+  "executive_summary": {
+    "scope": "HT-082 final focused live sanity check after bounded correction",
+    "dashboard_load": "PASS",
+    "recent_activity_device_click": "PASS",
+    "inventory_load": "PASS",
+    "delete_dialog_detects_placements": "PASS",
+    "placement_count_current_layout_semantics": "FAIL",
+    "environment_blockers": [],
+    "notes": [
+      "Dashboard loaded normally under the existing local admin session with populated KPI cards, inventory breakdown links, and recent activity.",
+      "The recent device item HT075-DeviceLive-Z still linked through to the scoped topology route with workspace_id, topology_id, and device_id present.",
+      "Inventory loaded normally and exposed the HT075-DeviceLive-Z row without errors.",
+      "Opening the delete confirmation dialog for HT075-DeviceLive-Z no longer reported that the device had no placements.",
+      "The same dialog reported 9 topology placements and listed historical version and ghost labels, which looks inconsistent with current-layout-only counting semantics."
+    ]
+  },
+  "prioritized_issues": [
+    {
+      "id": 1,
+      "severity": "Medium",
+      "title": "Inventory delete dialog placement count includes historical topology noise",
+      "page": "/inventory",
+      "action": "Open delete confirmation for HT075-DeviceLive-Z",
+      "steps_to_reproduce": "1. Open http://localhost:8080/ as admin@hometower.local. 2. Confirm dashboard shows recent activity item HT075-DeviceLive-Z and click it to verify the scoped topology route. 3. Navigate to /inventory. 4. Find HT075-DeviceLive-Z and click Delete device from inventory. 5. Observe the dialog reports 9 topology placements with historical Version, Restore, Recreate ghost, and Map ghost entries instead of a clean current-layout-only count.",
+      "visual_proof_path": "/Users/jayharry28/Projects/hometower/artifacts/user-sim/ht082-final-sanity-placement-dialog-20260419.png"
+    }
+  ],
+  "action_log": [
+    {
+      "step": 1,
+      "result": "Opened http://localhost:8080/ and confirmed the app was already authenticated as admin@hometower.local."
+    },
+    {
+      "step": 2,
+      "result": "Verified the dashboard rendered normally with summary cards, inventory breakdown links, and recent activity items including HT075-DeviceLive-Z."
+    },
+    {
+      "step": 3,
+      "result": "Clicked HT075-DeviceLive-Z and landed on /topology?workspace_id=716bc8af-3074-44c2-88bc-a7ddea364ea7&topology_id=58837a16-dfbd-4b5d-9052-a1129f512be3&device_id=7b3669ae-5a69-42bb-8322-429e7f6c0bf6."
+    },
+    {
+      "step": 4,
+      "result": "Opened /inventory and confirmed HT075-DeviceLive-Z was present and rendered normally in the inventory table."
+    },
+    {
+      "step": 5,
+      "result": "Opened the delete confirmation dialog for HT075-DeviceLive-Z and observed placement detection was active, but the count was 9 with historical version and ghost entries rather than an obviously current-layout-only placement list."
+    }
+  ]
+}

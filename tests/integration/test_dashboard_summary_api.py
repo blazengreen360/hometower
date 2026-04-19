@@ -6,6 +6,9 @@ from sqlmodel import Session
 
 from src.models.types import DeviceStatus, Role
 from src.models.user import User
+from src.repositories import dashboard_device_scope_support
+from src.repositories import device_layout_repository_support
+from src.repositories import dashboard_repository_support
 from src.utils.auth import create_jwt, hash_password
 
 
@@ -111,6 +114,29 @@ def _save_topology_version(
     return response.json()
 
 
+def _breakdown_count(items: list[dict[str, object]], key: str) -> int:
+    for item in items:
+        if item["key"] == key:
+            return int(item["count"])
+    return 0
+
+
+def _breakdown_route(items: list[dict[str, object]], key: str) -> str | None:
+    for item in items:
+        if item["key"] == key:
+            route = item["route"]
+            return str(route) if route is not None else None
+    return None
+
+
+def _recent_activity_route(items: list[dict[str, object]], title: str) -> str | None:
+    for item in items:
+        if item["title"] == title:
+            route = item["route"]
+            return str(route) if route is not None else None
+    return None
+
+
 def test_dashboard_summary_reader_access_returns_aggregate_payload(
     client: TestClient,
     session: Session,
@@ -161,7 +187,7 @@ def test_dashboard_summary_reader_access_returns_aggregate_payload(
     assert payload["power"]["workspace_options"][0] == {"id": None, "name": "All Workspaces"}
     assert payload["power"]["workspace_options"][1]["id"] == str(workspace["id"])
     assert payload["power"]["workspace_options"][1]["name"] == "Lab Alpha"
-    assert payload["power"]["total_watts"] == 130
+    assert payload["power"]["total_watts"] == baseline["power"]["total_watts"] + 130
     assert any(
         item["key"] == DeviceStatus.Offline.value and item["route"] == "/inventory?status=Offline"
         for item in payload["inventory_breakdown"]["status_counts"]
@@ -174,6 +200,12 @@ def test_dashboard_summary_workspace_filter_changes_power_totals(
     session: Session,
 ) -> None:
     _, contributor_token = _make_user(session, Role.Contributor)
+    baseline_response = client.get(
+        "/api/dashboard/summary",
+        headers=_headers(contributor_token),
+    )
+    assert baseline_response.status_code == 200
+    baseline = baseline_response.json()
     workspace_one = _create_workspace(client, contributor_token, "Lab One")
     workspace_two = _create_workspace(client, contributor_token, "Lab Two")
     topology_one = _create_topology(client, contributor_token, str(workspace_one["id"]), "Topo One")
@@ -211,11 +243,11 @@ def test_dashboard_summary_workspace_filter_changes_power_totals(
     all_payload = all_response.json()
     filtered_payload = filtered_response.json()
 
-    assert all_payload["devices"] == 2
-    assert all_payload["topologies"] == 2
-    assert all_payload["recent_edits"] == 4
+    assert all_payload["devices"] == baseline["devices"] + 2
+    assert all_payload["topologies"] == baseline["topologies"] + 2
+    assert all_payload["recent_edits"] == baseline["recent_edits"] + 4
     assert all_payload["power"]["selected_workspace_name"] == "All Workspaces"
-    assert all_payload["power"]["total_watts"] == 165
+    assert all_payload["power"]["total_watts"] == baseline["power"]["total_watts"] + 165
     assert filtered_payload["devices"] == 1
     assert filtered_payload["power"]["selected_workspace_id"] == str(workspace_two["id"])
     assert filtered_payload["power"]["selected_workspace_name"] == "Lab Two"
@@ -240,11 +272,11 @@ def test_dashboard_summary_workspace_filter_changes_power_totals(
         "Node Two",
         "Topo Two",
     }
-    device_item = next(
-        item for item in filtered_payload["recent_activity"] if item["title"] == "Node Two"
-    )
-    assert device_item["route"] == (
-        f"/inventory?workspace_id={workspace_two['id']}&search=Node%20Two"
+    assert _recent_activity_route(
+        filtered_payload["recent_activity"],
+        "Node Two",
+    ) == (
+        f"/topology?workspace_id={workspace_two['id']}&topology_id={topology_two['id']}&device_id={device_two['id']}"
     )
 
 
@@ -279,7 +311,9 @@ def test_dashboard_summary_recent_activity_includes_normalized_device_and_topolo
     assert device_item["kind"] == "device_created"
     assert device_item["title"] == "Recent Device"
     assert device_item["subtitle"] == "Device added"
-    assert device_item["route"] == "/inventory?search=Recent%20Device"
+    assert device_item["route"] == (
+        f"/topology?workspace_id={workspace['id']}&topology_id={topology['id']}&device_id={device['id']}"
+    )
 
     assert topology_item["kind"] == "topology_save_version"
     assert topology_item["title"] == "Recent Topology"
@@ -289,12 +323,180 @@ def test_dashboard_summary_recent_activity_includes_normalized_device_and_topolo
     )
 
 
-def test_dashboard_summary_excludes_other_owners_device_metrics(
+def test_dashboard_summary_all_workspaces_includes_unplaced_devices_but_workspace_scope_uses_current_published_membership(
+    client: TestClient,
+    session: Session,
+) -> None:
+    _, contributor_token = _make_user(session, Role.Contributor)
+    baseline_response = client.get(
+        "/api/dashboard/summary",
+        headers=_headers(contributor_token),
+    )
+    assert baseline_response.status_code == 200
+    baseline = baseline_response.json()
+    workspace = _create_workspace(client, contributor_token, "Aggregate WS")
+    topology = _create_topology(client, contributor_token, str(workspace["id"]), "Aggregate Topology")
+    placed_device = _create_device(client, contributor_token, "Placed Node", 120)
+    removed_device = _create_device(client, contributor_token, "Removed Node", 70)
+    orphan_device = _create_device(
+        client,
+        contributor_token,
+        "Orphan Node",
+        40,
+        status=DeviceStatus.Offline.value,
+    )
+    _save_topology_version(
+        client,
+        contributor_token,
+        str(topology["id"]),
+        "Previous Snapshot",
+        [str(removed_device["id"])],
+    )
+    _save_topology_version(
+        client,
+        contributor_token,
+        str(topology["id"]),
+        "Placed Snapshot",
+        [str(placed_device["id"])],
+    )
+
+    all_response = client.get("/api/dashboard/summary", headers=_headers(contributor_token))
+    filtered_response = client.get(
+        f"/api/dashboard/summary?workspace_id={workspace['id']}",
+        headers=_headers(contributor_token),
+    )
+
+    assert all_response.status_code == 200
+    assert filtered_response.status_code == 200
+
+    all_payload = all_response.json()
+    filtered_payload = filtered_response.json()
+
+    baseline_status_counts = baseline["inventory_breakdown"]["status_counts"]
+    baseline_type_counts = baseline["inventory_breakdown"]["type_counts"]
+
+    assert all_payload["devices"] == baseline["devices"] + 3
+    assert all_payload["offline_devices"] == baseline["offline_devices"] + 1
+    assert all_payload["recent_edits"] == baseline["recent_edits"] + 5
+    assert all_payload["power"]["total_watts"] == baseline["power"]["total_watts"] + 230
+    assert (
+        _breakdown_count(
+            all_payload["inventory_breakdown"]["status_counts"],
+            DeviceStatus.Active.value,
+        )
+        == _breakdown_count(baseline_status_counts, DeviceStatus.Active.value) + 2
+    )
+    assert (
+        _breakdown_count(
+            all_payload["inventory_breakdown"]["status_counts"],
+            DeviceStatus.Offline.value,
+        )
+        == _breakdown_count(baseline_status_counts, DeviceStatus.Offline.value) + 1
+    )
+    assert (
+        _breakdown_count(
+            all_payload["inventory_breakdown"]["type_counts"],
+            str(placed_device["type"]),
+        )
+        == _breakdown_count(baseline_type_counts, str(placed_device["type"])) + 3
+    )
+    assert (
+        _breakdown_route(
+            all_payload["inventory_breakdown"]["type_counts"],
+            str(placed_device["type"]),
+        )
+        == f"/inventory?type={placed_device['type']}"
+    )
+    assert _recent_activity_route(all_payload["recent_activity"], "Placed Node") == (
+        f"/topology?workspace_id={workspace['id']}&topology_id={topology['id']}&device_id={placed_device['id']}"
+    )
+    assert _recent_activity_route(all_payload["recent_activity"], "Removed Node") == (
+        f"/inventory/edit/{removed_device['id']}"
+    )
+    assert _recent_activity_route(all_payload["recent_activity"], "Orphan Node") == (
+        f"/inventory/edit/{orphan_device['id']}"
+    )
+
+    assert filtered_payload["devices"] == 1
+    assert filtered_payload["offline_devices"] == 0
+    assert filtered_payload["recent_edits"] == 3
+    assert filtered_payload["power"]["total_watts"] == 120
+    assert _recent_activity_route(filtered_payload["recent_activity"], "Placed Node") == (
+        f"/topology?workspace_id={workspace['id']}&topology_id={topology['id']}&device_id={placed_device['id']}"
+    )
+    assert all(item["title"] != "Removed Node" for item in filtered_payload["recent_activity"])
+    assert all(item["title"] != "Orphan Node" for item in filtered_payload["recent_activity"])
+
+
+def test_dashboard_summary_owner_all_scope_excludes_cross_owner_orphan_devices(
     client: TestClient,
     session: Session,
 ) -> None:
     _, owner_one_token = _make_user(session, Role.Contributor)
     _, owner_two_token = _make_user(session, Role.Contributor)
+    baseline_response = client.get("/api/dashboard/summary", headers=_headers(owner_one_token))
+    assert baseline_response.status_code == 200
+    baseline = baseline_response.json()
+
+    workspace_one = _create_workspace(client, owner_one_token, "Owner One")
+    topology_one = _create_topology(client, owner_one_token, str(workspace_one["id"]), "Topo One")
+    device_one = _create_device(client, owner_one_token, "Scoped Device", 55)
+    hidden_orphan = _create_device(
+        client,
+        owner_two_token,
+        "Hidden Orphan",
+        90,
+        status=DeviceStatus.Offline.value,
+    )
+    _save_topology_version(
+        client,
+        owner_one_token,
+        str(topology_one["id"]),
+        "Owner One Snapshot",
+        [str(device_one["id"])],
+    )
+
+    response = client.get("/api/dashboard/summary", headers=_headers(owner_one_token))
+    filtered_response = client.get(
+        f"/api/dashboard/summary?workspace_id={workspace_one['id']}",
+        headers=_headers(owner_one_token),
+    )
+
+    assert response.status_code == 200
+    assert filtered_response.status_code == 200
+
+    payload = response.json()
+    filtered_payload = filtered_response.json()
+
+    assert payload["devices"] == baseline["devices"] + 1
+    assert payload["offline_devices"] == baseline["offline_devices"]
+    assert payload["recent_edits"] == baseline["recent_edits"] + 2
+    assert payload["power"]["total_watts"] == baseline["power"]["total_watts"] + 55
+    assert _recent_activity_route(payload["recent_activity"], "Scoped Device") == (
+        f"/topology?workspace_id={workspace_one['id']}&topology_id={topology_one['id']}&device_id={device_one['id']}"
+    )
+    assert any(
+        item["title"] == "Hidden Orphan"
+        and item["route"] == f"/inventory/edit/{hidden_orphan['id']}"
+        for item in payload["recent_activity"]
+    ) is False
+
+    assert filtered_payload["devices"] == 1
+    assert filtered_payload["offline_devices"] == 0
+    assert filtered_payload["recent_edits"] == 2
+    assert filtered_payload["power"]["total_watts"] == 55
+    assert all(item["title"] != "Hidden Orphan" for item in filtered_payload["recent_activity"])
+
+
+def test_dashboard_summary_all_scope_uses_visible_devices_but_keeps_workspace_filter(
+    client: TestClient,
+    session: Session,
+) -> None:
+    _, owner_one_token = _make_user(session, Role.Contributor)
+    _, owner_two_token = _make_user(session, Role.Contributor)
+    baseline_response = client.get("/api/dashboard/summary", headers=_headers(owner_one_token))
+    assert baseline_response.status_code == 200
+    baseline = baseline_response.json()
 
     workspace_one = _create_workspace(client, owner_one_token, "Owner One")
     topology_one = _create_topology(client, owner_one_token, str(workspace_one["id"]), "Topo One")
@@ -325,20 +527,262 @@ def test_dashboard_summary_excludes_other_owners_device_metrics(
     )
 
     response = client.get("/api/dashboard/summary", headers=_headers(owner_one_token))
+    filtered_response = client.get(
+        f"/api/dashboard/summary?workspace_id={workspace_one['id']}",
+        headers=_headers(owner_one_token),
+    )
+
+    assert response.status_code == 200
+    assert filtered_response.status_code == 200
+
+    payload = response.json()
+    filtered_payload = filtered_response.json()
+
+    baseline_status_counts = baseline["inventory_breakdown"]["status_counts"]
+
+    assert payload["devices"] == baseline["devices"] + 1
+    assert payload["workspaces"] == baseline["workspaces"] + 1
+    assert payload["topologies"] == baseline["topologies"] + 1
+    assert payload["offline_devices"] == baseline["offline_devices"]
+    assert payload["recent_edits"] == baseline["recent_edits"] + 2
+    assert payload["power"]["total_watts"] == baseline["power"]["total_watts"] + 55
+    assert (
+        _breakdown_count(
+            payload["inventory_breakdown"]["status_counts"],
+            DeviceStatus.Active.value,
+        )
+        == _breakdown_count(baseline_status_counts, DeviceStatus.Active.value) + 1
+    )
+    assert (
+        _breakdown_count(
+            payload["inventory_breakdown"]["status_counts"],
+            DeviceStatus.Offline.value,
+        )
+        == _breakdown_count(baseline_status_counts, DeviceStatus.Offline.value)
+    )
+    activity_titles = {item["title"] for item in payload["recent_activity"]}
+    assert activity_titles >= {
+        "Scoped Device",
+        "Topo One",
+    }
+    assert "Leaked Device" not in activity_titles
+
+    assert filtered_payload["devices"] == 1
+    assert filtered_payload["offline_devices"] == 0
+    assert filtered_payload["recent_edits"] == 2
+    assert filtered_payload["power"]["total_watts"] == 55
+    assert {item["title"] for item in filtered_payload["recent_activity"]} == {
+        "Scoped Device",
+        "Topo One",
+    }
+
+
+def test_dashboard_summary_invalid_workspace_filter_returns_404(
+    client: TestClient,
+    session: Session,
+) -> None:
+    _, contributor_token = _make_user(session, Role.Contributor)
+
+    response = client.get(
+        f"/api/dashboard/summary?workspace_id={uuid.uuid4()}",
+        headers=_headers(contributor_token),
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Workspace not found"}
+
+
+def test_dashboard_summary_foreign_workspace_filter_returns_404(
+    client: TestClient,
+    session: Session,
+) -> None:
+    _, owner_one_token = _make_user(session, Role.Contributor)
+    _, owner_two_token = _make_user(session, Role.Contributor)
+    workspace = _create_workspace(client, owner_two_token, "Foreign Workspace")
+
+    response = client.get(
+        f"/api/dashboard/summary?workspace_id={workspace['id']}",
+        headers=_headers(owner_one_token),
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Workspace not found"}
+
+
+def test_dashboard_summary_recent_device_route_stays_scoped_without_device_owner_column(
+    client: TestClient,
+    session: Session,
+    monkeypatch,
+) -> None:
+    _, contributor_token = _make_user(session, Role.Contributor)
+    workspace = _create_workspace(client, contributor_token, "Legacy API WS")
+    topology = _create_topology(client, contributor_token, str(workspace["id"]), "Legacy API Topology")
+    device = _create_device(client, contributor_token, "Legacy API Device", 65)
+    _save_topology_version(
+        client,
+        contributor_token,
+        str(topology["id"]),
+        "Legacy API Snapshot",
+        [str(device["id"])],
+    )
+
+    class _LegacyDeviceInspector:
+        def get_columns(self, _table_name: str) -> list[dict[str, str]]:
+            return [{"name": "id"}]
+
+    monkeypatch.setattr(
+        dashboard_device_scope_support,
+        "sa_inspect",
+        lambda _bind: _LegacyDeviceInspector(),
+    )
+    monkeypatch.setattr(
+        device_layout_repository_support,
+        "sa_inspect",
+        lambda _bind: _LegacyDeviceInspector(),
+    )
+
+    response = client.get(
+        f"/api/dashboard/summary?workspace_id={workspace['id']}",
+        headers=_headers(contributor_token),
+    )
 
     assert response.status_code == 200
     payload = response.json()
+    assert payload["devices"] == 1
+    assert payload["power"]["total_watts"] == 65
+    assert {item["title"] for item in payload["recent_activity"]} == {
+        "Legacy API Device",
+        "Legacy API Topology",
+    }
+    assert _recent_activity_route(payload["recent_activity"], "Legacy API Device") == (
+        f"/topology?workspace_id={workspace['id']}&topology_id={topology['id']}&device_id={device['id']}"
+    )
 
+
+def test_dashboard_summary_legacy_all_scope_fails_closed_to_owned_visible_devices(
+    client: TestClient,
+    session: Session,
+    monkeypatch,
+) -> None:
+    _, owner_one_token = _make_user(session, Role.Contributor)
+    _, owner_two_token = _make_user(session, Role.Contributor)
+
+    workspace_one = _create_workspace(client, owner_one_token, "Legacy Owner One")
+    topology_one = _create_topology(
+        client,
+        owner_one_token,
+        str(workspace_one["id"]),
+        "Legacy Topo One",
+    )
+    device_one = _create_device(client, owner_one_token, "Legacy Scoped Device", 55)
+    _save_topology_version(
+        client,
+        owner_one_token,
+        str(topology_one["id"]),
+        "Legacy Owner One Snapshot",
+        [str(device_one["id"])],
+    )
+
+    workspace_two = _create_workspace(client, owner_two_token, "Legacy Owner Two")
+    topology_two = _create_topology(
+        client,
+        owner_two_token,
+        str(workspace_two["id"]),
+        "Legacy Topo Two",
+    )
+    leaked_device = _create_device(
+        client,
+        owner_two_token,
+        "Legacy Leaked Device",
+        90,
+        status=DeviceStatus.Offline.value,
+    )
+    _save_topology_version(
+        client,
+        owner_two_token,
+        str(topology_two["id"]),
+        "Legacy Owner Two Snapshot",
+        [str(leaked_device["id"])],
+    )
+
+    monkeypatch.setattr(
+        dashboard_device_scope_support,
+        "_device_owner_scope_available",
+        lambda _session: False,
+    )
+
+    response = client.get("/api/dashboard/summary", headers=_headers(owner_one_token))
+
+    assert response.status_code == 200
+    payload = response.json()
     assert payload["devices"] == 1
     assert payload["workspaces"] == 1
     assert payload["topologies"] == 1
     assert payload["offline_devices"] == 0
     assert payload["recent_edits"] == 2
     assert payload["power"]["total_watts"] == 55
-    assert payload["inventory_breakdown"]["status_counts"] == [
-        {"key": DeviceStatus.Active.value, "count": 1, "route": "/inventory?status=Active"}
-    ]
     assert {item["title"] for item in payload["recent_activity"]} == {
-        "Scoped Device",
-        "Topo One",
+        "Legacy Scoped Device",
+        "Legacy Topo One",
     }
+    assert _recent_activity_route(payload["recent_activity"], "Legacy Scoped Device") == (
+        f"/topology?workspace_id={workspace_one['id']}&topology_id={topology_one['id']}&device_id={device_one['id']}"
+    )
+    assert all(item["title"] != "Legacy Leaked Device" for item in payload["recent_activity"])
+
+
+def test_dashboard_summary_legacy_all_scope_excludes_foreign_same_workspace_devices(
+    client: TestClient,
+    session: Session,
+    monkeypatch,
+) -> None:
+    _, owner_one_token = _make_user(session, Role.Contributor)
+    _, owner_two_token = _make_user(session, Role.Contributor)
+
+    workspace = _create_workspace(client, owner_one_token, "Legacy Mixed Owner WS")
+    topology = _create_topology(
+        client,
+        owner_one_token,
+        str(workspace["id"]),
+        "Legacy Mixed Owner Topology",
+    )
+    owned_device = _create_device(client, owner_one_token, "Legacy Mixed Owned Device", 55)
+    leaked_device = _create_device(
+        client,
+        owner_two_token,
+        "Legacy Mixed Foreign Device",
+        90,
+        status=DeviceStatus.Offline.value,
+    )
+    _save_topology_version(
+        client,
+        owner_one_token,
+        str(topology["id"]),
+        "Legacy Mixed Snapshot",
+        [str(owned_device["id"]), str(leaked_device["id"])],
+    )
+
+    monkeypatch.setattr(
+        dashboard_device_scope_support,
+        "_device_owner_scope_available",
+        lambda _session: False,
+    )
+
+    response = client.get("/api/dashboard/summary", headers=_headers(owner_one_token))
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["devices"] == 1
+    assert payload["workspaces"] == 1
+    assert payload["topologies"] == 1
+    assert payload["offline_devices"] == 0
+    assert payload["recent_edits"] == 2
+    assert payload["power"]["total_watts"] == 55
+    assert {item["title"] for item in payload["recent_activity"]} == {
+        "Legacy Mixed Owned Device",
+        "Legacy Mixed Owner Topology",
+    }
+    assert _recent_activity_route(payload["recent_activity"], "Legacy Mixed Owned Device") == (
+        f"/topology?workspace_id={workspace['id']}&topology_id={topology['id']}&device_id={owned_device['id']}"
+    )
+    assert all(item["title"] != "Legacy Mixed Foreign Device" for item in payload["recent_activity"])

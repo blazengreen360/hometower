@@ -59,6 +59,7 @@ def _scoped_summary_payload(
     status_key: str,
     type_key: str,
     activity_title: str,
+    activity_route: str,
 ) -> dict[str, object]:
     return {
         "devices": devices,
@@ -87,7 +88,7 @@ def _scoped_summary_payload(
                 "title": activity_title,
                 "subtitle": "Device updated",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "route": f"/inventory?search={activity_title}",
+                "route": activity_route,
             }
         ],
     }
@@ -150,6 +151,7 @@ def test_dashboard_workspace_switch_rerenders_full_summary(monkeypatch) -> None:
                     status_key="Offline",
                     type_key="Server",
                     activity_title="Global VM",
+                    activity_route="/inventory/edit/device-global",
                 ),
             ),
             httpx.Response(
@@ -167,6 +169,7 @@ def test_dashboard_workspace_switch_rerenders_full_summary(monkeypatch) -> None:
                     status_key="Online",
                     type_key="Switch",
                     activity_title="Scoped VM",
+                    activity_route="/topology?workspace_id=ws-1&topology_id=topo-1&device_id=device-scoped",
                 ),
             ),
         ]
@@ -190,6 +193,12 @@ def test_dashboard_workspace_switch_rerenders_full_summary(monkeypatch) -> None:
     assert "Online" in links
     assert "Switch" in links
     assert "Scoped VM" in links
+    recent_link = [link for link in fake_ui.created["link"] if link.value == "Scoped VM"][-1]
+    recent_link.handlers["click"](SimpleNamespace())
+    assert fake_ui.navigate.to_calls[-1] == (
+        "/topology?workspace_id=ws-1&topology_id=topo-1&device_id=device-scoped",
+        False,
+    )
     assert any("history.replaceState" in script for script in fake_ui.run_javascript_calls)
     assert client_stub.call_kwargs[1]["params"] == {"workspace_id": "ws-1"}
     inventory_button = [button for button in fake_ui.created["button"] if button.value == "View Inventory"][-1]
@@ -223,6 +232,7 @@ def test_dashboard_scope_query_loads_filtered_summary(monkeypatch) -> None:
                     status_key="Online",
                     type_key="Switch",
                     activity_title="Scoped VM",
+                    activity_route="/topology?workspace_id=ws-1&topology_id=topo-2&device_id=device-scoped",
                 ),
             ),
         ]
@@ -248,3 +258,46 @@ def test_dashboard_scope_query_loads_filtered_summary(monkeypatch) -> None:
     inventory_button.handlers["click"]()
     assert fake_ui.navigate.to_calls[-1] == ("/inventory?workspace_id=ws-1", False)
     assert client_stub.call_kwargs[0]["params"] == {"workspace_id": "ws-1"}
+
+
+def test_dashboard_recent_activity_uses_api_fallback_route_without_rewrite(monkeypatch) -> None:
+    import src.ui.pages.dashboard as dashboard_module
+
+    fake_ui = FakeUI()
+    install_fake_ui(monkeypatch, dashboard_module, fake_ui, {"access_token": "token"})
+    monkeypatch.setattr(dashboard_module, "redirect_if_unauthenticated", lambda **kwargs: False)
+    monkeypatch.setattr(dashboard_module, "app_shell", lambda *args, **kwargs: _noop_shell())
+    monkeypatch.setattr(dashboard_module, "get_ui_role", lambda: Role.Contributor)
+    monkeypatch.setattr(
+        dashboard_module.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: AsyncClientStub(
+            [
+                httpx.Response(
+                    200,
+                    json=_scoped_summary_payload(
+                        devices=9,
+                        workspaces=2,
+                        topologies=3,
+                        offline_devices=2,
+                        recent_edits=5,
+                        watts=120,
+                        cost=3.21,
+                        selected_workspace_id=None,
+                        selected_workspace_name="All Workspaces",
+                        status_key="Online",
+                        type_key="Switch",
+                        activity_title="Orphan Node",
+                        activity_route="/inventory/edit/device-orphan",
+                    ),
+                ),
+            ]
+        ),
+    )
+
+    asyncio.run(dashboard_module.dashboard_page())
+
+    recent_link = next(link for link in fake_ui.created["link"] if link.value == "Orphan Node")
+    recent_link.handlers["click"](SimpleNamespace())
+
+    assert fake_ui.navigate.to_calls[-1] == ("/inventory/edit/device-orphan", False)

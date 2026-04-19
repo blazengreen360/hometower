@@ -97,7 +97,7 @@ Store:
 
 The authoritative roster, contract document model, and boundary rules live in `AGENTS.md` and the `contract-routing` skill. This table is a dispatch quick-reference — if it ever contradicts `AGENTS.md`, trust `AGENTS.md`.
 
-**You are the sole orchestrator.** No agent invokes another agent directly (except the three exemptions: Code-Reviewer → Git-Committer, QA-Orchestrator → Bug-Finder, Security-Orchestrator → Security-Auditor/Architect). Every other handoff flows through you via contract documents.
+**You are the sole orchestrator.** No agent invokes another agent directly (except the three exemptions: QA-Orchestrator → Bug-Finder, Security-Orchestrator → Security-Auditor/Architect). Every other handoff flows through you via contract documents.
 
 | Agent | Delegate When | Produces | Consumes |
 |---|---|---|---|
@@ -111,7 +111,7 @@ The authoritative roster, contract document model, and boundary rules live in `A
 | QA-Orchestrator | Broad bug discovery | Bug report (`doc/bugs/`) | Source code |
 | QA-Fixer | TDD bug remediation | Fixed code + passing tests | Bug report, security report |
 | Security-Orchestrator | Security audit | Security report (`doc/security/`) | Source code |
-| Code-Reviewer | Pre-push gate | Verdict (+ commit via Git-Committer) | Any code diff |
+| Code-Reviewer | Pre-push gate | Verdict + local commit | Any code diff |
 | User-Simulator | Exploratory E2E | Persona-driven bug report | Live application |
 | DevOps-Engineer | Docker, migrations, infra | Infrastructure changes | RFC, migration files |
 | Chaos-Tester | API fuzzing, boundary testing | Chaos report | Live API endpoints |

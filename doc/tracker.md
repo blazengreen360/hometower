@@ -3,7 +3,7 @@
 Items discovered during execution that need attention but don't belong in the product backlog.
 Project-Manager reads this at the start of every session. Items graduate to stories (`doc/stories/`), bugs (`doc/bugs/`), or RFCs (`doc/rfc/`) when clarified.
 
-Last updated: 18 April 2026 — resolved T-007 after HT-078 bundle closeout; HT-078 shipped after live validation and APPROVED review.
+Last updated: 19 April 2026 — resolved T-011 after HT-082 follow-up closeout.
 
 ## Open
 
@@ -25,6 +25,9 @@ Last updated: 18 April 2026 — resolved T-007 after HT-078 bundle closeout; HT-
 | T-007 | Hardened the rebuild/recreate drift surfaces by updating `Dockerfile` ownership/COPY behavior and adding `.dockerignore`, then verified `docker compose build api`, recreate/health, `docker compose exec api mypy src/ --ignore-missing-imports`, and full `docker compose exec api pytest` (`1857 passed, 2 warnings in 208.33s`) on branch state. | HT-078 + T-007 closeout | 18 Apr 2026 |
 | T-008 | Added missing PUT support to the shared AsyncClient test stub, restored dashboard/map regression coverage in `tests/unit/test_ui_shell_pages.py`, confirmed canonical verify-gate was green, and unblocked formal HT-068 closeout. | HT-068 gate-failure triage and closeout | 17 Apr 2026 |
 | T-010 | Hardened `tests/e2e/test_topology_canvas_deep.py` with stronger login readiness gating, safer evaluation retries, and a longer nested-container settle wait; final Code-Reviewer approval accepted the remaining rapid repeated-run auth-throttle noise as non-blocking to HT-050 closeout. | HT-050 follow-up final closeout | 17 Apr 2026 |
+| T-012 | Reordered the `get_device(...)` router signature in `src/api/routers/devices.py` so `Request` precedes defaulted query params, restoring FastAPI app import and unblocking HT-082 dashboard integration/live validation. | HT-082 follow-up verification unblock | 19 Apr 2026 |
+| T-013 | Fixed `src/services/canvas_undo_service.py` restore-conflict rollback reachability, corrected devices-router owner scoping, and stabilized `tests/integration/test_devices_include.py` to the owner-scoped model; the subsequent full gate rerun passed (`1893 passed, 2 warnings`, mypy PASS, arch greps PASS, build PASS). | HT-082 gate rerun unblock | 19 Apr 2026 |
+| T-011 | Closed the HT-082 follow-up by hardening dashboard owner scoping, recent-device route resolution, legacy no-`Device.owner_id` fallback behavior, and current-layout-only placement / placed-id reads; final current-head verify gate passed (`1918 passed, 2 warnings`, mypy PASS, arch greps PASS, build PASS), focused live validation passed, and dual Code-Reviewer lanes APPROVED. | HT-082 follow-up final closeout | 19 Apr 2026 |
 
 ---
 

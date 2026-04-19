@@ -383,14 +383,14 @@ class TestCustomFieldDelete:
 
 class TestDeviceEnrichedWithCustomFields:
     def test_include_custom_fields_returns_enriched(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         device = _create_device(client, contributor_token)
         _create_cf(client, contributor_token, device["id"], key="Serial", value="XYZ")
 
         resp = client.get(
             f"/api/devices/{device['id']}?include=custom_fields",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -400,25 +400,25 @@ class TestDeviceEnrichedWithCustomFields:
         assert data["custom_fields"][0]["value"] == "XYZ"
 
     def test_include_custom_fields_empty_list(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         device = _create_device(client, contributor_token)
         resp = client.get(
             f"/api/devices/{device['id']}?include=custom_fields",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert resp.status_code == 200
         assert resp.json()["custom_fields"] == []
 
     def test_include_tags_and_custom_fields_combined(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         device = _create_device(client, contributor_token)
         _create_cf(client, contributor_token, device["id"], key="wattage", value="45W")
 
         resp = client.get(
             f"/api/devices/{device['id']}?include=tags,custom_fields",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert resp.status_code == 200
         data = resp.json()

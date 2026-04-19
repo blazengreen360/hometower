@@ -230,7 +230,7 @@ class TestDashboardPage:
                                 "title": "VM",
                                 "subtitle": "Device updated",
                                 "timestamp": updated_at,
-                                "route": "/inventory?search=VM",
+                                "route": "/topology?workspace_id=ws-1&topology_id=topo-1&device_id=device-1",
                             }
                         ],
                     },
@@ -249,7 +249,7 @@ class TestDashboardPage:
         assert any(link.value == "Offline" for link in fake_ui.created["link"])
         assert any(link.value == "Server" for link in fake_ui.created["link"])
         assert any(
-            'data-ht-route="/inventory?search=VM"' in prop
+            'data-ht-route="/topology?workspace_id=ws-1&topology_id=topo-1&device_id=device-1"' in prop
             for link in fake_ui.created["link"]
             for prop in link.props_calls
         )
@@ -266,7 +266,10 @@ class TestDashboardPage:
         recent_link = next(link for link in fake_ui.created["link"] if link.value == "VM")
         assert "click" not in recent_link.js_handlers
         _run(recent_link.handlers["click"](SimpleNamespace()))
-        assert fake_ui.navigate.to_calls[-1] == ("/inventory?search=VM", False)
+        assert fake_ui.navigate.to_calls[-1] == (
+            "/topology?workspace_id=ws-1&topology_id=topo-1&device_id=device-1",
+            False,
+        )
 
         status_link = next(link for link in fake_ui.created["link"] if link.value == "Offline")
         assert "click" not in status_link.js_handlers
@@ -338,7 +341,7 @@ class TestDashboardPage:
                                 "title": "VM",
                                 "subtitle": "Device updated",
                                 "timestamp": updated_at,
-                                "route": "/inventory?search=VM",
+                                "route": "/topology?workspace_id=ws-1&topology_id=topo-1&device_id=device-1",
                             }
                         ],
                     },
@@ -384,7 +387,7 @@ class TestDashboardPage:
                                 "title": "Scoped VM",
                                 "subtitle": "Device updated",
                                 "timestamp": updated_at,
-                                "route": "/inventory?search=Scoped%20VM",
+                                "route": "/topology?workspace_id=ws-1&topology_id=topo-2&device_id=device-2",
                             }
                         ],
                     },
@@ -420,7 +423,10 @@ class TestDashboardPage:
         scoped_recent_link = [link for link in fake_ui.created["link"] if link.value == "Scoped VM"][-1]
         assert "click" not in scoped_recent_link.js_handlers
         _run(scoped_recent_link.handlers["click"](SimpleNamespace()))
-        assert fake_ui.navigate.to_calls[-1] == ("/inventory?workspace_id=ws-1&search=Scoped%20VM", False)
+        assert fake_ui.navigate.to_calls[-1] == (
+            "/topology?workspace_id=ws-1&topology_id=topo-2&device_id=device-2",
+            False,
+        )
 
         scoped_status_link = [link for link in fake_ui.created["link"] if link.value == "Online"][-1]
         assert "click" not in scoped_status_link.js_handlers
@@ -489,7 +495,7 @@ class TestDashboardPage:
                                 "title": "Scoped VM",
                                 "subtitle": "Device updated",
                                 "timestamp": updated_at,
-                                "route": "/inventory?search=Scoped%20VM",
+                                "route": "/topology?workspace_id=ws-1&topology_id=topo-3&device_id=device-3",
                             }
                         ],
                     },
@@ -522,7 +528,10 @@ class TestDashboardPage:
         scoped_recent_link = next(link for link in fake_ui.created["link"] if link.value == "Scoped VM")
         assert "click" not in scoped_recent_link.js_handlers
         _run(scoped_recent_link.handlers["click"](SimpleNamespace()))
-        assert fake_ui.navigate.to_calls[-1] == ("/inventory?workspace_id=ws-1&search=Scoped%20VM", False)
+        assert fake_ui.navigate.to_calls[-1] == (
+            "/topology?workspace_id=ws-1&topology_id=topo-3&device_id=device-3",
+            False,
+        )
 
         scoped_status_link = next(link for link in fake_ui.created["link"] if link.value == "Online")
         assert "click" not in scoped_status_link.js_handlers

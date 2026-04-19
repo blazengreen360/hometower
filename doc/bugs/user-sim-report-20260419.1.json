@@ -1,0 +1,63 @@
+{
+  "report_id": "user-sim-report-20260419.1",
+  "persona_summary": {
+    "name": "Mara Keene",
+    "archetype": "Intermediate Builder",
+    "total_ui_actions": 12
+  },
+  "executive_summary": {
+    "scope": "HT-082 dashboard follow-up live validation",
+    "dashboard_load": "PASS",
+    "workspace_switcher": "PASS",
+    "recent_activity_topology_click": "PASS",
+    "recent_activity_device_click": "FAIL",
+    "inventory_breakdown_links": "PASS",
+    "architect_ruling_match": "PARTIAL",
+    "notes": [
+      "Dashboard loaded at / with populated cards, recent activity, and inventory breakdown data.",
+      "Changing Workspace Scope from All Workspaces to HT050-PostFix-Retest-17Apr26 updated totals in place and performance.getEntriesByType('navigation').length remained 1, so no full document reload was observed.",
+      "Recent topology activity correctly deep-linked to /topology with both workspace_id and topology_id and opened the intended topology resource.",
+      "Recent device activity did not match the architect-approved concrete route behavior. It opened /topology?device_id=<id> without workspace/topology context instead of a scoped topology route or an inventory edit fallback.",
+      "Inventory breakdown links still deep-linked to prefiltered inventory views, verified for status=Active and type=Server."
+    ]
+  },
+  "prioritized_issues": [
+    {
+      "id": 1,
+      "severity": "High",
+      "title": "Recent activity device link still lands on an unscoped topology route",
+      "page": "/",
+      "action": "Click the recent activity device item HT075-DeviceLive-Z from the dashboard",
+      "steps_to_reproduce": "1. Sign in as admin and open /. 2. In Recent Activity, click the device item HT075-DeviceLive-Z. 3. Observe the resulting route and destination context.",
+      "expected_behavior": "The device item should land on a concrete intended resource per the HT-082 ruling: /topology?workspace_id=<workspace_id>&topology_id=<topology_id>&device_id=<device_id> when a qualifying current published placement exists in scope, otherwise /inventory/edit/<device_id>.",
+      "actual_behavior": "The app lands on /topology?device_id=7b3669ae-5a69-42bb-8322-429e7f6c0bf6, which opens a device panel but drops workspace/topology context and does not use the inventory edit fallback route.",
+      "visual_proof_path": "/Users/jayharry28/Projects/hometower/artifacts/user-sim/ht082-dashboard-followup/recent-device-route-failure.png"
+    }
+  ],
+  "action_log": [
+    {
+      "step": 1,
+      "result": "Logged in with seeded admin credentials and reached dashboard at /."
+    },
+    {
+      "step": 2,
+      "result": "Verified dashboard cards rendered meaningful live data: devices, workspaces, topologies, recent edits, inventory breakdown, and recent activity."
+    },
+    {
+      "step": 3,
+      "result": "Changed Workspace Scope from All Workspaces to HT050-PostFix-Retest-17Apr26; totals and card contents updated without a full document reload."
+    },
+    {
+      "step": 4,
+      "result": "Opened dashboard scoped to workspace_id=93c22220-36ab-4c70-8c32-dc9b94ac9257 and clicked HT050-Topo-1776462461; landed on the intended topology route with workspace and topology context."
+    },
+    {
+      "step": 5,
+      "result": "Returned to dashboard and clicked recent device activity item HT075-DeviceLive-Z; landed on /topology?device_id=..., which does not satisfy the architect-approved concrete route semantics."
+    },
+    {
+      "step": 6,
+      "result": "Clicked inventory breakdown links for Active and Server; both landed on prefiltered inventory pages with visible applied filters."
+    }
+  ]
+}

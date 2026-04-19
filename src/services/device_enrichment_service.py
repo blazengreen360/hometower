@@ -20,7 +20,9 @@ from src.repositories import (
 
 
 def _load_parent_chain(
-    device_id: uuid.UUID, session: Session
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> list["DeviceResponse"]:  # type: ignore[name-defined]
     """Walk device.parent_id upward and return ancestors nearest→root.
 
@@ -30,7 +32,7 @@ def _load_parent_chain(
     from src.models.device import DeviceResponse
 
     chain: list[DeviceResponse] = []
-    current = device_repository.get_by_id(session, device_id)
+    current = device_repository.get_by_id(session, device_id, owner_id=owner_id)
     if current is None:
         return chain
 
@@ -39,7 +41,7 @@ def _load_parent_chain(
     while parent_id is not None:
         if depth >= 50:
             break
-        parent = device_repository.get_by_id(session, parent_id)
+        parent = device_repository.get_by_id(session, parent_id, owner_id=owner_id)
         if parent is None:
             break
         chain.append(DeviceResponse.model_validate(parent.model_dump()))
@@ -107,6 +109,7 @@ def get_all_enriched(
     q: str | None = None,
     sort: str | None = None,
     workspace_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
 ) -> tuple[list[DeviceResponseEnriched], int]:
     """Return enriched device list. Supports include={'location', 'tags', 'custom_fields', 'services', 'networks'}."""
     if q:
@@ -119,6 +122,7 @@ def get_all_enriched(
                 page,
                 limit,
                 workspace_id=workspace_id,
+                owner_id=owner_id,
             )
             items = [
                 DeviceResponseEnriched.model_validate(
@@ -136,6 +140,7 @@ def get_all_enriched(
             limit,
             sort=sort,
             workspace_id=workspace_id,
+            owner_id=owner_id,
         )
         items = [
             DeviceResponseEnriched.model_validate(
@@ -150,6 +155,7 @@ def get_all_enriched(
             limit,
             sort=sort,
             workspace_id=workspace_id,
+            owner_id=owner_id,
         )
         items = [
             DeviceResponseEnriched.model_validate(device.model_dump())
@@ -161,10 +167,13 @@ def get_all_enriched(
 
 
 def get_by_id_enriched(
-    device_id: uuid.UUID, session: Session, include: set[str]
+    device_id: uuid.UUID,
+    session: Session,
+    include: set[str],
+    owner_id: uuid.UUID | None = None,
 ) -> DeviceResponseEnriched:
     """Return a single device enriched with requested fields. HTTP 404 if not found."""
-    device = device_repository.get_by_id(session, device_id)
+    device = device_repository.get_by_id(session, device_id, owner_id=owner_id)
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
 
@@ -203,8 +212,8 @@ def get_by_id_enriched(
         ]
     if "children" in include:
         from src.models.device import DeviceResponse
-        children = device_repository.get_children(session, device_id)
+        children = device_repository.get_children(session, device_id, owner_id=owner_id)
         enriched.children = [DeviceResponse.model_validate(c.model_dump()) for c in children]
     if "ancestors" in include:
-        enriched.parent_chain = _load_parent_chain(device_id, session)
+        enriched.parent_chain = _load_parent_chain(device_id, session, owner_id=owner_id)
     return enriched

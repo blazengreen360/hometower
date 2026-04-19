@@ -399,7 +399,7 @@ class TestDeviceRead:
     """Test device retrieval and listing."""
 
     def test_get_device_by_id_returns_200(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         """GET /devices/{id} returns 200 with device data.
 
@@ -414,7 +414,7 @@ class TestDeviceRead:
 
         resp = client.get(
             f"/api/devices/{dev_id}",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert resp.status_code == 200
         assert resp.json()["id"] == dev_id

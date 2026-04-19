@@ -4,6 +4,12 @@ All notable changes to Hometower will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — HT-082 dashboard owner-scope hardening
+
+- Closed the dashboard legacy-schema compatibility path so All Workspaces falls back to owned current-diagram membership instead of dropping owner scoping when `Device.owner_id` is unavailable.
+- Added cross-owner legacy regressions for repository and API dashboard summaries, and split dashboard/canvas helper code so the cited source files stay under the 250-line project cap without changing shipped HT-082 behavior.
+- Hardened owner-scoped device repository reads against legacy no-`Device.owner_id` schemas, restricted device placement/orphan lookups to current topology layouts, and split the device domain Cytoscape helpers into a separate pure module to restore file-cap compliance.
+
 ### Added — HT-081 data table enhancements and pagination
 
 - Standardized the Workspaces, workspace-detail Topologies, and Settings Users pages on a shared NiceGUI table pattern with client-side search, sorting, pagination defaults, and consistent HT-080 table chrome.

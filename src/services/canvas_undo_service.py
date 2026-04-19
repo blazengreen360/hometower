@@ -1,7 +1,6 @@
 """Service helpers for canvas-specific undo/redo API mutations (HT-032)."""
 
 import uuid
-from datetime import datetime, timezone
 
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -11,60 +10,21 @@ from src.domain import devices as device_domain
 from src.models.canvas_undo import (
     DiagramPlacementSnapshot,
     DiagramVersionRef,
-    PublishedConnectionSnapshot,
     PublishedDeviceCanvasDeleteResult,
     PublishedDeviceCanvasRestoreResult,
     PublishedDeviceDeleteSnapshot,
-    PublishedDeviceSnapshot,
 )
 from src.models.connection import Connection
 from src.models.device import Device
 from src.repositories import connection_repository, device_repository, diagram_repository
+from src.services.canvas_undo_service_support import _raise_restore_conflict
+from src.services.canvas_undo_service_support import _resolve_snapshot_owner_id
+from src.services.canvas_undo_service_support import _restore_node_without_owner
+from src.services.canvas_undo_service_support import _snapshot_node_with_owner
+from src.services.canvas_undo_service_support import _to_connection_snapshot
+from src.services.canvas_undo_service_support import _to_device_snapshot
+from src.services.canvas_undo_service_support import _utcnow
 from src.utils.logger import logger
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _to_device_snapshot(device: Device) -> PublishedDeviceSnapshot:
-    return PublishedDeviceSnapshot(
-        id=device.id,
-        name=device.name,
-        type=device.type,
-        status=device.status,
-        ip=device.ip,
-        mac=device.mac,
-        os=device.os,
-        notes=device.notes,
-        location_id=device.location_id,
-        parent_id=device.parent_id,
-        version=device.version,
-    )
-
-
-def _to_connection_snapshot(connection: Connection) -> PublishedConnectionSnapshot:
-    return PublishedConnectionSnapshot(
-        id=connection.id,
-        source_id=connection.source_id,
-        target_id=connection.target_id,
-        type=connection.type,
-        label=connection.label,
-    )
-
-
-def _raise_restore_conflict(exc: IntegrityError, session: Session) -> None:
-    session.rollback()
-    message = str(exc.orig)
-    normalized = message.lower()
-    if "ix_connections_unique_pair" in normalized:
-        detail = "Connection already exists between these devices"
-    elif "devices_pkey" in normalized or "unique constraint failed: devices.id" in normalized:
-        detail = "Device ID already exists"
-    else:
-        detail = "Canvas restore conflict"
-    raise HTTPException(status_code=409, detail=detail) from exc
-
 
 def delete_published_device_for_canvas(
     device_id: uuid.UUID,
@@ -103,7 +63,7 @@ def delete_published_device_for_canvas(
         placements.append(
             DiagramPlacementSnapshot(
                 diagram_id=layout.id,
-                node=node_snapshot,
+                node=_snapshot_node_with_owner(node_snapshot, device.owner_id),
                 was_collapsed=was_collapsed,
             )
         )
@@ -164,6 +124,7 @@ def restore_published_device_for_canvas(
         notes=snapshot.device.notes,
         location_id=snapshot.device.location_id,
         parent_id=snapshot.device.parent_id,
+        owner_id=_resolve_snapshot_owner_id(snapshot),
         version=snapshot.device.version,
     )
 
@@ -207,7 +168,7 @@ def restore_published_device_for_canvas(
 
             restored_json, changed = device_domain.restore_device_to_cytoscape_json(
                 cytoscape_json,
-                placement.node,
+                _restore_node_without_owner(placement.node),
                 placement.was_collapsed,
             )
             if changed:

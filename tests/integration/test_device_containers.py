@@ -75,7 +75,7 @@ def _headers(token: str) -> dict[str, str]:
 
 class TestIncludeChildren:
     def test_include_children_returns_child_devices(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         h = _headers(contributor_token)
         parent = client.post(
@@ -93,7 +93,7 @@ class TestIncludeChildren:
 
         resp = client.get(
             f"/api/devices/{parent_id}?include=children",
-            headers=_headers(reader_token),
+            headers=h,
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -102,7 +102,7 @@ class TestIncludeChildren:
         assert data["children"][0]["name"] == "Child"
 
     def test_include_children_empty_when_no_children(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         h = _headers(contributor_token)
         device = client.post(
@@ -113,7 +113,7 @@ class TestIncludeChildren:
 
         resp = client.get(
             f"/api/devices/{device_id}?include=children",
-            headers=_headers(reader_token),
+            headers=h,
         )
         assert resp.status_code == 200
         assert resp.json()["children"] == []
@@ -121,7 +121,7 @@ class TestIncludeChildren:
 
 class TestIncludeAncestors:
     def test_include_ancestors_returns_parent_chain(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         h = _headers(contributor_token)
         grandparent = client.post(
@@ -148,7 +148,7 @@ class TestIncludeAncestors:
 
         resp = client.get(
             f"/api/devices/{child_id}?include=ancestors",
-            headers=_headers(reader_token),
+            headers=h,
         )
         assert resp.status_code == 200
         chain = resp.json()["parent_chain"]
@@ -225,13 +225,12 @@ class TestImportParentId:
         resp = _do_import(client, payload, admin_token)
         assert resp.status_code == 200
 
-        # Verify parent-child relationship via API
-        detail = client.get(
-            f"/api/devices/{child_id}",
-            headers=_headers(admin_token),
+        export_resp = client.get("/api/export", headers=_headers(admin_token))
+        assert export_resp.status_code == 200
+        exported_child = next(
+            device for device in export_resp.json()["devices"] if device["id"] == child_id
         )
-        assert detail.status_code == 200
-        assert detail.json()["parent_id"] == parent_id
+        assert exported_child["parent_id"] == parent_id
 
     def test_import_dangling_parent_id_returns_422(
         self, client: TestClient, admin_token: str

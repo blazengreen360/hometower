@@ -6,43 +6,14 @@ from sqlalchemy import func, or_
 from sqlalchemy import select as sa_select
 from sqlmodel import Session, col, select
 
-from src.repositories.dashboard_repository_support import _extract_device_ids
 from src.models.device import Device
-from src.models.diagram import DiagramLayout
 from src.models.location import Location
 from src.models.tag import DeviceTag, Tag
-from src.models.topology import Topology
+from src.repositories.device_repository_support import apply_device_scope
+from src.repositories.device_repository_support import apply_owner_scope
+from src.repositories.device_repository_support import get_order_expression
+from src.repositories.device_repository_support import get_workspace_device_ids
 
-_SORT_EXPRESSIONS = {
-    "name": lambda: col(Device.name),
-    "-name": lambda: col(Device.name).desc(),
-    "updated_at": lambda: col(Device.updated_at),
-    "-updated_at": lambda: col(Device.updated_at).desc(),
-    "created_at": lambda: col(Device.created_at),
-    "-created_at": lambda: col(Device.created_at).desc(),
-}
-
-def _scoped_device_ids(
-    session: Session,
-    workspace_id: uuid.UUID | None,
-) -> set[uuid.UUID] | None:
-    if workspace_id is None:
-        return None
-    statement = (
-        select(DiagramLayout.cytoscape_json)
-        .join(Topology, col(DiagramLayout.id) == col(Topology.current_diagram_id))
-        .where(col(Topology.workspace_id) == workspace_id)
-    )
-    device_ids: set[uuid.UUID] = set()
-    for cytoscape_json in session.exec(statement).all():
-        if isinstance(cytoscape_json, dict):
-            device_ids.update(_extract_device_ids(cytoscape_json))
-    return device_ids
-
-def _apply_workspace_scope(statement, device_ids: set[uuid.UUID] | None):
-    if device_ids is None:
-        return statement
-    return statement.where(col(Device.id).in_(device_ids))
 
 def create(session: Session, device: Device) -> Device:
     session.add(device)
@@ -50,8 +21,21 @@ def create(session: Session, device: Device) -> Device:
     session.refresh(device)
     return device
 
-def get_by_id(session: Session, device_id: uuid.UUID) -> Device | None:
-    return session.get(Device, device_id)
+
+def get_by_id(
+    session: Session,
+    device_id: uuid.UUID,
+    owner_id: uuid.UUID | None = None,
+) -> Device | None:
+    device_ids = get_workspace_device_ids(session, None, owner_id)
+    statement = apply_device_scope(
+        select(Device).where(col(Device.id) == device_id),
+        session,
+        col,
+        device_ids,
+        owner_id,
+    )
+    return session.exec(statement).first()
 
 def get_all(
     session: Session,
@@ -59,26 +43,30 @@ def get_all(
     limit: int = 50,
     sort: Optional[str] = None,
     workspace_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
 ) -> tuple[list[Device], int]:
-    device_ids = _scoped_device_ids(session, workspace_id)
-    base = _apply_workspace_scope(select(Device), device_ids)
+    device_ids = get_workspace_device_ids(session, workspace_id, owner_id)
+    base = apply_device_scope(select(Device), session, col, device_ids, owner_id)
     total = int(
         session.execute(
             sa_select(func.count()).select_from(base.subquery())  # type: ignore[arg-type]
         ).scalar_one()
     )
     offset = (page - 1) * limit
-    order_expr = (
-        _SORT_EXPRESSIONS[sort]()
-        if sort in _SORT_EXPRESSIONS
-        else col(Device.created_at)
-    )
+    order_expr = get_order_expression(sort, col)
     statement = base.order_by(order_expr).offset(offset).limit(limit)
     items = list(session.exec(statement).all())
     return items, total
 
-def get_all_for_export(session: Session) -> list[Device]:
+def get_all_for_export(
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> list[Device]:
     statement = select(Device).order_by(col(Device.created_at))
+    device_ids = get_workspace_device_ids(session, None, owner_id)
+    statement = apply_owner_scope(statement, session, col, owner_id)
+    if device_ids is not None:
+        statement = statement.where(col(Device.id).in_(device_ids))
     return list(session.exec(statement).all())
 
 def update(session: Session, device: Device) -> Device:
@@ -95,26 +83,49 @@ def count(session: Session) -> int:
     result = session.exec(select(func.count()).select_from(Device)).one()
     return int(result)
 
-def get_children(session: Session, parent_id: uuid.UUID) -> list[Device]:
+def get_children(
+    session: Session,
+    parent_id: uuid.UUID,
+    owner_id: uuid.UUID | None = None,
+) -> list[Device]:
+    device_ids = get_workspace_device_ids(session, None, owner_id)
     statement = (
         select(Device)
         .where(col(Device.parent_id) == parent_id)
         .order_by(col(Device.name))
     )
+    statement = apply_owner_scope(statement, session, col, owner_id)
+    if device_ids is not None:
+        statement = statement.where(col(Device.id).in_(device_ids))
     return list(session.exec(statement).all())
 
-def count_children(session: Session, parent_id: uuid.UUID) -> int:
-    result = session.exec(
+
+def count_children(
+    session: Session,
+    parent_id: uuid.UUID,
+    owner_id: uuid.UUID | None = None,
+) -> int:
+    device_ids = get_workspace_device_ids(session, None, owner_id)
+    statement = (
         select(func.count())
         .select_from(Device)
         .where(col(Device.parent_id) == parent_id)
-    ).one()
+    )
+    statement = apply_owner_scope(statement, session, col, owner_id)
+    if device_ids is not None:
+        statement = statement.where(col(Device.id).in_(device_ids))
+    result = session.exec(statement).one()
     return int(result)
 
 def get_parent_map(
     session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> dict[uuid.UUID, Optional[uuid.UUID]]:
+    device_ids = get_workspace_device_ids(session, None, owner_id)
     statement = select(Device.id, Device.parent_id)
+    statement = apply_owner_scope(statement, session, col, owner_id)
+    if device_ids is not None:
+        statement = statement.where(col(Device.id).in_(device_ids))
     rows = session.exec(statement).all()
     return {row[0]: row[1] for row in rows}
 
@@ -122,19 +133,16 @@ def get_all_with_location(
     session: Session, page: int = 1, limit: int = 1000,
     sort: Optional[str] = None,
     workspace_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
 ) -> tuple[list[tuple[Device, str | None]], int]:
-    device_ids = _scoped_device_ids(session, workspace_id)
+    device_ids = get_workspace_device_ids(session, workspace_id, owner_id)
     offset = (page - 1) * limit
-    order_expr = (
-        _SORT_EXPRESSIONS[sort]()
-        if sort in _SORT_EXPRESSIONS
-        else col(Device.created_at)
-    )
+    order_expr = get_order_expression(sort, col)
     base = (
         sa_select(Device, Location.name)  # type: ignore[call-overload]
         .outerjoin(Location, Device.location_id == Location.id)
     )
-    stmt = _apply_workspace_scope(base, device_ids)
+    stmt = apply_device_scope(base, session, col, device_ids, owner_id)
     total = int(
         session.execute(
             sa_select(func.count()).select_from(stmt.subquery())  # type: ignore[arg-type]
@@ -143,8 +151,15 @@ def get_all_with_location(
     rows = list(session.execute(stmt.order_by(order_expr).offset(offset).limit(limit)).all())
     return [(row[0], row[1]) for row in rows], total
 
-def get_all_names(session: Session) -> list[str]:
+def get_all_names(
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> list[str]:
     statement = select(Device.name).order_by(col(Device.created_at))
+    device_ids = get_workspace_device_ids(session, None, owner_id)
+    statement = apply_owner_scope(statement, session, col, owner_id)
+    if device_ids is not None:
+        statement = statement.where(col(Device.id).in_(device_ids))
     return list(session.exec(statement).all())
 
 def search(
@@ -153,6 +168,7 @@ def search(
     page: int = 1,
     limit: int = 50,
     workspace_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
 ) -> tuple[list[tuple[Device, str | None]], int]:
     from src.domain.search import ParsedQuery, to_sql_like
     from src.models.service import Service
@@ -162,7 +178,7 @@ def search(
         .outerjoin(Location, Device.location_id == Location.id)
     )
 
-    device_ids = _scoped_device_ids(session, workspace_id)
+    device_ids = get_workspace_device_ids(session, workspace_id, owner_id)
 
     if parsed.types:
         stmt = stmt.where(or_(*[func.lower(col(Device.type)).ilike(v.lower()) for v in parsed.types]))
@@ -213,8 +229,7 @@ def search(
             col(Location.name).ilike(ft),
         ))
 
-    if device_ids is not None:
-        stmt = stmt.where(col(Device.id).in_(device_ids))
+    stmt = apply_device_scope(stmt, session, col, device_ids, owner_id)
 
     count_stmt = sa_select(func.count()).select_from(stmt.subquery())
     total = int(session.execute(count_stmt).scalar_one())

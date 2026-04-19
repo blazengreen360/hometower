@@ -398,19 +398,19 @@ class TestTagAttachDetach:
 
 class TestDeviceGetEnriched:
     def test_get_device_without_include_returns_base(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         device = _create_device(client, contributor_token)
 
         get_resp = client.get(
             f"/api/devices/{device['id']}",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert get_resp.status_code == 200
         assert "tags" not in get_resp.json()
 
     def test_get_device_include_tags_returns_enriched(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         tag = _create_tag(client, contributor_token)
         device = _create_device(client, contributor_token)
@@ -423,7 +423,7 @@ class TestDeviceGetEnriched:
 
         get_resp = client.get(
             f"/api/devices/{device['id']}?include=tags",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert get_resp.status_code == 200
         data = get_resp.json()
@@ -432,19 +432,19 @@ class TestDeviceGetEnriched:
         assert data["tags"][0]["id"] == tag["id"]
 
     def test_get_device_include_tags_empty_when_none_attached(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         device = _create_device(client, contributor_token)
 
         get_resp = client.get(
             f"/api/devices/{device['id']}?include=tags",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert get_resp.status_code == 200
         assert get_resp.json()["tags"] == []
 
     def test_delete_tag_cascades_device_association(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         tag = _create_tag(client, contributor_token)
         device = _create_device(client, contributor_token)
@@ -461,7 +461,7 @@ class TestDeviceGetEnriched:
 
         get_resp = client.get(
             f"/api/devices/{device['id']}?include=tags",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert get_resp.status_code == 200
         assert get_resp.json()["tags"] == []

@@ -17,16 +17,23 @@ from src.repositories import (
 )
 from src.services import attachment_service
 from src.services.device_enrichment_service import get_all_enriched as _get_all_enriched
-from src.services.device_enrichment_service import get_by_id_enriched
+from src.services.device_enrichment_service import get_by_id_enriched as _get_by_id_enriched
+from src.services.device_layout_service_support import get_device_placements as _get_device_placements
+from src.services.device_layout_service_support import get_placed_device_ids as _get_placed_device_ids
 from src.utils.logger import logger
+
 
 def _assert_location_exists(location_id: uuid.UUID, session: Session) -> None:
     loc = location_repository.get_by_id(session, location_id)
     if loc is None:
         raise HTTPException(status_code=400, detail="Location not found")
 
-def _assert_parent_exists(parent_id: uuid.UUID, session: Session) -> None:
-    parent = device_repository.get_by_id(session, parent_id)
+def _assert_parent_exists(
+    parent_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> None:
+    parent = device_repository.get_by_id(session, parent_id, owner_id=owner_id)
     if parent is None:
         raise HTTPException(status_code=400, detail="Parent device not found")
 
@@ -41,12 +48,12 @@ def _assert_workspace_owned(workspace_id: uuid.UUID | None, owner_id: uuid.UUID 
     if workspace is None or owner_id is None or workspace.owner_id != owner_id:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
-def create(data: DeviceCreate, session: Session) -> Device:
+def create(data: DeviceCreate, owner_id: uuid.UUID, session: Session) -> Device:
     validated_ip = device_domain.validate_ip(data.ip)
     if data.location_id is not None:
         _assert_location_exists(data.location_id, session)
     if data.parent_id is not None:
-        _assert_parent_exists(data.parent_id, session)
+        _assert_parent_exists(data.parent_id, session, owner_id=owner_id)
     device = Device(
         name=data.name,
         type=data.type,
@@ -58,6 +65,7 @@ def create(data: DeviceCreate, session: Session) -> Device:
         power_watts=data.power_watts,
         location_id=data.location_id,
         parent_id=data.parent_id,
+        owner_id=owner_id,
     )
     try:
         result = device_repository.create(session, device)
@@ -67,8 +75,12 @@ def create(data: DeviceCreate, session: Session) -> Device:
     logger.info("Device created: id={} name={}", result.id, result.name)
     return result
 
-def get_by_id(device_id: uuid.UUID, session: Session) -> Device:
-    device = device_repository.get_by_id(session, device_id)
+def get_by_id(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> Device:
+    device = device_repository.get_by_id(session, device_id, owner_id=owner_id)
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
     return device
@@ -88,6 +100,7 @@ def get_all(
         limit,
         sort=sort,
         workspace_id=workspace_id,
+        owner_id=owner_id,
     )
 
 def get_all_enriched(
@@ -109,10 +122,24 @@ def get_all_enriched(
         q=q,
         sort=sort,
         workspace_id=workspace_id,
+        owner_id=owner_id,
     )
 
-def update(device_id: uuid.UUID, data: DeviceUpdate, session: Session) -> Device:
-    device = device_repository.get_by_id(session, device_id)
+def get_by_id_enriched(
+    device_id: uuid.UUID,
+    session: Session,
+    include: set[str],
+    owner_id: uuid.UUID | None = None,
+) -> DeviceResponseEnriched:
+    return _get_by_id_enriched(device_id, session, include, owner_id=owner_id)
+
+def update(
+    device_id: uuid.UUID,
+    data: DeviceUpdate,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> Device:
+    device = device_repository.get_by_id(session, device_id, owner_id=owner_id)
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
 
@@ -136,8 +163,8 @@ def update(device_id: uuid.UUID, data: DeviceUpdate, session: Session) -> Device
             raise HTTPException(
                 status_code=400, detail="Device cannot be its own parent"
             )
-        _assert_parent_exists(new_parent_id, session)
-        parent_map = device_repository.get_parent_map(session)
+        _assert_parent_exists(new_parent_id, session, owner_id=owner_id)
+        parent_map = device_repository.get_parent_map(session, owner_id=owner_id)
         if device_domain.detect_parent_cycle(
             device_id, new_parent_id, parent_map
         ):
@@ -158,48 +185,20 @@ def update(device_id: uuid.UUID, data: DeviceUpdate, session: Session) -> Device
     logger.info("Device updated: id={} name={}", result.id, result.name)
     return result
 
-def get_device_placements(device_id: uuid.UUID, session: Session) -> list[DevicePlacement]:
-    device_id_str = str(device_id)
-    layouts = diagram_repository.get_all_layouts(session)
-    placements: list[DevicePlacement] = []
-    for layout in layouts:
-        cj = layout.cytoscape_json
-        if not isinstance(cj, dict):
-            continue
-        if device_domain.device_in_cytoscape_json(cj, device_id_str):
-            topology_name: str | None = None
-            if layout.topology_id is not None:
-                topo = topology_repository.get_by_id(session, layout.topology_id)
-                if topo is not None:
-                    topology_name = topo.name
-            placements.append(
-                DevicePlacement(
-                    view_id=layout.id,
-                    view_name=layout.name,
-                    topology_name=topology_name,
-                )
-            )
-    return placements
+def get_device_placements(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> list[DevicePlacement]:
+    return _get_device_placements(device_id, session, owner_id=owner_id)
 
-def get_placed_device_ids(session: Session) -> set[uuid.UUID]:
-    layouts = diagram_repository.get_all_layouts(session)
-    placed: set[uuid.UUID] = set()
-    for layout in layouts:
-        cj = layout.cytoscape_json
-        if not isinstance(cj, dict):
-            continue
-        elements = cj.get("elements")
-        if not isinstance(elements, list):
-            continue
-        for el in elements:
-            data = el.get("data", {}) if isinstance(el, dict) else {}
-            el_id = data.get("id")
-            if el_id is not None:
-                try:
-                    placed.add(uuid.UUID(str(el_id)))
-                except ValueError:
-                    continue
-    return placed
+def get_placed_device_ids(
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+    workspace_id: uuid.UUID | None = None,
+) -> set[uuid.UUID]:
+    _assert_workspace_owned(workspace_id, owner_id, session)
+    return _get_placed_device_ids(session, owner_id=owner_id, workspace_id=workspace_id)
 
 def _clean_device_from_views(device_id: uuid.UUID, session: Session) -> int:
     device_id_str = str(device_id)
@@ -221,11 +220,15 @@ def _clean_device_from_views(device_id: uuid.UUID, session: Session) -> int:
             modified += 1
     return modified
 
-def delete(device_id: uuid.UUID, session: Session) -> None:
-    device = device_repository.get_by_id(session, device_id)
+def delete(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> None:
+    device = device_repository.get_by_id(session, device_id, owner_id=owner_id)
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
-    child_count = device_repository.count_children(session, device_id)
+    child_count = device_repository.count_children(session, device_id, owner_id=owner_id)
     try:
         device_domain.validate_device_no_children(child_count)
     except ValueError as exc:

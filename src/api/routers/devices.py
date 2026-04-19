@@ -36,10 +36,16 @@ class PaginatedDeviceResponse(SQLModel):
     dependencies=[Depends(require_role(Role.Reader))],
 )
 def get_placed_device_ids(
+    request: Request,
+    workspace_id: uuid.UUID | None = Query(default=None),
     session: Session = Depends(get_session),
 ) -> list[str]:
     """Return UUIDs of devices placed on at least one View. Requires Reader role."""
-    placed = device_service.get_placed_device_ids(session)
+    placed = device_service.get_placed_device_ids(
+        session,
+        owner_id=_owner_id(request),
+        workspace_id=workspace_id,
+    )
     return [str(uid) for uid in placed]
 
 
@@ -51,11 +57,12 @@ def get_placed_device_ids(
 )
 def create_device(
     data: DeviceCreate,
+    request: Request,
     session: Session = Depends(get_session),
 ) -> DeviceResponse:
     """Create a new device. Requires Contributor role."""
     try:
-        device = device_service.create(data, session)
+        device = device_service.create(data, _owner_id(request), session)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return DeviceResponse.model_validate(device.model_dump())
@@ -83,6 +90,7 @@ def list_devices(
     Invalid sort values are silently ignored.
     """
     include_set: set[str] = {k.strip() for k in include.split(",") if k.strip()}
+    owner_id = _owner_id(request)
     if include_set or q:
         items, total = device_service.get_all_enriched(
             session,
@@ -92,7 +100,7 @@ def list_devices(
             q=q,
             sort=sort,
             workspace_id=workspace_id,
-            owner_id=_owner_id(request),
+            owner_id=owner_id,
         )
         return PaginatedDeviceResponseEnriched(
             items=items, total=total, page=page, limit=limit
@@ -103,7 +111,7 @@ def list_devices(
         limit,
         sort=sort,
         workspace_id=workspace_id,
-        owner_id=_owner_id(request),
+        owner_id=owner_id,
     )
     return PaginatedDeviceResponse(
         items=[DeviceResponse.model_validate(d.model_dump()) for d in raw],
@@ -118,6 +126,7 @@ def list_devices(
     dependencies=[Depends(require_role(Role.Reader))],
 )
 def get_device(
+    request: Request,
     device_id: uuid.UUID,
     include: str = Query(default=""),
     session: Session = Depends(get_session),
@@ -125,8 +134,13 @@ def get_device(
     """Get a device by ID. Pass ?include=tags,location,services,networks to enrich the response."""
     include_set: set[str] = {k.strip() for k in include.split(",") if k.strip()}
     if include_set:
-        return device_service.get_by_id_enriched(device_id, session, include_set)
-    device = device_service.get_by_id(device_id, session)
+        return device_service.get_by_id_enriched(
+            device_id,
+            session,
+            include_set,
+            owner_id=_owner_id(request),
+        )
+    device = device_service.get_by_id(device_id, session, owner_id=_owner_id(request))
     return DeviceResponse.model_validate(device.model_dump())
 
 
@@ -136,13 +150,19 @@ def get_device(
     dependencies=[Depends(require_role(Role.Contributor))],
 )
 def update_device(
+    request: Request,
     device_id: uuid.UUID,
     data: DeviceUpdate,
     session: Session = Depends(get_session),
 ) -> DeviceResponse:
     """Partially update a device. Requires Contributor role."""
     try:
-        device = device_service.update(device_id, data, session)
+        device = device_service.update(
+            device_id,
+            data,
+            session,
+            owner_id=_owner_id(request),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return DeviceResponse.model_validate(device.model_dump())
@@ -154,13 +174,15 @@ def update_device(
     dependencies=[Depends(require_role(Role.Reader))],
 )
 def get_device_placements(
+    request: Request,
     device_id: uuid.UUID,
     session: Session = Depends(get_session),
 ) -> list[DevicePlacement]:
     """Return Views that contain this device. Requires Reader role."""
+    owner_id = _owner_id(request)
     # Verify the device exists
-    device_service.get_by_id(device_id, session)
-    return device_service.get_device_placements(device_id, session)
+    device_service.get_by_id(device_id, session, owner_id=owner_id)
+    return device_service.get_device_placements(device_id, session, owner_id=owner_id)
 
 
 @router.delete(
@@ -169,8 +191,9 @@ def get_device_placements(
     dependencies=[Depends(require_role(Role.Contributor))],
 )
 def delete_device(
+    request: Request,
     device_id: uuid.UUID,
     session: Session = Depends(get_session),
 ) -> None:
     """Delete a device. Requires Contributor role."""
-    device_service.delete(device_id, session)
+    device_service.delete(device_id, session, owner_id=_owner_id(request))

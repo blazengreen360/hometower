@@ -5,8 +5,9 @@ from sqlmodel import Session
 
 from src.models.dashboard_summary import DashboardInventoryBreakdown
 from src.models.dashboard_summary import DashboardSummaryResponse
+from src.repositories.dashboard_recent_activity_support import build_recent_activity
+from src.repositories.dashboard_device_scope_support import build_device_scope
 from src.repositories.dashboard_repository_support import build_power_widget
-from src.repositories.dashboard_repository_support import build_recent_activity
 from src.repositories.dashboard_repository_support import build_status_counts
 from src.repositories.dashboard_repository_support import build_type_counts
 from src.repositories.dashboard_repository_support import count_devices
@@ -14,7 +15,6 @@ from src.repositories.dashboard_repository_support import count_recent_edits
 from src.repositories.dashboard_repository_support import count_topologies
 from src.repositories.dashboard_repository_support import list_workspaces
 from src.repositories.dashboard_repository_support import resolve_workspace_selection
-from src.repositories.dashboard_repository_support import scoped_device_ids
 
 
 def get_summary(
@@ -28,28 +28,22 @@ def get_summary(
         workspaces,
         selected_workspace_id,
     )
-    device_ids = scoped_device_ids(session, selected_workspace_id, owner_id)
+    device_scope = build_device_scope(session, selected_workspace_id, owner_id)
     return DashboardSummaryResponse(
-        devices=count_devices(session, device_ids),
+        devices=count_devices(session, device_scope),
         workspaces=len(workspaces),
         topologies=count_topologies(session, selected_workspace_id, owner_id),
-        offline_devices=count_devices(session, device_ids, offline_only=True),
-        recent_edits=count_recent_edits(session, device_ids, selected_workspace_id, owner_id),
+        offline_devices=count_devices(session, device_scope, offline_only=True),
+        recent_edits=count_recent_edits(session, device_scope),
         power=build_power_widget(
             session,
-            device_ids,
+            device_scope,
             workspaces,
-            selected_workspace_id,
             selected_workspace_name,
         ),
         inventory_breakdown=DashboardInventoryBreakdown(
-            status_counts=build_status_counts(session, device_ids),
-            type_counts=build_type_counts(session, device_ids),
+            status_counts=build_status_counts(session, device_scope),
+            type_counts=build_type_counts(session, device_scope),
         ),
-        recent_activity=build_recent_activity(
-            session,
-            device_ids,
-            selected_workspace_id,
-            owner_id,
-        ),
+        recent_activity=build_recent_activity(session, device_scope),
     )

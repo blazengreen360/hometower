@@ -1,6 +1,6 @@
 # Hometower Product Backlog
 
-Last updated: 18 April 2026 — HT-081 shipped after live validation and approved code review. 11 stories in Ready.
+Last updated: 18 April 2026 — HT-082 shipped after live validation, APPROVED review, and local commit. 10 stories in Ready.
 
 ## In Progress
 | ID | Story | MoSCoW | Assigned |
@@ -10,6 +10,7 @@ Last updated: 18 April 2026 — HT-081 shipped after live validation and approve
 ## Done
 | ID | Story | MoSCoW | Shipped |
 |---|---|---|---|
+| HT-082 | Dashboard Revamp & Power Widgets | Must | 18 Apr 2026 |
 | HT-081 | Data Table Enhancements & Pagination (Workspaces/Topologies/IAM) | Must | 18 Apr 2026 |
 | HT-078 | Inventory stencils panel — fix empty device list | Must | 18 Apr 2026 |
 | HT-080 | UI Premiumization & Component Consistency | Must | 18 Apr 2026 |
@@ -86,17 +87,16 @@ Last updated: 18 April 2026 — HT-081 shipped after live validation and approve
 ## Ready for Development
 | # | ID | Story | MoSCoW | Size | Depends on |
 |---|---|---|---|---|---|
-| 1 | HT-082 | Dashboard Revamp & Power Widgets | Must | L | HT-080 |
-| 2 | HT-076 | Canvas full-screen layout & panel consolidation | Must | L | HT-078 |
-| 3 | HT-077 | Container behavior overhaul — un-parent, resize, icon watermark | Must | L | — |
-| 4 | HT-083 | Beautiful Empty States & Minimalist Onboarding | Should | S | HT-080 |
-| 5 | HT-085 | Financial Power Management (Cost Tracking via Locations) | Should | M | HT-082 |
-| 6 | HT-079 | Canvas minimap navigation overview | Should | M | HT-076 |
-| 7 | HT-084 | Taxi-cab (Orthogonal) Edge Routing Styles | Should | M | HT-030 |
-| 8 | HT-065 | Canvas visual polish and edge-case cleanup | Could | M | — |
-| 9 | HT-037 | Connection port / interface mapping | Could | S | HT-030 |
-| 10 | HT-043 | QR code labels for devices | Could | S | — |
-| 11 | HT-014 | Export canvas to PNG/SVG | Could | S | — |
+| 1 | HT-076 | Canvas full-screen layout & panel consolidation | Must | L | HT-078 |
+| 2 | HT-077 | Container behavior overhaul — un-parent, resize, icon watermark | Must | L | — |
+| 3 | HT-083 | Beautiful Empty States & Minimalist Onboarding | Should | S | HT-080 |
+| 4 | HT-085 | Financial Power Management (Cost Tracking via Locations) | Should | M | HT-082 |
+| 5 | HT-079 | Canvas minimap navigation overview | Should | M | HT-076 |
+| 6 | HT-084 | Taxi-cab (Orthogonal) Edge Routing Styles | Should | M | HT-030 |
+| 7 | HT-065 | Canvas visual polish and edge-case cleanup | Could | M | — |
+| 8 | HT-037 | Connection port / interface mapping | Could | S | HT-030 |
+| 9 | HT-043 | QR code labels for devices | Could | S | — |
+| 10 | HT-014 | Export canvas to PNG/SVG | Could | S | — |
 
 ## Defined (needs refinement)
 | ID | Story | MoSCoW | Blocker |

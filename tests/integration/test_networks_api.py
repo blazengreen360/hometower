@@ -225,7 +225,6 @@ class TestNetworkMemberships:
         self,
         client: TestClient,
         contributor_token: str,
-        reader_token: str,
     ) -> None:
         device = _create_device(client, contributor_token, name=f"edge-dev-{uuid.uuid4().hex[:8]}")
         network = _create_network(
@@ -246,7 +245,7 @@ class TestNetworkMemberships:
 
         device_enriched = client.get(
             f"/api/devices/{device['id']}?include=networks",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert device_enriched.status_code == 200
         d_body = device_enriched.json()
@@ -256,7 +255,7 @@ class TestNetworkMemberships:
 
         network_enriched = client.get(
             f"/api/networks/{network['id']}?include=devices",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert network_enriched.status_code == 200
         n_body = network_enriched.json()

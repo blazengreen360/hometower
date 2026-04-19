@@ -138,6 +138,7 @@ def recreate_ghost_as_new_device(topology_id: uuid.UUID, ghost_id: uuid.UUID, ow
         type=_resolve_recreated_device_type(ghost_meta["device_type"]),
         status=DeviceStatus.Planned,
         notes=f"Recreated from topology ghost placeholder {ghost_id}",
+        owner_id=owner_id,
     )
     snapshot_name = resolve_snapshot_name(f"Recreate ghost {str(ghost_id)[:8]}")
     try:
@@ -180,7 +181,7 @@ def recreate_ghost_as_new_device(topology_id: uuid.UUID, ghost_id: uuid.UUID, ow
 def map_ghost_to_existing_device(topology_id: uuid.UUID, ghost_id: uuid.UUID, live_device_id: uuid.UUID, owner_id: uuid.UUID, user_id: uuid.UUID, role: Role, base_diagram_version: int | None, session: Session) -> TopologySaveVersionResponse:
     topology, current = _resolve_current_topology_diagram(topology_id, owner_id, session)
     _ensure_base_diagram_version(current, base_diagram_version)
-    if device_repository.get_by_id(session, live_device_id) is None:
+    if device_repository.get_by_id(session, live_device_id, owner_id=owner_id) is None:
         raise HTTPException(status_code=404, detail="Target device not found")
     if device_repository.get_by_id(session, ghost_id) is not None:
         raise HTTPException(status_code=409, detail="Device still exists in inventory")
