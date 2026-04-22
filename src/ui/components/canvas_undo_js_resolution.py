@@ -10,6 +10,9 @@ CANVAS_UNDO_JS_RESOLUTION = """
         if (result && result.graph_patch) {
             _applyGraphPatch(result.graph_patch);
         }
+        if (result && result.stencil_patch) {
+            _applyStencilPatch(result.stencil_patch);
+        }
         _syncDiagramVersion(result || {});
 
         if (direction === 'forward') {

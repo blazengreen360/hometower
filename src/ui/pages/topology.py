@@ -1,6 +1,7 @@
 """Topology page — NiceGUI page at /topology."""
 import json
 
+from fastapi import Request
 from nicegui import app as nicegui_app
 from nicegui import ui
 
@@ -17,46 +18,55 @@ from src.ui.components.canvas_undo_handlers import register_canvas_undo_handlers
 from src.ui.components.canvas_zoom import inject_zoom_controls
 from src.ui.components.connection_detail_panel import render_connection_detail_panel
 from src.ui.components.device_detail_panel import render_detail_panel
-from src.ui.components.device_palette import render_palette
 from src.ui.components.ghost_detail_panel import render_ghost_detail_panel
-from src.ui.components.stencils_panel import compute_placed_ids, render_stencils_panel
-from src.ui.components.topology_network_panel import render_network_filter_panel
+from src.ui.components.stencils_panel import compute_placed_ids
+from src.ui.components.topology_layout_runtime import (
+    arm_topology_layout_runtime,
+    inject_topology_layout_runtime,
+)
+from src.ui.components.topology_layout_shell import (
+    inject_topology_layout_shell_css,
+    render_topology_left_rail,
+)
 from src.ui.components.topology_restore_summary import render_restore_summary_banner
 from src.ui.components.topology_leave_guard import inject_topology_leave_guard
+from src.ui.pages.topology_page_context import build_topology_current_path
+from src.ui.pages.topology_page_context import inject_focus_device_script
+from src.ui.pages.topology_page_context import load_stencil_devices_for_role
+from src.ui.pages.topology_page_context import parse_saved_layout_context
+from src.ui.pages.topology_page_context import render_topology_breadcrumb
+from src.ui.pages.topology_page_context import resolve_topology_page_route_context
 from src.ui.pages.topology_page_support import (
     _FOCUS_DEVICE_JS_TEMPLATE,
-    _fetch_stencil_devices,
     _render_header_actions,
-    _resolve_topology_id_from_layout,
 )
-from src.ui.services.topology_data import load_canvas_data, load_network_summaries
-from src.ui.services.topology_layout import fetch_breadcrumb_names
+from src.ui.services.topology_data import load_canvas_data
 
 @ui.page("/topology")
 async def topology_page(
+    request: Request,
     device_id: str = "",
     layout_id: str = "",
     topology_id: str = "",
     workspace_id: str = "",
 ) -> None:
     """Topology page — requires auth, renders the full canvas view."""
-    if redirect_if_unauthenticated(current_path="/topology"):
+    current_path = build_topology_current_path(request)
+
+    if redirect_if_unauthenticated(current_path=current_path):
         return
 
     role = get_ui_role()
     user_role: str = role.value if role else Role.Reader.value
     token: str = nicegui_app.storage.user.get("access_token", "")
 
-    if not topology_id and layout_id:
-        topology_id = await _resolve_topology_id_from_layout(token, layout_id)
-
-    ws_name = ""
-    topo_name = ""
-    if workspace_id and topology_id:
-        headers = {"Authorization": f"Bearer {token}"}
-        ws_name, topo_name = await fetch_breadcrumb_names(
-            workspace_id, topology_id, headers,
-        )
+    route_context = await resolve_topology_page_route_context(
+        token,
+        layout_id,
+        topology_id,
+        workspace_id,
+    )
+    topology_id = route_context.topology_id
 
     ui.add_body_html(f"<script>{CONTEXT_MENU_JS}</script>")
 
@@ -66,37 +76,11 @@ async def topology_page(
         topology_id=topology_id,
     )
 
-    current_diagram_id = ""
-    current_diagram_version: int | None = None
-    draft_version: int | None = None
-    has_unsaved_changes = False
-    restore_summary: dict[str, object] | None = None
-    if isinstance(saved_layout, dict):
-        raw_diagram_id = saved_layout.get("_current_diagram_id")
-        if raw_diagram_id:
-            current_diagram_id = str(raw_diagram_id)
-        raw_diagram_version = saved_layout.get("_current_diagram_version")
-        if isinstance(raw_diagram_version, int):
-            current_diagram_version = raw_diagram_version
-        elif isinstance(raw_diagram_version, float):
-            current_diagram_version = int(raw_diagram_version)
-        raw_draft_version = saved_layout.get("_draft_version")
-        if isinstance(raw_draft_version, int):
-            draft_version = raw_draft_version
-        elif isinstance(raw_draft_version, float):
-            draft_version = int(raw_draft_version)
-        raw_unsaved_changes = saved_layout.get("_has_unsaved_changes")
-        has_unsaved_changes = bool(raw_unsaved_changes)
-        raw_restore_summary = saved_layout.get("restore_summary")
-        if isinstance(raw_restore_summary, dict):
-            restore_summary = raw_restore_summary
-
-    network_summaries = await load_network_summaries(token)
+    layout_context = parse_saved_layout_context(saved_layout)
 
     placed_ids = compute_placed_ids(elements)
-    stencil_devices: list[dict[str, str | int]] = []
-    if role != Role.Reader:
-        stencil_devices = await _fetch_stencil_devices(token)
+    stencil_devices = await load_stencil_devices_for_role(token, role)
+    restore_summary = layout_context.restore_summary
 
     can_patch_diagrams = role in (Role.Admin, Role.Contributor)
     register_canvas_undo_handlers(token, user_role)
@@ -106,16 +90,18 @@ async def topology_page(
         "window.HT_READONLY = true;"
         f"window._htUserRole = {json.dumps(user_role)};"
         f"window._htTopologyId = {json.dumps(topology_id or None)};"
-        f"window._htDiagramId = {json.dumps(current_diagram_id or None)};"
-        f"window._htCurrentDiagramId = {json.dumps(current_diagram_id or None)};"
-        f"window._htDiagramVersion = {json.dumps(current_diagram_version)};"
-        f"window._htDraftVersion = {json.dumps(draft_version)};"
-        f"window._htHasUnsavedChanges = {json.dumps(has_unsaved_changes)};"
+        f"window._htDiagramId = {json.dumps(layout_context.current_diagram_id or None)};"
+        f"window._htCurrentDiagramId = {json.dumps(layout_context.current_diagram_id or None)};"
+        f"window._htDiagramVersion = {json.dumps(layout_context.current_diagram_version)};"
+        f"window._htDraftVersion = {json.dumps(layout_context.draft_version)};"
+        f"window._htHasUnsavedChanges = {json.dumps(layout_context.has_unsaved_changes)};"
         "</script>"
     )
     inject_topology_leave_guard(user_role)
     ui.add_body_html(f"<script>{VIEW_MODE_JS}</script>")
     ui.add_body_html(f"<script>{EDIT_MODE_JS}</script>")
+    inject_topology_layout_runtime()
+    inject_topology_layout_shell_css()
     ui.add_body_html("<script>(function(){window._htEventsWired=false;if(window._htTopologyTeardownInit)return;window._htTopologyTeardownInit=true;window.addEventListener('pagehide',function(){window._htEventsWired=false;if(window._htResetUndoState)window._htResetUndoState();});})();</script>")
 
     _refs: dict[str, object] = {}
@@ -129,50 +115,43 @@ async def topology_page(
             user_role,
             _refs,
             topology_id,
-            current_diagram_id,
-            current_diagram_version,
-            draft_version,
-            has_unsaved_changes,
+                layout_context.current_diagram_id,
+                layout_context.current_diagram_version,
+                layout_context.draft_version,
+                layout_context.has_unsaved_changes,
         ),
     ):
-        if ws_name and topo_name:
-            render_breadcrumb([
-                ("Workspaces", "/workspaces"),
-                (ws_name, f"/workspaces/{workspace_id}"),
-                (topo_name, ""),
-            ], use_leave_guard=True)
-        render_restore_summary_banner(restore_summary)
-        with ui.row().style(
-            "flex: 1; width: 100%; min-height: 0; gap: 0;"
-            " flex-wrap: nowrap; align-items: stretch;"
+        with ui.column().props('id="ht-topology-page"').classes("w-full flex-1").style(
+            "min-height:0; height:100%;"
         ):
-            palette_container = ui.element("div").style(
-                "flex-shrink: 0; overflow-y: auto; display: flex;"
-                " flex-direction: row; max-height: 100%;"
+            render_topology_breadcrumb(
+                route_context.workspace_name,
+                route_context.topology_name,
+                workspace_id,
             )
-            palette_container.set_visibility(False)
-            _refs["palette"] = palette_container
-            if role != Role.Reader:
-                with palette_container:
-                    render_palette()
-                    render_stencils_panel(stencil_devices, placed_ids)
+            render_restore_summary_banner(restore_summary)
+            # The shell still honors the old "flex-wrap: nowrap;" and
+            # "align-items: stretch;" canvas contract, but the row is now
+            # expressed through explicit shell ids.
+            with ui.element("section").props('id="ht-topology-shell"'):
+                if role != Role.Reader:
+                    # render_palette() now lives inside the consolidated left rail helper.
+                    _refs["palette"] = render_topology_left_rail(stencil_devices, placed_ids)
 
-            with ui.element("div").style(
-                "flex: 1; min-width: 0; min-height: 0; position: relative;"
-            ):
-                render_canvas(elements, saved_layout)
-                inject_canvas_shortcuts()
-                inject_zoom_controls()
-                inject_network_overlay()
+                with ui.element("div").props('id="ht-topology-workspace"'):
+                    with ui.element("div").props('id="ht-topology-canvas-stage"'):
+                        render_canvas(elements, saved_layout)
+                        inject_canvas_shortcuts()
+                        inject_zoom_controls()
+                        inject_network_overlay()
 
-            render_network_filter_panel(network_summaries)
+                    with ui.element("aside").props(
+                        'id="ht-topology-right-rail" role="complementary" aria-label="Topology side panels"'
+                    ):
+                        render_detail_panel(token, user_role)
+                        render_ghost_detail_panel(token, user_role, topology_id)
+                        render_connection_detail_panel(token, user_role)
 
-            render_detail_panel(token, user_role)
-            render_ghost_detail_panel(token, user_role, topology_id)
-            render_connection_detail_panel(token, user_role)
-
-            if device_id:
-                focus_js = _FOCUS_DEVICE_JS_TEMPLATE.replace(
-                    "__HT_DEVICE_ID__", json.dumps(device_id)
-                )
-                ui.add_body_html(f"<script>{focus_js}</script>")
+        arm_topology_layout_runtime()
+        if device_id:
+            inject_focus_device_script(device_id)

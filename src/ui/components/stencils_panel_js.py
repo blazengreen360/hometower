@@ -1,4 +1,17 @@
-"""Inventory stencils panel JS bridge for drag/drop, rendering, and refresh."""
+"""Inventory stencils panel JavaScript bridge (HT-049).
+
+STENCIL_DRAG_JS — makes stencil device rows draggable via HTML5 drag API.
+STENCIL_DROP_HANDLER_JS — handles ht:stencil-drop events on the canvas,
+    creating real (non-draft) nodes and triggering autosave.
+STENCIL_PANEL_JS — client-side virtual-scroll renderer, placed-state event
+    consumers (ht:stencil-placed / ht:stencil-refresh), collapse toggle.
+
+STENCIL_DROP_HANDLER_JS is concatenated into the _htInitEventHandlers closure
+in canvas_events.py — it shares scope with cy, _escapeHtml, _notify, and
+deviceShapes.
+"""
+
+from src.ui.components.stencils_panel_drop_handler import STENCIL_DROP_HANDLER_JS
 
 STENCIL_DRAG_JS: str = """
 function htStencilCardDrag(el, deviceId, deviceName, deviceType, deviceIp, deviceVersion) {
@@ -18,55 +31,9 @@ function htStencilCardDrag(el, deviceId, deviceName, deviceType, deviceIp, devic
 }
 """
 
-STENCIL_DROP_HANDLER_JS: str = """
-        document.addEventListener('ht:stencil-drop', function(evt) {
-            if (window.HT_READONLY) return;
-            var d = evt.detail;
-            if (!window._cy) return;
-            var deviceId = String(d.deviceId || '');
-            if (!deviceId) return;
 
-            // Duplicate prevention — one device = one node per canvas
-            if (window._cy.getElementById(deviceId).length > 0) {
-                _notify('Device is already placed on this canvas.', 'warning');
-                return;
-            }
+# ── Client-side virtual-scroll renderer + event consumers ────────────────
 
-            var deviceName = String(d.deviceName || '');
-            var deviceType = String(d.deviceType || '');
-            var deviceIp = String(d.deviceIp || '');
-            var deviceVersion = Number(d.deviceVersion || 1);
-            var shape = deviceShapes[deviceType] || 'rectangle';
-
-            window._cy.add({
-                data: {
-                    id: deviceId,
-                    label: _escapeHtml(deviceName),
-                    raw_name: deviceName,
-                    version: deviceVersion,
-                    shape: shape,
-                    device_type: _escapeHtml(deviceType),
-                    raw_device_type: deviceType,
-                    status: 'Active',
-                    ip: _escapeHtml(deviceIp),
-                    mac: '',
-                    os: '',
-                    notes: ''
-                },
-                position: { x: d.x || 200, y: d.y || 200 }
-            });
-
-            // Trigger autosave to persist to server
-            if (window.scheduleAutosave) window.scheduleAutosave(800);
-
-            // Notify stencils panel to grey out the placed device
-            document.dispatchEvent(new CustomEvent('ht:stencil-placed', {
-                detail: { deviceId: deviceId }
-            }));
-
-            _notify('Device placed on canvas.', 'positive');
-        });
-"""
 STENCIL_PANEL_JS: str = """
 (function() {
     if (window._htStencilPanelLoaded) return;
@@ -74,14 +41,8 @@ STENCIL_PANEL_JS: str = """
     var _d = [], _p = new Set(), _tc = {}, _ti = {}, _c = null;
     var _s = '', _tf = '', _B = 50;
 
-    window.htStencilInit = function(cid, devs, placed, tc, ti, tries) {
+    window.htStencilInit = function(cid, devs, placed, tc, ti) {
         _c = document.getElementById(cid);
-        if (!_c) {
-            if ((tries || 0) < 12) window.requestAnimationFrame(function() {
-                window.htStencilInit(cid, devs, placed, tc, ti, (tries || 0) + 1);
-            });
-            return;
-        }
         _d = devs || []; _p = new Set(placed || []);
         _tc = tc || {}; _ti = ti || {};
         _render();
@@ -113,20 +74,33 @@ STENCIL_PANEL_JS: str = """
 
     function _upsert(dev) {
         if (!dev || !dev.id) return;
-        _d = _d.filter(function(item) { return item.id !== dev.id; }); _d.unshift(dev);
+        _d = _d.filter(function(item) { return item.id !== dev.id; });
+        _d.unshift(dev);
     }
+
+    function _consumePublishedDevice(dev) {
+        if (!dev) return;
+        _upsert(dev);
+        _p.add(String(dev.id || ''));
+        _render();
+    }
+
+    function _removePublishedDevice(deviceId) {
+        var did = String(deviceId || '');
+        if (!did) return;
+        _d = _d.filter(function(item) { return String(item && item.id ? item.id : '') !== did; });
+        _p.delete(did);
+        _render();
+    }
+
     window.htStencilUpsertPublishedDevice = function(dev) {
-        if (!dev) return; _upsert(dev); _p.add(String(dev.id || '')); _render();
+        _consumePublishedDevice(dev);
     };
 
     function _render() {
         if (!_c) return;
         _c.innerHTML = '';
         var items = _filtered(), idx = 0;
-        if (!items.length) {
-            _c.innerHTML = '<div style="padding:8px;color:var(--ht-text-secondary);font-size:0.75rem;">No devices in inventory</div>';
-            return;
-        }
         var sr = _c.closest('.q-scrollarea__container');
         function batch() {
             var f = document.createDocumentFragment();
@@ -225,7 +199,12 @@ STENCIL_PANEL_JS: str = """
 
     document.addEventListener('ht:stencil-device-published', function(evt) {
         var dev = evt.detail && evt.detail.device ? evt.detail.device : null;
-        window.htStencilUpsertPublishedDevice(dev);
+        _consumePublishedDevice(dev);
+    });
+
+    document.addEventListener('ht:stencil-device-removed', function(evt) {
+        var did = evt.detail && evt.detail.deviceId ? String(evt.detail.deviceId) : '';
+        _removePublishedDevice(did);
     });
 
     document.addEventListener('ht:stencil-refresh', function() {

@@ -1,8 +1,10 @@
 """Unit tests for import/export data transfer router internals."""
+import json
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI, HTTPException
+from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
 
 from src.api.middleware.rate_limit import limiter
@@ -40,6 +42,29 @@ def _make_request() -> Request:
     return Request(scope)
 
 
+def _valid_export_bytes() -> bytes:
+    return json.dumps(
+        {
+            "version": "1.0",
+            "exported_at": "2026-04-21T00:00:00Z",
+            "devices": [],
+            "connections": [],
+            "locations": [],
+            "tags": [],
+            "device_tags": [],
+            "networks": [],
+            "device_networks": [],
+            "custom_fields": [],
+            "services": [],
+            "service_dependencies": [],
+            "workspaces": [],
+            "topologies": [],
+            "diagram_layouts": [],
+            "users": [],
+        }
+    ).encode("utf-8")
+
+
 def test_import_uses_bounded_read_and_rejects_oversized_file() -> None:
     fake_upload = _FakeUpload(b"x" * (_MAX_IMPORT_BYTES + 64))
 
@@ -53,3 +78,51 @@ def test_import_uses_bounded_read_and_rejects_oversized_file() -> None:
 
     assert exc_info.value.status_code == 413
     assert fake_upload.read_calls == [_MAX_IMPORT_BYTES + 1]
+
+
+def test_import_does_not_commit_in_router_after_service_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = MagicMock()
+
+    monkeypatch.setattr(
+        "src.api.routers.data_transfer.import_full_snapshot",
+        lambda current_session, payload: {"devices": 0},
+    )
+
+    result = import_json(
+        request=_make_request(),
+        file=_FakeUpload(_valid_export_bytes()),
+        confirm=True,
+        session=session,
+    )
+
+    assert result == {"devices": 0}
+    session.commit.assert_not_called()
+    session.rollback.assert_not_called()
+
+
+def test_import_does_not_rollback_in_router_when_service_raises_integrity_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = MagicMock()
+
+    def _fail_import(current_session: object, payload: object) -> dict[str, int]:
+        raise IntegrityError("INSERT ...", {}, Exception("simulated duplicate"))
+
+    monkeypatch.setattr(
+        "src.api.routers.data_transfer.import_full_snapshot",
+        _fail_import,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        import_json(
+            request=_make_request(),
+            file=_FakeUpload(_valid_export_bytes()),
+            confirm=True,
+            session=session,
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == "Import failed: data integrity violation"
+    session.rollback.assert_not_called()

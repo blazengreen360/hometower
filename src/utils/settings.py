@@ -1,12 +1,63 @@
+import os
+import warnings
+
+from pydantic import model_validator
+from pydantic_settings import BaseSettings
+
+
+_DEV_MODE_VALUES = ("1", "true", "yes")
+_DEFAULT_ADMIN_PASSWORDS = ("changeme_on_first_boot", "changeme")
+_SECRET_KEY_ERROR = (
+    "SECRET_KEY must be at least 32 characters and not a placeholder. "
+    "Generate one with: openssl rand -hex 32"
+)
+_ADMIN_PASSWORD_ERROR = (
+    "ADMIN_PASSWORD must be changed from the default. "
+    "Set a strong password in .env before first boot."
+)
+
+
 """Application settings loaded from environment / .env file.
 
 Validators ensure obvious placeholder secrets are rejected at startup
 so deployments fail fast when secrets are not configured.
 """
-from pydantic_settings import BaseSettings
-from pydantic import model_validator
-import os
-import warnings
+
+
+def _is_dev_mode() -> bool:
+    return os.getenv("DEV_MODE", "false").lower() in _DEV_MODE_VALUES
+
+
+def _is_invalid_secret_key(secret_key: str) -> bool:
+    lowered_key = secret_key.lower()
+    return (
+        len(secret_key) < 32
+        or "replace_with" in lowered_key
+        or "dev_secret" in lowered_key
+    )
+
+
+def _warn_or_raise(message: str, is_dev: bool) -> None:
+    if is_dev:
+        warnings.warn(message)
+        return
+    raise ValueError(message)
+
+
+def _derive_storage_secret(secret_key: str, storage_secret: str) -> str:
+    if storage_secret.strip():
+        return storage_secret
+    return secret_key + "_nicegui_storage"
+
+
+def _validate_secret_key(secret_key: str, is_dev: bool) -> None:
+    if _is_invalid_secret_key(secret_key):
+        _warn_or_raise(_SECRET_KEY_ERROR, is_dev)
+
+
+def _validate_admin_password(admin_password: str, is_dev: bool) -> None:
+    if admin_password in _DEFAULT_ADMIN_PASSWORDS:
+        _warn_or_raise(_ADMIN_PASSWORD_ERROR, is_dev)
 
 
 class Settings(BaseSettings):
@@ -14,8 +65,8 @@ class Settings(BaseSettings):
     secret_key: str
     admin_email: str
     admin_password: str
-    storage_secret: str = ""
     attachments_root: str = "/data/attachments"
+    storage_secret: str = ""
     jwt_expire_hours: int = 24
     log_level: str = "INFO"
     api_base_url: str = "http://127.0.0.1:8080"
@@ -25,40 +76,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_secrets(self):
-        # SECRET_KEY: reject obvious placeholders and short keys
-        is_dev = os.getenv("DEV_MODE", "false").lower() in ("1", "true", "yes")
-
         key = (self.secret_key or "").strip()
-        if (
-            len(key) < 32
-            or "replace_with" in key.lower()
-            or "dev_secret" in key.lower()
-        ):
-            msg = (
-                "SECRET_KEY must be at least 32 characters and not a placeholder. "
-                "Generate one with: openssl rand -hex 32"
-            )
-            if is_dev:
-                warnings.warn(msg)
-            else:
-                raise ValueError(msg)
-
-        # ADMIN_PASSWORD: ensure not left as the default placeholder
+        is_dev = _is_dev_mode()
         pwd = (self.admin_password or "").strip()
-        if pwd in ("changeme_on_first_boot", "changeme"):
-            msg = (
-                "ADMIN_PASSWORD must be changed from the default. "
-                "Set a strong password in .env before first boot."
-            )
-            if is_dev:
-                warnings.warn(msg)
-            else:
-                raise ValueError(msg)
-
-        # STORAGE_SECRET: derive from SECRET_KEY if not explicitly provided
-        if not (self.storage_secret or "").strip():
-            # derive a distinct value so it's never identical to SECRET_KEY
-            self.storage_secret = key + "_nicegui_storage"
+        _validate_secret_key(key, is_dev)
+        _validate_admin_password(pwd, is_dev)
+        self.storage_secret = _derive_storage_secret(key, self.storage_secret or "")
 
         return self
 

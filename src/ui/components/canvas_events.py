@@ -7,7 +7,13 @@ from src.ui.components.canvas_draft_events import CANVAS_DRAFT_EVENTS_JS
 from src.ui.components.canvas_draft_form import CANVAS_DRAFT_FORM_JS
 from src.ui.components.canvas_draft_publish import CANVAS_DRAFT_PUBLISH_JS
 from src.ui.components.canvas_js_helpers import CANVAS_HELPERS_JS
+from src.ui.components.device_detail_panel_shell import (
+    RIGHT_RAIL_PANEL_IDS,
+    build_panel_visibility_batch_js,
+)
 from src.ui.components.stencils_panel_js import STENCIL_DROP_HANDLER_JS
+
+_CLOSE_RIGHT_RAIL_JS = build_panel_visibility_batch_js(RIGHT_RAIL_PANEL_IDS, False)
 
 _CANVAS_EVENTS_JS = """
 (function() {
@@ -201,10 +207,7 @@ _CANVAS_EVENTS_JS = """
         });
 
         document.addEventListener('ht:close-panel', function() {
-            ['device-detail-panel', 'connection-detail-panel'].forEach(function(id) {
-                var panel = document.getElementById(id);
-                if (panel) panel.style.display = 'none';
-            });
+            """ + _CLOSE_RIGHT_RAIL_JS + """
             _clearAssociationSelection();
         });
 """ + CANVAS_DRAFT_EVENTS_JS + CANVAS_CONTAINER_EVENTS_JS + STENCIL_DROP_HANDLER_JS + """

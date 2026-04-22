@@ -11,35 +11,22 @@ from src.repositories import (
     connection_repository,
     device_repository,
     diagram_repository,
-    location_repository,
+    topology_history_repository,
     topology_repository,
     workspace_repository,
 )
 from src.services import attachment_service
 from src.services.device_enrichment_service import get_all_enriched as _get_all_enriched
 from src.services.device_enrichment_service import get_by_id_enriched as _get_by_id_enriched
+from src.services.device_layout_service_support import _current_layouts
 from src.services.device_layout_service_support import get_device_placements as _get_device_placements
 from src.services.device_layout_service_support import get_placed_device_ids as _get_placed_device_ids
+from src.services.device_update_service_support import assert_location_exists
+from src.services.device_update_service_support import assert_parent_exists
+from src.services.device_update_service_support import prepare_device_update_data
+from src.services.device_update_service_support import raise_device_conflict
 from src.utils.logger import logger
 
-
-def _assert_location_exists(location_id: uuid.UUID, session: Session) -> None:
-    loc = location_repository.get_by_id(session, location_id)
-    if loc is None:
-        raise HTTPException(status_code=400, detail="Location not found")
-
-def _assert_parent_exists(
-    parent_id: uuid.UUID,
-    session: Session,
-    owner_id: uuid.UUID | None = None,
-) -> None:
-    parent = device_repository.get_by_id(session, parent_id, owner_id=owner_id)
-    if parent is None:
-        raise HTTPException(status_code=400, detail="Parent device not found")
-
-def _raise_device_conflict(exc: IntegrityError, session: Session, detail: str) -> None:
-    session.rollback()
-    raise HTTPException(status_code=409, detail=detail) from exc
 
 def _assert_workspace_owned(workspace_id: uuid.UUID | None, owner_id: uuid.UUID | None, session: Session) -> None:
     if workspace_id is None:
@@ -51,9 +38,9 @@ def _assert_workspace_owned(workspace_id: uuid.UUID | None, owner_id: uuid.UUID 
 def create(data: DeviceCreate, owner_id: uuid.UUID, session: Session) -> Device:
     validated_ip = device_domain.validate_ip(data.ip)
     if data.location_id is not None:
-        _assert_location_exists(data.location_id, session)
+        assert_location_exists(data.location_id, session)
     if data.parent_id is not None:
-        _assert_parent_exists(data.parent_id, session, owner_id=owner_id)
+        assert_parent_exists(data.parent_id, session, owner_id=owner_id)
     device = Device(
         name=data.name,
         type=data.type,
@@ -71,7 +58,7 @@ def create(data: DeviceCreate, owner_id: uuid.UUID, session: Session) -> Device:
         result = device_repository.create(session, device)
         session.commit()
     except IntegrityError as exc:
-        _raise_device_conflict(exc, session, "Device create conflict")
+        raise_device_conflict(exc, session, "Device create conflict")
     logger.info("Device created: id={} name={}", result.id, result.name)
     return result
 
@@ -79,8 +66,14 @@ def get_by_id(
     device_id: uuid.UUID,
     session: Session,
     owner_id: uuid.UUID | None = None,
+    enforce_owner_scope: bool = True,
 ) -> Device:
-    device = device_repository.get_by_id(session, device_id, owner_id=owner_id)
+    device = device_repository.get_by_id(
+        session,
+        device_id,
+        owner_id=owner_id,
+        enforce_owner_scope=enforce_owner_scope,
+    )
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
     return device
@@ -143,35 +136,13 @@ def update(
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
 
-    update_data = data.model_dump(exclude_unset=True)
-    expected_version = update_data.pop("version")
-    if expected_version != device.version:
-        raise HTTPException(
-            status_code=409,
-            detail="Conflict: device was modified by another request",
-        )
-
-    if "ip" in update_data:
-        update_data["ip"] = device_domain.validate_ip(update_data["ip"])
-    if "mac" in update_data:
-        update_data["mac"] = device_domain.validate_mac(update_data["mac"])
-    if "location_id" in update_data and update_data["location_id"] is not None:
-        _assert_location_exists(update_data["location_id"], session)
-    if "parent_id" in update_data and update_data["parent_id"] is not None:
-        new_parent_id = update_data["parent_id"]
-        if new_parent_id == device_id:
-            raise HTTPException(
-                status_code=400, detail="Device cannot be its own parent"
-            )
-        _assert_parent_exists(new_parent_id, session, owner_id=owner_id)
-        parent_map = device_repository.get_parent_map(session, owner_id=owner_id)
-        if device_domain.detect_parent_cycle(
-            device_id, new_parent_id, parent_map
-        ):
-            raise HTTPException(
-                status_code=400, detail="Circular containment detected"
-            )
-
+    update_data = prepare_device_update_data(
+        device_id,
+        device,
+        data,
+        session,
+        owner_id=owner_id,
+    )
     for field, value in update_data.items():
         setattr(device, field, value)
 
@@ -181,7 +152,7 @@ def update(
         result = device_repository.update(session, device)
         session.commit()
     except IntegrityError as exc:
-        _raise_device_conflict(exc, session, "Device update conflict")
+        raise_device_conflict(exc, session, "Device update conflict")
     logger.info("Device updated: id={} name={}", result.id, result.name)
     return result
 
@@ -200,12 +171,20 @@ def get_placed_device_ids(
     _assert_workspace_owned(workspace_id, owner_id, session)
     return _get_placed_device_ids(session, owner_id=owner_id, workspace_id=workspace_id)
 
-def _clean_device_from_views(device_id: uuid.UUID, session: Session) -> int:
+def _clean_device_from_views(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> int:
     device_id_str = str(device_id)
-    layouts = diagram_repository.get_all_layouts(session)
+    layouts = _current_layouts(session, owner_id=owner_id)
+    immutable_diagram_ids = topology_history_repository.get_immutable_diagram_ids(
+        session,
+        {layout.id for layout in layouts},
+    )
     modified = 0
     for layout in layouts:
-        if layout.topology_id is not None:
+        if layout.id in immutable_diagram_ids:
             continue
         cj = layout.cytoscape_json
         if not isinstance(cj, dict):
@@ -239,7 +218,7 @@ def delete(
     attachment_count = attachment_service.delete_all_for_device(device_id, session, commit=False)
     if attachment_count:
         logger.info("Cascade-deleted {} attachment(s) for device={}", attachment_count, device_id)
-    view_count = _clean_device_from_views(device_id, session)
+    view_count = _clean_device_from_views(device_id, session, owner_id=owner_id)
     if view_count:
         logger.info("Cleaned device={} from {} view(s)", device_id, view_count)
     device_repository.delete(session, device)

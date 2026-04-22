@@ -49,6 +49,8 @@ def create(session: Session, entity: Device) -> Device:
     return entity
 ```
 
+Repositories may accept an existing `Session`, but they never `commit()` or `rollback()`. Transaction ownership stays above the repository layer.
+
 ## Service Pattern
 
 ```python
@@ -65,6 +67,8 @@ def create(data: DeviceCreate, session: Session) -> Device:
     return result
 ```
 
+Services may accept a request-scoped `Session` from routers or approved infrastructure entry points. Services own `commit()` / `rollback()` for application workflows.
+
 ## FastAPI Route Pattern
 
 ```python
@@ -76,6 +80,15 @@ async def get_device(
 ) -> DeviceRead:
     return device_service.get_by_id(device_id, session)
 ```
+
+Routers may inject and pass a request-scoped `Session`, but they do not import repositories directly and should not own `commit()` / `rollback()` except where a temporary, explicitly documented contract migration is in progress.
+
+## Session Boundary Contract
+
+- `Session` creation is limited to approved infrastructure entry points such as `src/utils/db.py`, `src/api/app.py`, and `src/api/middleware/auth.py`.
+- Routers may inject `Session` via `Depends(get_session)` and pass it to services.
+- Services may accept `Session` and own transaction lifecycle actions.
+- Repositories may accept `Session`, perform query/mutation mechanics, and never `commit()` or `rollback()`.
 
 ## NiceGUI + JS Bridge
 

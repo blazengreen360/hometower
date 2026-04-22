@@ -151,7 +151,7 @@ def render_stencils_panel(
 
             # Device list (JS-rendered with virtual scroll)
             with ui.scroll_area().style(
-                "flex: 1; min-height: 120px; width: 100%;"
+                "flex: 1; min-height: 0; width: 100%;"
             ):
                 ui.element("div").props('id="ht-stencil-list"')
 

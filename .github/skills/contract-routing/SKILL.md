@@ -17,14 +17,14 @@ PM routes all inter-agent communication via contract documents. Agents read inpu
 | Security Report | `doc/security/{report}.md` | Security-Orchestrator | PM -> QA-Fixer (tactical) / PM -> Backend-Engineer (structural) |
 | Test Plan | Inline in RFC | Architect | PM -> Test-Automation-Engineer |
 | Failing Tests | `tests/` | Test-Automation-Engineer | PM -> Backend/Frontend-Engineer |
+| Gate Report | Structured format to PM | CI-Gatekeeper | PM -> Code-Reviewer A/B |
 | Code Review Verdict | Structured format to PM | Code-Reviewer | PM (routes rejection to author) |
-| Commit Payload | JSON (CR -> Git-Committer) | Code-Reviewer | Git-Committer |
 | Progress State | `doc/progress.md` | PM | PM (self — resume) |
 | Engineering Tracker | `doc/tracker.md` | PM | PM (self — cross-pipeline) |
-| Context Summary | Structured format to PM | Context-Intern | PM -> any agent |
+| Context Intern | Structured format to PM | Context-Intern | PM |
 | Chaos Report | Structured format to PM | Chaos-Tester | PM -> QA-Fixer / Backend-Engineer |
 | UX Audit | Structured format to PM | UX-Designer | PM -> Frontend-Engineer |
-| Refactoring Plan | Structured format to PM | Refactoring-Specialist | PM -> Code-Reviewer |
+| Refactoring Result | Structured format to PM | Refactoring-Specialist | PM -> CI-Gatekeeper -> Code-Reviewer |
 
 ## Agent Roster
 
@@ -45,8 +45,8 @@ PM routes all inter-agent communication via contract documents. Agents read inpu
 | QA-Fixer | TDD remediation | Fixed code | Bug/security reports |
 | Security-Orchestrator | Security audit | Security reports | Source code |
 | Security-Auditor | STRIDE hunting | Findings -> Sec-Orch | Source code |
-| Code-Reviewer | Pre-push gate | Verdict + commit | Any code diff |
-| Git-Committer | Atomic commits | Git commits | Verdict payload |
+| CI-Gatekeeper | Deterministic gate execution | PASS/FAIL gate report | Any code diff |
+| Code-Reviewer | Semantic review | Independent verdict | Code diff + gate report |
 | User-Simulator | Exploratory E2E | Bug report | Live application |
 | DevOps-Engineer | Infrastructure | Docker/infra changes | RFCs, migrations |
 | Chaos-Tester | API fuzzing | Chaos report | Live API |

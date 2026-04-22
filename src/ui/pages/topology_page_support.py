@@ -5,6 +5,7 @@ from typing import Awaitable, Callable
 import httpx
 from nicegui import ui
 
+from src.ui.components.topology_layout_runtime import trigger_topology_layout_sync
 from src.ui.components.topology_edit_toggle import render_edit_toggle
 from src.ui.components.topology_layout_bar import render_layout_bar
 from src.ui.components.topology_undo_bar import render_topology_undo_bar
@@ -170,6 +171,7 @@ def _make_enter_edit(
         palette_container = refs.get("palette")
         if palette_container is not None:
             palette_container.set_visibility(True)  # type: ignore[attr-defined]
+        trigger_topology_layout_sync()
         await ui.run_javascript("htSetEditMode()")
         await ui.run_javascript(
             "if(!window._htEventsWired && window._htInitEventHandlers){"
@@ -193,6 +195,7 @@ def _make_exit_edit(
         palette_container = refs.get("palette")
         if palette_container is not None:
             palette_container.set_visibility(False)  # type: ignore[attr-defined]
+        trigger_topology_layout_sync()
         await ui.run_javascript("htSetViewMode()")
 
     return _exit

@@ -4,6 +4,7 @@ services:
     ports: ["8080:8080"]
     env_file: .env
     environment:
+      COVERAGE_FILE: /tmp/.coverage
       DATABASE_URL: postgresql://hometower:${DB_PASSWORD}@db:5432/hometower
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
@@ -51,7 +52,7 @@ services:
           memory: 512M
     shm_size: 256mb
 volumes:
-  postgres_data:
   attachments_data:
+  postgres_data:
   pytest_tmp:
   pytest_cache:

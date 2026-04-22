@@ -5,6 +5,10 @@ import json
 import httpx
 from nicegui import ui
 
+from src.ui.components.device_detail_panel_shell import (
+    build_panel_visibility_js,
+    build_right_rail_panel,
+)
 from src.ui.components.toast import show_toast
 from src.ui.components.topology_layout_bar_support import apply_history_response, build_state_sync_js
 from src.ui.design.primitives import primary_button
@@ -25,6 +29,16 @@ async def _read_window_diagram_version() -> int | None:
     return None
 
 
+def _format_live_device_option(item: dict[str, object]) -> tuple[str, str] | None:
+    raw_id = item.get("id")
+    if raw_id is None:
+        return None
+    device_id = str(raw_id)
+    name = str(item.get("name", "Unnamed device")).strip() or "Unnamed device"
+    device_type = str(item.get("type", "Unknown")).strip() or "Unknown"
+    return device_id, f"{name} ({device_type})"
+
+
 async def _fetch_live_device_options(token: str) -> dict[str, str]:
     headers = {"Authorization": f"Bearer {token}"}
     options: dict[str, str] = {}
@@ -43,13 +57,11 @@ async def _fetch_live_device_options(token: str) -> dict[str, str]:
                 raw_items = response.json().get("items", [])
                 items = [item for item in raw_items if isinstance(item, dict)]
                 for item in items:
-                    raw_id = item.get("id")
-                    if raw_id is None:
+                    option = _format_live_device_option(item)
+                    if option is None:
                         continue
-                    device_id = str(raw_id)
-                    name = str(item.get("name", "Unnamed device")).strip() or "Unnamed device"
-                    device_type = str(item.get("type", "Unknown")).strip() or "Unknown"
-                    options[device_id] = f"{name} ({device_type})"
+                    device_id, label = option
+                    options[device_id] = label
                 if len(items) < _PAGE_LIMIT:
                     break
                 page += 1
@@ -89,12 +101,8 @@ def render_ghost_detail_panel(token: str, user_role: str, topology_id: str) -> N
         "ghost_original_type": "",
         "ghost_status": "Deleted from inventory",
     }
-    panel = ui.element("div").props(
-        'role="complementary" aria-label="Deleted device details" id="ghost-detail-panel"'
-    ).style(
-        "display:none; flex-direction:column; gap:8px; width:300px; "
-        "min-width:300px; padding:16px; background:var(--ht-bg-surface-raised); "
-        "overflow-y:auto; flex-shrink:0;"
+    panel = build_right_rail_panel(
+        "ghost-detail-panel", "Deleted device details", element_builder=ui.element
     )
     name_label_ref: list[ui.label] = []
     type_label_ref: list[ui.label] = []
@@ -102,7 +110,7 @@ def render_ghost_detail_panel(token: str, user_role: str, topology_id: str) -> N
     map_select_ref: list[ui.select] = []
 
     async def _close_panel() -> None:
-        await ui.run_javascript("var p=document.getElementById('ghost-detail-panel');if(p)p.style.display='none';")
+        await ui.run_javascript(build_panel_visibility_js("ghost-detail-panel", False))
         state["ghost_id"] = None
 
     async def _refresh_map_options() -> None:
@@ -220,7 +228,7 @@ def render_ghost_detail_panel(token: str, user_role: str, topology_id: str) -> N
         name_label_ref[0].set_text(str(state["ghost_original_name"]))
         type_label_ref[0].set_text(f"Type: {state['ghost_original_type']}")
         status_label_ref[0].set_text(str(state["ghost_status"]))
-        await ui.run_javascript("var p=document.getElementById('ghost-detail-panel');if(p)p.style.display='flex';")
+        await ui.run_javascript(build_panel_visibility_js("ghost-detail-panel", True))
         if can_reconcile:
             await _refresh_map_options()
 

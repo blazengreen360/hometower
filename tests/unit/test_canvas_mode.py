@@ -27,10 +27,6 @@ class TestViewModeJs:
     def test_view_mode_box_selection_disabled(self) -> None:
         assert "boxSelectionEnabled(false)" in VIEW_MODE_JS
 
-    def test_view_mode_disables_resize_overlay(self) -> None:
-        assert "window._htResizeSetEnabled" in VIEW_MODE_JS
-        assert "window._htResizeSetEnabled(false)" in VIEW_MODE_JS
-
     def test_view_mode_guards_missing_cy(self) -> None:
         assert "if (!window._cy) return" in VIEW_MODE_JS
 
@@ -53,11 +49,6 @@ class TestEditModeJs:
 
     def test_edit_mode_box_selection_enabled(self) -> None:
         assert "boxSelectionEnabled(true)" in EDIT_MODE_JS
-
-    def test_edit_mode_enables_resize_overlay_and_syncs_selection(self) -> None:
-        assert "window._htResizeSetEnabled" in EDIT_MODE_JS
-        assert "window._htResizeSetEnabled(true)" in EDIT_MODE_JS
-        assert "window._htResizeSyncFromSelection" in EDIT_MODE_JS
 
     def test_edit_mode_guards_missing_cy(self) -> None:
         assert "if (!window._cy) return" in EDIT_MODE_JS

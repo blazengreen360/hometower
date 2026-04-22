@@ -18,16 +18,67 @@ def _raise_connection_conflict(exc: IntegrityError, session: Session) -> None:
     raise HTTPException(status_code=409, detail="Connection update conflict") from exc
 
 
-def create(data: ConnectionCreate, session: Session) -> Connection:
+def _validate_updated_connection_devices(
+    update_data: dict[str, object],
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> None:
+    if (
+        "source_id" in update_data
+        and device_repository.get_by_id(session, source_id, owner_id=owner_id) is None
+    ):
+        raise HTTPException(status_code=400, detail="Source device not found")
+    if (
+        "target_id" in update_data
+        and device_repository.get_by_id(session, target_id, owner_id=owner_id) is None
+    ):
+        raise HTTPException(status_code=400, detail="Target device not found")
+
+
+def _validate_updated_connection_pair(
+    conn: Connection,
+    update_data: dict[str, object],
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+    session: Session,
+) -> None:
+    if "source_id" not in update_data and "target_id" not in update_data:
+        return
+
+    try:
+        connection_domain.validate_no_self_loop(source_id, target_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    current_pair = frozenset((conn.source_id, conn.target_id))
+    requested_pair = frozenset((source_id, target_id))
+    if requested_pair != current_pair and connection_repository.exists_between(
+        session,
+        source_id,
+        target_id,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Connection already exists between these devices",
+        )
+
+
+def create(
+    data: ConnectionCreate,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> Connection:
     """Validate and persist a new connection."""
     try:
         connection_domain.validate_no_self_loop(data.source_id, data.target_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if device_repository.get_by_id(session, data.source_id) is None:
+    if device_repository.get_by_id(session, data.source_id, owner_id=owner_id) is None:
         raise HTTPException(status_code=400, detail="Source device not found")
-    if device_repository.get_by_id(session, data.target_id) is None:
+    if device_repository.get_by_id(session, data.target_id, owner_id=owner_id) is None:
         raise HTTPException(status_code=400, detail="Target device not found")
     if connection_repository.exists_between(session, data.source_id, data.target_id):
         raise HTTPException(
@@ -60,9 +111,13 @@ def create(data: ConnectionCreate, session: Session) -> Connection:
     return result
 
 
-def get_by_id(connection_id: uuid.UUID, session: Session) -> Connection:
+def get_by_id(
+    connection_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> Connection:
     """Return the connection or raise HTTP 404."""
-    conn = connection_repository.get_by_id(session, connection_id)
+    conn = connection_repository.get_by_id(session, connection_id, owner_id=owner_id)
     if conn is None:
         raise HTTPException(status_code=404, detail="Connection not found")
     return conn
@@ -74,50 +129,51 @@ def get_all(
     limit: int,
     source_id: uuid.UUID | None = None,
     target_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
 ) -> tuple[list[Connection], int]:
     """Return a paginated, filtered list of connections and total count."""
-    return connection_repository.get_all(session, page, limit, source_id, target_id)
+    return connection_repository.get_all(
+        session,
+        page,
+        limit,
+        source_id,
+        target_id,
+        owner_id=owner_id,
+    )
 
 
-def get_connections_for_device(device_id: uuid.UUID, session: Session) -> list[Connection]:
+def get_connections_for_device(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> list[Connection]:
     """Return all connections where the given device is source or target."""
-    if device_repository.get_by_id(session, device_id) is None:
+    if device_repository.get_by_id(session, device_id, owner_id=owner_id) is None:
         raise HTTPException(status_code=404, detail="Device not found")
-    return connection_repository.get_by_device(session, device_id)
+    return connection_repository.get_by_device(session, device_id, owner_id=owner_id)
 
 
-def update(connection_id: uuid.UUID, data: ConnectionUpdate, session: Session) -> Connection:
+def update(
+    connection_id: uuid.UUID,
+    data: ConnectionUpdate,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> Connection:
     """Partially update a connection; raise HTTP 404 if not found."""
-    conn = connection_repository.get_by_id(session, connection_id)
-    if conn is None:
-        raise HTTPException(status_code=404, detail="Connection not found")
+    conn = get_by_id(connection_id, session, owner_id=owner_id)
 
     update_data = data.model_dump(exclude_unset=True)
     source_id = update_data.get("source_id", conn.source_id)
     target_id = update_data.get("target_id", conn.target_id)
 
-    if "source_id" in update_data and device_repository.get_by_id(session, source_id) is None:
-        raise HTTPException(status_code=400, detail="Source device not found")
-    if "target_id" in update_data and device_repository.get_by_id(session, target_id) is None:
-        raise HTTPException(status_code=400, detail="Target device not found")
-
-    if "source_id" in update_data or "target_id" in update_data:
-        try:
-            connection_domain.validate_no_self_loop(source_id, target_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        current_pair = frozenset((conn.source_id, conn.target_id))
-        requested_pair = frozenset((source_id, target_id))
-        if requested_pair != current_pair and connection_repository.exists_between(
-            session,
-            source_id,
-            target_id,
-        ):
-            raise HTTPException(
-                status_code=409,
-                detail="Connection already exists between these devices",
-            )
+    _validate_updated_connection_devices(
+        update_data,
+        source_id,
+        target_id,
+        session,
+        owner_id=owner_id,
+    )
+    _validate_updated_connection_pair(conn, update_data, source_id, target_id, session)
 
     for field, value in update_data.items():
         setattr(conn, field, value)
@@ -131,9 +187,13 @@ def update(connection_id: uuid.UUID, data: ConnectionUpdate, session: Session) -
     return result
 
 
-def delete(connection_id: uuid.UUID, session: Session) -> None:
+def delete(
+    connection_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> None:
     """Delete a connection; raise HTTP 404 if not found."""
-    conn = connection_repository.get_by_id(session, connection_id)
+    conn = connection_repository.get_by_id(session, connection_id, owner_id=owner_id)
     if conn is None:
         raise HTTPException(status_code=404, detail="Connection not found")
     connection_repository.delete(session, conn)

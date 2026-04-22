@@ -31,6 +31,7 @@ from uuid import uuid4  # noqa: E402
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import delete  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 from sqlmodel import Session, SQLModel, create_engine  # noqa: E402
 
@@ -57,6 +58,13 @@ from src.utils.auth import create_jwt, hash_password  # noqa: E402
 TEST_DATABASE_URL = "sqlite://"  # in-memory SQLite; no PostgreSQL needed for tests
 
 
+def _clear_test_database(session: Session) -> None:
+    for table in reversed(SQLModel.metadata.sorted_tables):
+        session.exec(delete(table))
+    session.commit()
+    session.expunge_all()
+
+
 @pytest.fixture(scope="session")
 def test_engine():
     """Create an in-memory SQLite engine and build all tables once per session."""
@@ -68,10 +76,13 @@ def test_engine():
 
 @pytest.fixture
 def session(test_engine) -> Generator[Session, None, None]:  # type: ignore[type-arg]
-    """Provide a fresh session that rolls back after each test."""
-    with Session(test_engine) as s:
-        yield s
-        s.rollback()
+    """Provide a fresh session and clear committed rows after each test."""
+    with Session(test_engine) as session:
+        yield session
+        session.rollback()
+
+    with Session(test_engine) as cleanup_session:
+        _clear_test_database(cleanup_session)
 
 
 @pytest.fixture

@@ -18,6 +18,10 @@ from src.utils.db import get_session
 router = APIRouter(prefix="/devices", tags=["devices"])
 
 
+def _owner_id(request: Request) -> uuid.UUID:
+    return uuid.UUID(request.state.user_id)
+
+
 def _read_upload_bytes(file: UploadFile, max_bytes: int) -> bytes:
     """Read upload bytes while supporting async-only test doubles."""
     if hasattr(file, "file") and file.file is not None:
@@ -54,11 +58,16 @@ def _attachment_response(
     dependencies=[Depends(require_role(Role.Reader))],
 )
 def list_device_attachments(
+    request: Request,
     device_id: uuid.UUID,
     session: Session = Depends(get_session),
 ) -> list[DeviceAttachmentResponse]:
     """Return all attachments for a device."""
-    return attachment_service.list_for_device(device_id, session)
+    return attachment_service.list_for_device(
+        device_id,
+        session,
+        owner_id=_owner_id(request),
+    )
 
 
 @router.post(
@@ -76,7 +85,13 @@ def upload_device_attachment(
 ) -> DeviceAttachmentResponse:
     """Upload one device attachment via multipart/form-data."""
     raw = _read_upload_bytes(file, attachment_service.MAX_ATTACHMENT_BYTES + 1)
-    return attachment_service.upload(device_id, file.filename or "", raw, session)
+    return attachment_service.upload(
+        device_id,
+        file.filename or "",
+        raw,
+        session,
+        owner_id=_owner_id(request),
+    )
 
 
 @router.get(
@@ -84,12 +99,18 @@ def upload_device_attachment(
     dependencies=[Depends(require_role(Role.Reader))],
 )
 def download_device_attachment(
+    request: Request,
     device_id: uuid.UUID,
     attachment_id: uuid.UUID,
     session: Session = Depends(get_session),
 ) -> FileResponse:
     """Download an attachment with attachment disposition headers."""
-    attachment = attachment_service.get_attachment(device_id, attachment_id, session)
+    attachment = attachment_service.get_attachment(
+        device_id,
+        attachment_id,
+        session,
+        owner_id=_owner_id(request),
+    )
     return _attachment_response(
         attachment_service.resolve_original_path(attachment),
         media_type=attachment.content_type,
@@ -103,12 +124,18 @@ def download_device_attachment(
     dependencies=[Depends(require_role(Role.Reader))],
 )
 def preview_device_attachment(
+    request: Request,
     device_id: uuid.UUID,
     attachment_id: uuid.UUID,
     session: Session = Depends(get_session),
 ) -> FileResponse:
     """Serve an image attachment inline for lightbox preview."""
-    attachment = attachment_service.get_attachment(device_id, attachment_id, session)
+    attachment = attachment_service.get_attachment(
+        device_id,
+        attachment_id,
+        session,
+        owner_id=_owner_id(request),
+    )
     if not attachment_service.is_image_attachment(attachment):
         raise HTTPException(status_code=404, detail="Attachment preview not available")
     return _attachment_response(
@@ -124,12 +151,18 @@ def preview_device_attachment(
     dependencies=[Depends(require_role(Role.Reader))],
 )
 def thumbnail_device_attachment(
+    request: Request,
     device_id: uuid.UUID,
     attachment_id: uuid.UUID,
     session: Session = Depends(get_session),
 ) -> FileResponse:
     """Serve a generated thumbnail for image attachments."""
-    attachment = attachment_service.get_attachment(device_id, attachment_id, session)
+    attachment = attachment_service.get_attachment(
+        device_id,
+        attachment_id,
+        session,
+        owner_id=_owner_id(request),
+    )
     if not attachment_service.is_image_attachment(attachment):
         raise HTTPException(status_code=404, detail="Attachment thumbnail not available")
     thumbnail_path = attachment_service.resolve_thumbnail_path(attachment)
@@ -149,9 +182,15 @@ def thumbnail_device_attachment(
     dependencies=[Depends(require_role(Role.Contributor))],
 )
 def delete_device_attachment(
+    request: Request,
     device_id: uuid.UUID,
     attachment_id: uuid.UUID,
     session: Session = Depends(get_session),
 ) -> None:
     """Delete one attachment and its stored files."""
-    attachment_service.delete(device_id, attachment_id, session)
+    attachment_service.delete(
+        device_id,
+        attachment_id,
+        session,
+        owner_id=_owner_id(request),
+    )

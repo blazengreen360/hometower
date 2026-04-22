@@ -25,6 +25,10 @@ from src.ui.components.device_panel_rich_fields import (
     render_markdown_notes_row,
 )
 from src.ui.components.device_panel_helpers import render_editable_int_row, render_editable_row
+from src.ui.components.topology_network_panel import (
+    build_network_filter_records,
+    render_network_highlight_controls,
+)
 
 
 def render_general_content(
@@ -128,6 +132,50 @@ def render_network_memberships_block(
 ) -> None:
     with ui.element("div").props('aria-label="Network memberships"').classes("w-full"):
         render_networks_section(device_id, networks, all_networks, token, is_editor, on_change)
+
+
+def _section_label(text: str) -> None:
+    ui.label(text).style(
+        "font-size:0.78rem; color:var(--ht-text-secondary); font-weight:600;"
+    )
+
+def render_network_section(
+    device: DeviceResponseEnriched,
+    device_id: uuid.UUID,
+    token: str,
+    is_editor: bool,
+    version: int,
+    on_change: Callable[[], None],
+    save_ip: Callable[[object], Awaitable[bool]],
+    save_mac: Callable[[object], Awaitable[bool]],
+    save_os: Callable[[object], Awaitable[bool]],
+    all_networks: list[NetworkListResponse],
+    active_network_ids: list[str],
+) -> None:
+    with ui.column().classes("w-full gap-3").props('aria-label="Device networks"'):
+        render_network_content(
+            device,
+            device_id,
+            token,
+            is_editor,
+            version,
+            on_change,
+            save_ip,
+            save_mac,
+            save_os,
+        )
+        ui.separator()
+        _section_label("Memberships")
+        render_network_memberships_block(
+            device_id, device.networks, all_networks, token, is_editor, on_change
+        )
+        ui.separator()
+        _section_label("Canvas Highlights")
+        render_network_highlight_controls(
+            build_network_filter_records(all_networks, device.networks),
+            active_ids=active_network_ids,
+            inline=True,
+        )
 
 
 def render_status_content(

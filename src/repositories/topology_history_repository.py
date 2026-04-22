@@ -50,3 +50,16 @@ def list_by_topology(
     )
     items = list(session.exec(statement).all())
     return items, total
+
+
+def get_immutable_diagram_ids(
+    session: Session,
+    diagram_ids: set[uuid.UUID],
+) -> set[uuid.UUID]:
+    """Return diagram ids that are referenced by immutable history entries."""
+    if not diagram_ids:
+        return set()
+    statement = select(TopologyHistoryEntry.diagram_id).where(
+        col(TopologyHistoryEntry.diagram_id).in_(diagram_ids)
+    )
+    return set(session.exec(statement).all())

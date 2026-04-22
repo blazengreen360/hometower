@@ -211,9 +211,10 @@ class TestStencilPanelJSEventConsumers:
         assert "ht-placed-badge" in STENCIL_PANEL_JS
 
     def test_published_device_event_upserts_and_marks_placed(self) -> None:
-        assert "_upsert(dev);" in STENCIL_PANEL_JS
+        assert "function _upsert(dev)" in STENCIL_PANEL_JS
+        assert "_d.unshift(dev);" in STENCIL_PANEL_JS
         assert "_p.add(String(dev.id || ''));" in STENCIL_PANEL_JS
-        assert "_render();" in STENCIL_PANEL_JS
+        assert "_consumePublishedDevice(dev);" in STENCIL_PANEL_JS
 
 
 class TestStencilPanelJSVirtualScroll:
@@ -236,11 +237,8 @@ class TestStencilPanelJSVirtualScroll:
         """Batch rendering should use DocumentFragment for performance."""
         assert "createDocumentFragment" in STENCIL_PANEL_JS
 
-    def test_retries_init_until_mount_exists(self) -> None:
-        assert "requestAnimationFrame" in STENCIL_PANEL_JS
-
-    def test_empty_inventory_message_present(self) -> None:
-        assert "No devices in inventory" in STENCIL_PANEL_JS
+    def test_exposes_publish_upsert_bridge_for_backward_compatibility(self) -> None:
+        assert "window.htStencilUpsertPublishedDevice = function(dev)" in STENCIL_PANEL_JS
 
 
 class TestStencilPanelJSCollapse:

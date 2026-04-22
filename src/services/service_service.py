@@ -20,14 +20,69 @@ from src.repositories import device_repository, service_repository
 from src.utils.logger import logger
 
 
-def _assert_device_exists(device_id: uuid.UUID, session: Session) -> None:
-    if device_repository.get_by_id(session, device_id) is None:
+def _assert_device_exists(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> None:
+    if device_repository.get_by_id(session, device_id, owner_id=owner_id) is None:
         raise HTTPException(status_code=404, detail="Device not found")
 
 
-def create(device_id: uuid.UUID, data: ServiceCreate, session: Session) -> Service:
+def _get_service_or_404(
+    service_id: uuid.UUID,
+    session: Session,
+    detail: str = "Service not found",
+) -> Service:
+    service = service_repository.get_by_id(session, service_id)
+    if service is None:
+        raise HTTPException(status_code=404, detail=detail)
+    return service
+
+
+def _validate_dependency_creation(
+    service_id: uuid.UUID,
+    depends_on_id: uuid.UUID,
+    session: Session,
+) -> None:
+    _get_service_or_404(service_id, session)
+    _get_service_or_404(depends_on_id, session, detail="Dependency service not found")
+
+    if service_repository.dependency_exists(session, service_id, depends_on_id):
+        raise HTTPException(status_code=409, detail="Dependency already exists")
+
+    all_deps = service_repository.get_all_dependency_edges(session)
+    try:
+        service_domain.validate_no_dependency_cycle(service_id, depends_on_id, all_deps)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _raise_add_dependency_integrity_error(
+    exc: IntegrityError,
+    session: Session,
+) -> None:
+    session.rollback()
+    detail = str(exc.orig).lower() if exc.orig is not None else str(exc).lower()
+    if "ck_service_dep_no_self_ref" in detail or "check constraint" in detail:
+        raise HTTPException(
+            status_code=400,
+            detail="A service cannot depend on itself",
+        ) from exc
+    if "unique" in detail or "primary key" in detail:
+        raise HTTPException(status_code=409, detail="Dependency already exists") from exc
+    logger.exception("Unmapped IntegrityError in add_dependency")
+    raise HTTPException(status_code=500, detail="Internal database error") from exc
+
+
+def create(
+    device_id: uuid.UUID,
+    data: ServiceCreate,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> Service:
     """Validate and persist a new service on a device."""
-    _assert_device_exists(device_id, session)
+    _assert_device_exists(device_id, session, owner_id=owner_id)
     try:
         service_domain.validate_port(data.port)
     except ValueError as exc:
@@ -60,15 +115,16 @@ def create(device_id: uuid.UUID, data: ServiceCreate, session: Session) -> Servi
 
 def get_by_id(service_id: uuid.UUID, session: Session) -> Service:
     """Return service or raise HTTP 404."""
-    svc = service_repository.get_by_id(session, service_id)
-    if svc is None:
-        raise HTTPException(status_code=404, detail="Service not found")
-    return svc
+    return _get_service_or_404(service_id, session)
 
 
-def get_by_device(device_id: uuid.UUID, session: Session) -> list[ServiceResponse]:
+def get_by_device(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> list[ServiceResponse]:
     """Return all services for a device as response models."""
-    _assert_device_exists(device_id, session)
+    _assert_device_exists(device_id, session, owner_id=owner_id)
     services = service_repository.get_by_device(session, device_id)
     return [ServiceResponse.model_validate(s.model_dump()) for s in services]
 
@@ -165,35 +221,13 @@ def add_dependency(
     service_id: uuid.UUID, depends_on_id: uuid.UUID, session: Session
 ) -> None:
     """Add a dependency edge. Validates no cycle before persisting."""
-    svc = service_repository.get_by_id(session, service_id)
-    if svc is None:
-        raise HTTPException(status_code=404, detail="Service not found")
-    dep_svc = service_repository.get_by_id(session, depends_on_id)
-    if dep_svc is None:
-        raise HTTPException(status_code=404, detail="Dependency service not found")
-    if service_repository.dependency_exists(session, service_id, depends_on_id):
-        raise HTTPException(status_code=409, detail="Dependency already exists")
-    all_deps = service_repository.get_all_dependency_edges(session)
-    try:
-        service_domain.validate_no_dependency_cycle(service_id, depends_on_id, all_deps)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _validate_dependency_creation(service_id, depends_on_id, session)
     dep = ServiceDependency(service_id=service_id, depends_on_id=depends_on_id)
     try:
         service_repository.add_dependency(session, dep)
         session.commit()
     except IntegrityError as exc:
-        session.rollback()
-        detail = str(exc.orig).lower() if exc.orig is not None else str(exc).lower()
-        if "ck_service_dep_no_self_ref" in detail or "check constraint" in detail:
-            raise HTTPException(
-                status_code=400,
-                detail="A service cannot depend on itself",
-            ) from exc
-        if "unique" in detail or "primary key" in detail:
-            raise HTTPException(status_code=409, detail="Dependency already exists") from exc
-        logger.exception("Unmapped IntegrityError in add_dependency")
-        raise HTTPException(status_code=500, detail="Internal database error") from exc
+        _raise_add_dependency_integrity_error(exc, session)
     logger.info("Service dependency added: {} -> {}", service_id, depends_on_id)
 
 

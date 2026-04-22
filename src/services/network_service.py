@@ -26,8 +26,13 @@ from src.services.network_service_helpers import (
     assert_device_exists,
     raise_network_integrity_error,
     reject_null_required_patch_fields,
+    validate_memberships_for_cidr_change,
+    validate_network_address_patch,
+    validate_network_name_update,
+    validate_network_vlan_update,
 )
 from src.utils.logger import logger
+
 
 def create(data: NetworkCreate, session: Session) -> Network:
     """Create a network after validating business constraints."""
@@ -116,41 +121,23 @@ def update(network_id: uuid.UUID, data: NetworkUpdate, session: Session) -> Netw
     update_data = data.model_dump(exclude_unset=True)
     reject_null_required_patch_fields(update_data)
 
-    if "name" in update_data and update_data["name"] is not None:
-        normalized = network_domain.normalize_network_name(update_data["name"])
-        existing = network_repository.get_by_name_normalized(session, normalized)
-        if existing is not None and existing.id != network_id:
-            raise HTTPException(status_code=409, detail="Network name already exists")
-
-    if "vlan_id" in update_data:
-        try:
-            update_data["vlan_id"] = network_domain.validate_vlan_id(update_data["vlan_id"])
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    effective_cidr = network.cidr
-    try:
-        if "cidr" in update_data and update_data["cidr"] is not None:
-            effective_cidr = network_domain.validate_cidr(update_data["cidr"])
-            update_data["cidr"] = effective_cidr
-
-        if "gateway" in update_data:
-            update_data["gateway"] = network_domain.validate_gateway(
-                update_data["gateway"],
-                effective_cidr,
-            )
-        else:
-            network_domain.validate_gateway(network.gateway, effective_cidr)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    validate_network_name_update(
+        network_id,
+        update_data.get("name") if "name" in update_data else None,
+        session,
+    )
+    validate_network_vlan_update(update_data)
+    effective_cidr = validate_network_address_patch(
+        update_data,
+        network.cidr,
+        network.gateway,
+    )
 
     if effective_cidr != network.cidr:
-        memberships = network_repository.get_memberships_for_network(session, network_id)
-        for membership in memberships:
-            try:
-                network_domain.validate_ip_in_subnet(membership.ip_address, effective_cidr)
-            except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
+        validate_memberships_for_cidr_change(
+            network_repository.get_memberships_for_network(session, network_id),
+            effective_cidr,
+        )
 
     for field, value in update_data.items():
         setattr(network, field, value)
@@ -183,9 +170,13 @@ def delete(network_id: uuid.UUID, session: Session) -> None:
     logger.info("Network deleted: id={}", network_id)
 
 
-def get_by_device(device_id: uuid.UUID, session: Session) -> list[DeviceNetworkNetworkRef]:
+def get_by_device(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> list[DeviceNetworkNetworkRef]:
     """Return network refs for one device."""
-    assert_device_exists(device_id, session)
+    assert_device_exists(device_id, session, owner_id=owner_id)
     rows = network_repository.get_by_device(session, device_id)
     return [
         DeviceNetworkNetworkRef(
@@ -205,9 +196,10 @@ def attach_to_device(
     device_id: uuid.UUID,
     data: DeviceNetworkCreate,
     session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> DeviceNetwork:
     """Attach a device to a network with subnet validation."""
-    assert_device_exists(device_id, session)
+    assert_device_exists(device_id, session, owner_id=owner_id)
     network = get_by_id(data.network_id, session)
     try:
         ip_address = network_domain.validate_ip_address(data.ip_address)
@@ -241,9 +233,10 @@ def detach_from_device(
     device_id: uuid.UUID,
     network_id: uuid.UUID,
     session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> None:
     """Detach a device from a network. No-op when membership is absent."""
-    assert_device_exists(device_id, session)
+    assert_device_exists(device_id, session, owner_id=owner_id)
     get_by_id(network_id, session)
     network_repository.detach_from_device(session, device_id, network_id)
     session.commit()

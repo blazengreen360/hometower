@@ -7,7 +7,7 @@ import json
 
 from nicegui import ui
 
-from src.ui.design.primitives import primary_button
+from src.ui.components.device_detail_panel_shell import build_panel_visibility_js
 from src.utils.logger import logger
 
 
@@ -37,15 +37,18 @@ async def show_draft_panel(
             )
             if result:
                 await ui.run_javascript(
-                    "document.getElementById('device-detail-panel')"
-                    ".style.display='none'"
+                    build_panel_visibility_js("device-detail-panel", False)
                 )
 
-        primary_button(ui.button(
+        ui.button(
             "Publish to Inventory",
             icon="publish",
             on_click=_on_publish,
-        )).classes("w-full")
+        ).style(
+            "background:var(--ht-warning); color:#1a1a2e;"
+            " font-weight:600; width:100%; min-height:44px;"
+        )
+
         for field_key, label_text in [
             ("draft_name", "Name"),
             ("draft_type", "Type"),
@@ -86,6 +89,4 @@ async def show_draft_panel(
 
             inp.on_value_change(_on_field_change)
 
-    await ui.run_javascript(
-        "document.getElementById('device-detail-panel').style.display='flex'"
-    )
+    await ui.run_javascript(build_panel_visibility_js("device-detail-panel", True))

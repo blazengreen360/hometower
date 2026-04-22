@@ -5,6 +5,9 @@ from sqlalchemy import func, or_
 from sqlmodel import Session, col, select
 
 from src.models.connection import Connection
+from src.models.device import Device
+from src.repositories.device_repository_support import apply_owner_scope
+from src.repositories.device_repository_support import get_workspace_device_ids
 
 
 def create(session: Session, connection: Connection) -> Connection:
@@ -15,9 +18,42 @@ def create(session: Session, connection: Connection) -> Connection:
     return connection
 
 
-def get_by_id(session: Session, connection_id: uuid.UUID) -> Connection | None:
+def _get_scoped_device_ids(
+    session: Session,
+    owner_id: uuid.UUID | None,
+) -> set[uuid.UUID] | None:
+    if owner_id is None:
+        return None
+
+    device_ids = get_workspace_device_ids(session, None, owner_id)
+    if device_ids is not None:
+        return device_ids
+
+    statement = apply_owner_scope(select(Device.id), session, col, owner_id)
+    return set(session.exec(statement).all())
+
+
+def _apply_connection_owner_scope(statement, device_ids: set[uuid.UUID] | None):
+    if device_ids is None:
+        return statement
+    return statement.where(
+        col(Connection.source_id).in_(device_ids),
+        col(Connection.target_id).in_(device_ids),
+    )
+
+
+def get_by_id(
+    session: Session,
+    connection_id: uuid.UUID,
+    owner_id: uuid.UUID | None = None,
+) -> Connection | None:
     """Return the connection with the given primary key, or None."""
-    return session.get(Connection, connection_id)
+    device_ids = _get_scoped_device_ids(session, owner_id)
+    statement = _apply_connection_owner_scope(
+        select(Connection).where(col(Connection.id) == connection_id),
+        device_ids,
+    )
+    return session.exec(statement).first()
 
 
 def get_all(
@@ -26,10 +62,15 @@ def get_all(
     limit: int = 50,
     source_id: uuid.UUID | None = None,
     target_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
 ) -> tuple[list[Connection], int]:
     """Return a filtered, paginated list of connections and total count."""
-    stmt = select(Connection)
-    count_stmt = select(func.count()).select_from(Connection)
+    device_ids = _get_scoped_device_ids(session, owner_id)
+    stmt = _apply_connection_owner_scope(select(Connection), device_ids)
+    count_stmt = _apply_connection_owner_scope(
+        select(func.count()).select_from(Connection),
+        device_ids,
+    )
 
     if source_id is not None:
         stmt = stmt.where(col(Connection.source_id) == source_id)
@@ -73,9 +114,14 @@ def count_by_device(session: Session, device_id: uuid.UUID) -> int:
     return int(session.exec(stmt).one())
 
 
-def get_by_device(session: Session, device_id: uuid.UUID) -> list[Connection]:
+def get_by_device(
+    session: Session,
+    device_id: uuid.UUID,
+    owner_id: uuid.UUID | None = None,
+) -> list[Connection]:
     """Return all connections where device_id is source OR target, ordered by created_at ASC."""
-    stmt = (
+    device_ids = _get_scoped_device_ids(session, owner_id)
+    stmt = _apply_connection_owner_scope(
         select(Connection)
         .where(
             or_(
@@ -83,7 +129,8 @@ def get_by_device(session: Session, device_id: uuid.UUID) -> list[Connection]:
                 col(Connection.target_id) == device_id,
             )
         )
-        .order_by(col(Connection.created_at))
+        .order_by(col(Connection.created_at)),
+        device_ids,
     )
     return list(session.exec(stmt).all())
 

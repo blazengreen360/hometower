@@ -664,11 +664,11 @@ class TestConnectionRead:
     """Test connection retrieval."""
 
     def test_get_connection_by_id_returns_200(
-        self, client: TestClient, contributor_token: str, reader_token: str, two_devices: tuple[str, str]
+        self, client: TestClient, contributor_token: str, two_devices: tuple[str, str]
     ) -> None:
         """GET /connections/{id} returns 200.
 
-        Mutation killer: Confirms read returns proper status.
+        Mutation killer: Confirms same-owner read returns proper status.
         """
         src, tgt = two_devices
         create_resp = client.post(
@@ -680,7 +680,7 @@ class TestConnectionRead:
 
         resp = client.get(
             f"/api/connections/{conn_id}",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert resp.status_code == 200
         assert resp.json()["id"] == conn_id

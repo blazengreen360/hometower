@@ -395,29 +395,63 @@ class TestDeleteDeviceCascade:
     ) -> None:
         d1 = _create_device(session, "canvas-dev")
         d2 = _create_device(session, "other-dev")
-        layout = DiagramLayout(
-            name="Test View",
-            cytoscape_json={
-                "elements": [
-                    {"data": {"id": str(d1.id)}},
-                    {"data": {"id": str(d2.id)}},
-                    {"data": {"id": "edge-1", "source": str(d1.id), "target": str(d2.id)}},
-                ]
-            },
+        owner, _ = _make_user(session, Role.Contributor)
+        workspace = Workspace(
+            name=f"delete-cleanup-{uuid.uuid4().hex[:8]}",
+            owner_id=owner.id,
         )
-        session.add(layout)
+        session.add(workspace)
         session.flush()
+        topology = Topology(
+            name=f"delete-cleanup-topology-{uuid.uuid4().hex[:8]}",
+            workspace_id=workspace.id,
+            tags=[],
+        )
+        session.add(topology)
+        session.flush()
+
+        layout_payload = {
+            "elements": [
+                {"data": {"id": str(d1.id)}},
+                {"data": {"id": str(d2.id)}},
+                {"data": {"id": "edge-1", "source": str(d1.id), "target": str(d2.id)}},
+            ]
+        }
+        historical_layout = DiagramLayout(
+            name="History Snapshot",
+            cytoscape_json=json.loads(json.dumps(layout_payload)),
+            topology_id=topology.id,
+        )
+        current_layout = DiagramLayout(
+            name="Current View",
+            cytoscape_json=json.loads(json.dumps(layout_payload)),
+            topology_id=topology.id,
+        )
+        session.add(historical_layout)
+        session.add(current_layout)
+        session.flush()
+        topology.current_diagram_id = current_layout.id
+        session.add(topology)
         session.commit()
 
         device_service.delete(d1.id, session)
 
-        session.refresh(layout)
-        raw_elements = layout.cytoscape_json.get("elements", [])
-        elements = raw_elements if isinstance(raw_elements, list) else []
-        remaining_ids = [e["data"]["id"] for e in elements]
-        assert str(d1.id) not in remaining_ids
-        assert "edge-1" not in remaining_ids  # edge referencing d1 also removed
-        assert str(d2.id) in remaining_ids  # d2 survives
+        session.refresh(current_layout)
+        session.refresh(historical_layout)
+
+        current_raw_elements = current_layout.cytoscape_json.get("elements", [])
+        current_elements = current_raw_elements if isinstance(current_raw_elements, list) else []
+        current_remaining_ids = [element["data"]["id"] for element in current_elements]
+        assert str(d1.id) not in current_remaining_ids
+        assert "edge-1" not in current_remaining_ids
+        assert str(d2.id) in current_remaining_ids
+
+        history_raw_elements = historical_layout.cytoscape_json.get("elements", [])
+        history_elements = history_raw_elements if isinstance(history_raw_elements, list) else []
+        history_remaining_ids = [element["data"]["id"] for element in history_elements]
+        assert str(d1.id) in history_remaining_ids
+        assert "edge-1" in history_remaining_ids
+        assert str(d2.id) in history_remaining_ids
 
     def test_delete_with_children_returns_400(
         self, client: TestClient, contributor_token: str

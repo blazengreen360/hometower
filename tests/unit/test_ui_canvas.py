@@ -4,10 +4,15 @@ import json
 import inspect
 from pathlib import Path
 import re
+from types import SimpleNamespace
+from urllib.parse import unquote
 
 import pytest
 
+from src.models.types import DeviceType
 from src.ui.components.canvas import render_canvas
+from src.ui.components.canvas_container_actions import CANVAS_CONTAINER_ACTIONS_JS
+from src.ui.components.canvas_container_drag_events import CANVAS_CONTAINER_DRAG_EVENTS_JS
 from src.ui.components.canvas_container_events import CANVAS_CONTAINER_EVENTS_JS
 from src.ui.components.canvas_draft import CANVAS_DRAFT_JS
 from src.ui.components.canvas_draft_events import CANVAS_DRAFT_EVENTS_JS
@@ -16,7 +21,15 @@ from src.ui.components.canvas_js_interactions import CANVAS_INTERACTIONS_JS
 from src.ui.components.canvas_js import CANVAS_INIT_JS_TEMPLATE as _CANVAS_INIT_JS_TEMPLATE
 from src.ui.components.canvas_js_resize import CANVAS_RESIZE_JS
 from src.ui.components.canvas_js_helpers import CANVAS_HELPERS_JS
+from src.ui.components.canvas_js_resize_part_b import CANVAS_RESIZE_JS_PART_B
+from src.ui.components.canvas_js_resize_part_c import CANVAS_RESIZE_JS_PART_C
+from src.ui.components.canvas_styles import _container_watermark_uri
 from src.ui.components.canvas_tooltip import _CANVAS_TOOLTIP_JS
+from src.ui.components.canvas_undo_action_dispatch import handle_canvas_action_request
+from src.ui.components.canvas_undo_js_core import CANVAS_UNDO_JS_CORE
+from src.ui.components.canvas_undo_js_graph import CANVAS_UNDO_JS_GRAPH
+from src.ui.components.canvas_undo_operation_dispatch import handle_canvas_undo_request
+from src.ui.design.tokens import DEVICE_TYPE_ICONS
 
 # _CANVAS_INIT_JS was removed (dead code); tests on template content are equivalent
 _CANVAS_INIT_JS = _CANVAS_INIT_JS_TEMPLATE
@@ -25,6 +38,9 @@ from src.ui.components.canvas_context_menu import CONTEXT_MENU_JS
 from src.ui.pages import topology
 from src.ui.pages.login import login_page
 from src.ui.pages.topology import topology_page
+from src.ui.components.connection_detail_panel import _BRIDGE_JS as _CONNECTION_DETAIL_PANEL_BRIDGE_JS
+from src.ui.components.device_detail_panel_bridge import DEVICE_DETAIL_PANEL_BRIDGE_JS
+from src.ui.services.topology_data_helpers import _is_draft_data
 
 
 def _line_count(path: str) -> int:
@@ -33,6 +49,68 @@ def _line_count(path: str) -> int:
 
 def _between(source: str, start: str, end: str) -> str:
     return source.split(start, 1)[1].split(end, 1)[0]
+
+
+def _resolve_detach_aware_drop_parent_for_test(
+    *,
+    node_center: tuple[float, float],
+    node_id: str,
+    origin_parent_id: str | None,
+    origin_parent_box: dict[str, float] | None,
+    drag_parent_box: dict[str, float] | None = None,
+    compounds: list[dict[str, object]],
+) -> str | None:
+    def _contains(box: dict[str, float], point: tuple[float, float], tol: float = 0.0) -> bool:
+        return (
+            point[0] >= box["x1"] - tol
+            and point[0] <= box["x2"] + tol
+            and point[1] >= box["y1"] - tol
+            and point[1] <= box["y2"] + tol
+        )
+
+    def _resolve(ignore_parent_id: str | None = None) -> str | None:
+        ranked: list[tuple[int, float, float, str]] = []
+        effective_origin_parent_box = drag_parent_box or origin_parent_box
+        for compound in compounds:
+            compound_id = str(compound["id"])
+            if compound_id == node_id or compound_id == ignore_parent_id:
+                continue
+            if bool(compound.get("locked", False)):
+                continue
+            if node_id in compound.get("ancestors", []):
+                continue
+            box = (
+                effective_origin_parent_box
+                if compound_id == origin_parent_id and effective_origin_parent_box
+                else compound["box"]
+            )
+            if not _contains(box, node_center):
+                continue
+            width = max(0.0, box["x2"] - box["x1"])
+            height = max(0.0, box["y2"] - box["y1"])
+            center_x = (box["x1"] + box["x2"]) / 2.0
+            center_y = (box["y1"] + box["y2"]) / 2.0
+            ranked.append((
+                -int(compound.get("depth", 0)),
+                width * height,
+                ((node_center[0] - center_x) ** 2 + (node_center[1] - center_y) ** 2) ** 0.5,
+                compound_id,
+            ))
+        ranked.sort()
+        return ranked[0][3] if ranked else None
+
+    resolved_parent = _resolve()
+    if resolved_parent and resolved_parent != origin_parent_id:
+        return resolved_parent
+
+    effective_origin_parent_box = drag_parent_box or origin_parent_box
+    if origin_parent_id and effective_origin_parent_box and _contains(effective_origin_parent_box, node_center, tol=4.0):
+        return origin_parent_id
+
+    fallback_parent = _resolve(origin_parent_id)
+    if fallback_parent:
+        return fallback_parent
+    return None
 
 
 class _FakeResponse:
@@ -124,18 +202,59 @@ class TestCanvasInitializationGuards:
         assert "id=\"ht-node-resize-overlay\"" in source
         assert "pointer-events: none; z-index: 8;" in source
 
-    def test_topology_row_stretches_canvas_column(self) -> None:
-        source = inspect.getsource(topology_page)
-        assert "flex-wrap: nowrap;" in source
-        assert "align-items: stretch;" in source
+    def test_canvas_container_events_file_stays_under_repo_cap(self) -> None:
+        assert _line_count("src/ui/components/canvas_container_events.py") <= 250
 
-    def test_topology_renders_device_panel_and_moves_layout_to_header(self) -> None:
+    def test_topology_uses_shell_ids_for_canvas_layout(self) -> None:
+        source = inspect.getsource(topology_page)
+        assert 'id="ht-topology-shell"' in source
+        assert 'id="ht-topology-workspace"' in source
+        assert 'id="ht-topology-canvas-stage"' in source
+        assert 'id="ht-topology-right-rail"' in source
+        assert "render_topology_left_rail(stencil_devices, placed_ids)" in source
+        assert "render_network_filter_panel(" not in source
+
+    def test_topology_renders_header_actions_and_device_panel_shell(self) -> None:
         source = inspect.getsource(topology_page)
         assert "render_detail_panel(token, user_role)" in source
         assert "_render_header_actions" in source
-        assert "render_palette()" in source
-        assert "render_network_filter_panel(network_summaries)" in source
+        assert "render_topology_left_rail(stencil_devices, placed_ids)" in source
         assert "inject_network_overlay()" in source
+
+    def test_topology_gates_left_rail_to_non_readers_and_arms_shell_runtime(self) -> None:
+        source = inspect.getsource(topology_page)
+        assert "if role != Role.Reader:" in source
+        assert 'id="ht-topology-left-rail"' not in source
+        assert "inject_topology_layout_runtime()" in source
+        assert "inject_topology_layout_shell_css()" in source
+        assert "arm_topology_layout_runtime()" in source
+
+    def test_topology_page_column_explicitly_fills_shell_height(self) -> None:
+        source = inspect.getsource(topology_page)
+
+        assert 'id="ht-topology-page"' in source
+        assert "height:100%;" in source
+
+    def test_topology_shell_css_caps_left_rail_and_releases_hidden_right_rail(self) -> None:
+        from src.ui.components.topology_layout_shell import _TOPOLOGY_LAYOUT_SHELL_CSS
+
+        assert "flex: 0 0 260px;" in _TOPOLOGY_LAYOUT_SHELL_CSS
+        assert "max-width: 260px;" in _TOPOLOGY_LAYOUT_SHELL_CSS
+        assert "#ht-topology-right-rail:has(> .ht-right-rail-panel[style*=\"display: flex\"])" in _TOPOLOGY_LAYOUT_SHELL_CSS
+        assert "width: 0;" in _TOPOLOGY_LAYOUT_SHELL_CSS
+
+    def test_device_and_connection_panel_bridges_dispatch_layout_sync_on_close_paths(self) -> None:
+        assert "ht:topology-layout-sync" in DEVICE_DETAIL_PANEL_BRIDGE_JS
+        assert "devicePanel.style.display = 'none'" not in DEVICE_DETAIL_PANEL_BRIDGE_JS
+        assert "ghostPanel.style.display = 'none'" not in DEVICE_DETAIL_PANEL_BRIDGE_JS
+        assert "ht:topology-layout-sync" in _CONNECTION_DETAIL_PANEL_BRIDGE_JS
+        assert "panel.style.display = 'none'" not in _CONNECTION_DETAIL_PANEL_BRIDGE_JS
+
+    def test_canvas_close_panel_handler_hides_all_right_rail_panels_via_sync_bridge(self) -> None:
+        assert "document.addEventListener('ht:close-panel'" in _CANVAS_EVENTS_JS
+        assert "ghost-detail-panel" in _CANVAS_EVENTS_JS
+        assert "ht:topology-layout-sync" in _CANVAS_EVENTS_JS
+        assert "['device-detail-panel', 'connection-detail-panel']" not in _CANVAS_EVENTS_JS
 
     def test_topology_renders_restore_summary_banner_and_ghost_panel(self) -> None:
         source = inspect.getsource(topology_page)
@@ -265,6 +384,23 @@ class TestUiRegressionFixes:
         assert "var isGhost" in CONTEXT_MENU_JS
         assert "if (isGhost) return;" in CONTEXT_MENU_JS
 
+    def test_context_menu_exits_before_rendering_when_readonly(self) -> None:
+        readonly_guard = "if (window.HT_READONLY) return;"
+        assert readonly_guard in CONTEXT_MENU_JS
+        assert CONTEXT_MENU_JS.index(readonly_guard) < CONTEXT_MENU_JS.index(
+            "var existing = document.getElementById('ht-ctx-menu');"
+        )
+
+    def test_context_menu_exposes_remove_from_container_for_children_only(self) -> None:
+        assert "var hasParent" in CONTEXT_MENU_JS
+        assert "Remove from container" in CONTEXT_MENU_JS
+        assert "hide: !hasParent" in CONTEXT_MENU_JS
+
+    def test_context_menu_allows_convert_to_container_for_drafts(self) -> None:
+        assert "Convert to Container" in CONTEXT_MENU_JS
+        assert "hide: isContainer" in CONTEXT_MENU_JS
+        assert "hide: isContainer || isDraft" not in CONTEXT_MENU_JS
+
     def test_association_mode_supports_context_menu_start(self) -> None:
         assert "ht:association-source" in _CANVAS_EVENTS_JS
         assert "Association source selected." in _CANVAS_EVENTS_JS
@@ -273,6 +409,95 @@ class TestUiRegressionFixes:
     def test_node_delete_surfaces_api_error_feedback(self) -> None:
         assert "Delete device '" in _CANVAS_EVENTS_JS
         assert "This cannot be undone." in _CANVAS_EVENTS_JS
+
+
+class TestHt077DragDetachSemantics:
+    def test_detach_aware_drop_prefers_non_origin_container_before_detach(self) -> None:
+        assert "var effectiveOriginParentBox = (origin && origin.dragParentBox) || (origin && origin.parentBox);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "var resolvedParent = _htResolveDropParent(node, originParentId, effectiveOriginParentBox);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (resolvedParent && resolvedParent !== originParentId) {" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "return resolvedParent;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "var fallbackParent = _htResolveDropParentIgnoring(node, originParentId);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (fallbackParent) return fallbackParent;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_drop_parent_uses_absolute_node_bounds_center_for_cross_container_reparent(self) -> None:
+        assert "function _htNodeDropPoint(node) {" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "var box = node.boundingBox" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "x: (box.x1 + box.x2) / 2," in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "y: (box.y1 + box.y2) / 2" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "var nodePoint = _htNodeDropPoint(node);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "var nodePos = node.position();" not in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_cross_container_drop_reparents_even_when_child_local_position_is_origin_relative(self) -> None:
+        destination_box = {"x1": 200.0, "y1": 200.0, "x2": 320.0, "y2": 320.0}
+        origin_box = {"x1": 0.0, "y1": 0.0, "x2": 140.0, "y2": 140.0}
+        local_child_position = (24.0, 18.0)
+        absolute_child_center = (248.0, 244.0)
+
+        assert not (
+            destination_box["x1"] <= local_child_position[0] <= destination_box["x2"]
+            and destination_box["y1"] <= local_child_position[1] <= destination_box["y2"]
+        )
+
+        resolved = _resolve_detach_aware_drop_parent_for_test(
+            node_center=absolute_child_center,
+            node_id="child-id",
+            origin_parent_id="origin-container",
+            origin_parent_box=origin_box,
+            compounds=[
+                {"id": "origin-container", "box": origin_box},
+                {"id": "destination-container", "box": destination_box},
+            ],
+        )
+
+        assert resolved == "destination-container"
+
+    def test_drop_outside_all_valid_containers_detaches_to_top_level(self) -> None:
+        resolved = _resolve_detach_aware_drop_parent_for_test(
+            node_center=(188.0, 188.0),
+            node_id="child-id",
+            origin_parent_id="origin-container",
+            origin_parent_box={"x1": 0.0, "y1": 0.0, "x2": 120.0, "y2": 120.0},
+            compounds=[{"id": "origin-container", "box": {"x1": 0.0, "y1": 0.0, "x2": 120.0, "y2": 120.0}}],
+        )
+
+        assert resolved is None
+
+    def test_drop_inside_origin_container_keeps_origin_parent(self) -> None:
+        resolved = _resolve_detach_aware_drop_parent_for_test(
+            node_center=(64.0, 62.0),
+            node_id="child-id",
+            origin_parent_id="origin-container",
+            origin_parent_box={"x1": 0.0, "y1": 0.0, "x2": 120.0, "y2": 120.0},
+            compounds=[{"id": "origin-container", "box": {"x1": 0.0, "y1": 0.0, "x2": 120.0, "y2": 120.0}}],
+        )
+
+        assert resolved == "origin-container"
+
+    def test_drop_inside_live_grown_origin_container_keeps_origin_parent(self) -> None:
+        resolved = _resolve_detach_aware_drop_parent_for_test(
+            node_center=(156.0, 60.0),
+            node_id="child-id",
+            origin_parent_id="origin-container",
+            origin_parent_box={"x1": 0.0, "y1": 0.0, "x2": 120.0, "y2": 120.0},
+            drag_parent_box={"x1": 0.0, "y1": 0.0, "x2": 180.0, "y2": 120.0},
+            compounds=[{"id": "origin-container", "box": {"x1": 0.0, "y1": 0.0, "x2": 120.0, "y2": 120.0}}],
+        )
+
+        assert resolved == "origin-container"
+
+    def test_detach_aware_drop_uses_live_origin_bounds_for_keep_or_detach(self) -> None:
+        assert "var effectiveOriginParentBox = (origin && origin.dragParentBox) || (origin && origin.parentBox);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "var parentBox = parent && parent.length" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "? _htRenderedBounds(parent)" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (_htContainsRenderedPoint(parentBox, centerX, centerY, tol)) {" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "return originParentId;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "return null;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_drop_parent_allows_ignoring_origin_parent_id(self) -> None:
+        assert "function _htResolveDropParentIgnoring(node, ignoreParentId) {" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "var ignoredParentId = _htNormalizeParentId(ignoreParentId);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "compoundId === nodeId || compoundId === ignoredId" in CANVAS_CONTAINER_DRAG_EVENTS_JS
         assert "_confirmDelete(" in _CANVAS_EVENTS_JS
         assert "window._htRequestCanvasAction" in _CANVAS_EVENTS_JS
         assert "type: 'delete_published_node'" in _CANVAS_EVENTS_JS
@@ -337,6 +562,34 @@ class TestUiRegressionFixes:
         assert "device_id: str = \"\"" in source
         assert "if device_id:" in source
 
+    def test_topology_expired_redirect_preserves_deep_link_query_context(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict[str, str | None] = {}
+
+        def _fake_redirect_if_unauthenticated(*, current_path: str | None = None) -> bool:
+            captured["current_path"] = current_path
+            return True
+
+        monkeypatch.setattr(topology, "redirect_if_unauthenticated", _fake_redirect_if_unauthenticated)
+
+        asyncio.run(
+            topology_page(
+                request=SimpleNamespace(
+                    url=SimpleNamespace(
+                        path="/topology",
+                        query="workspace_id=ws-1&topology_id=topo-1&device_id=dev-1",
+                    )
+                ),
+                device_id="dev-1",
+                topology_id="topo-1",
+                workspace_id="ws-1",
+            )
+        )
+
+        assert captured["current_path"] == "/topology?workspace_id=ws-1&topology_id=topo-1&device_id=dev-1"
+
     def test_topology_deeplink_focus_script_dispatches_node_selected(self) -> None:
         assert "window._cy.getElementById(targetId)" in topology._FOCUS_DEVICE_JS_TEMPLATE
         assert "new CustomEvent('ht:node-selected'" in topology._FOCUS_DEVICE_JS_TEMPLATE
@@ -393,26 +646,542 @@ class TestHt060ContainerCoordination:
     def test_published_reparent_does_not_prefetch_device_before_patch(self) -> None:
         assert "fetch('/api/devices/' + nodeId, { credentials: 'include' })" not in CANVAS_CONTAINER_EVENTS_JS
 
-    def test_published_reparent_uses_retry_helper_and_conflict_copy(self) -> None:
-        assert "_htAttemptReparent(" in CANVAS_CONTAINER_EVENTS_JS
-        assert (
-            "Reparent failed — the device was modified by another user. Your change was not saved."
-            in CANVAS_CONTAINER_EVENTS_JS
-        )
+    def test_published_reparent_uses_dedicated_undo_bridge_action(self) -> None:
+        assert "type: 'reparent_device'" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "forward': {\"op\": \"reparent_device\"" not in CANVAS_CONTAINER_EVENTS_JS
+        assert "window._htRequestCanvasAction({" in CANVAS_CONTAINER_ACTIONS_JS
+
+    def test_drag_reparent_contract_is_composed_from_dedicated_module(self) -> None:
+        from src.ui.components import canvas_container_events
+
+        source = inspect.getsource(canvas_container_events)
+        assert "CANVAS_CONTAINER_DRAG_EVENTS_JS" in source
+        assert "function _htResolveDetachAwareDropParent(node, origin)" in CANVAS_CONTAINER_EVENTS_JS
+
+    def test_convert_container_event_marks_node_with_container_class(self) -> None:
+        assert "document.addEventListener('ht:node-convert-container'" in CANVAS_CONTAINER_EVENTS_JS
+        assert "node.addClass('container');" in CANVAS_CONTAINER_EVENTS_JS
+
+    def test_drag_parent_resolution_includes_css_container_nodes(self) -> None:
+        assert "cy.nodes(':parent, .container')" in CANVAS_CONTAINER_DRAG_EVENTS_JS
 
     def test_draft_reparent_stays_layout_local(self) -> None:
-        assert "window._htIsDraft && window._htIsDraft(nodeId)" in CANVAS_CONTAINER_EVENTS_JS
-        assert "node.move({ parent: targetParent });" in CANVAS_CONTAINER_EVENTS_JS
+        assert "window._htIsDraft && window._htIsDraft(node.id())" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "execution: 'local'" in CANVAS_CONTAINER_ACTIONS_JS
 
-    def test_reparent_snapback_tracks_drag_origin(self) -> None:
+    def test_reparent_tracks_drag_origin_rendered_position(self) -> None:
         assert "_htContainerDragOrigin" in CANVAS_CONTAINER_EVENTS_JS
+        assert "renderedPosition: _htCurrentRenderedPosition(node)" in CANVAS_CONTAINER_EVENTS_JS
         assert "_htSnapBackNode(" in CANVAS_CONTAINER_EVENTS_JS
+
+    def test_drag_out_detach_and_growth_are_wired_with_readonly_guard(self) -> None:
+        assert "cy.on('drag', 'node'" in CANVAS_CONTAINER_EVENTS_JS
+        assert "window._htMaybeGrowContainerForDraggedChild" in CANVAS_CONTAINER_EVENTS_JS
+        assert "document.addEventListener('ht:node-remove-from-container'" in CANVAS_CONTAINER_EVENTS_JS
+        assert "_htResolveDetachAwareDropParent" in CANVAS_CONTAINER_EVENTS_JS
+
+    def test_drag_out_detach_uses_center_vs_parent_bounds_with_tolerance(self) -> None:
+        assert "var effectiveOriginParentBox = (origin && origin.dragParentBox) || (origin && origin.parentBox);" in CANVAS_CONTAINER_EVENTS_JS
+        assert "var resolvedParent = _htResolveDropParent(node, originParentId, effectiveOriginParentBox);" in CANVAS_CONTAINER_EVENTS_JS
+        assert "var originParentId = _htNormalizeParentId(origin && origin.parentId);" in CANVAS_CONTAINER_EVENTS_JS
+        assert "if (resolvedParent && resolvedParent !== originParentId) {" in CANVAS_CONTAINER_EVENTS_JS
+        assert "function _htCollectDropParentCandidates(node, ignoredParentId, frozenParentId, frozenParentBounds) {" in CANVAS_CONTAINER_EVENTS_JS
+        assert "var ranked = _htCollectDropParentCandidates(node, null, frozenParentId, frozenParentBounds);" in CANVAS_CONTAINER_EVENTS_JS
+        assert "return ranked.length ? _htNormalizeParentId(ranked[0].id) : null;" in CANVAS_CONTAINER_EVENTS_JS
+        assert "function _htDropCandidateIsLocked(node) {" in CANVAS_CONTAINER_EVENTS_JS
+        assert "var centerX = (nodeBox.x1 + nodeBox.x2) / 2;" in CANVAS_CONTAINER_EVENTS_JS
+        assert "var centerY = (nodeBox.y1 + nodeBox.y2) / 2;" in CANVAS_CONTAINER_EVENTS_JS
+        assert "var tol = 4;" in CANVAS_CONTAINER_EVENTS_JS
+        assert "return null;" in CANVAS_CONTAINER_EVENTS_JS
+
+    def test_detach_helpers_remain_top_level_and_capture_parent_bounds(self) -> None:
+        resolve_parent = _between(
+            CANVAS_CONTAINER_EVENTS_JS,
+            "        function _htResolveDropParent(node, frozenParentId, frozenParentBounds) {",
+            "\n\n        function _htResolveDetachAwareDropParent(node, origin) {",
+        )
+        resolve_detach = _between(
+            CANVAS_CONTAINER_EVENTS_JS,
+            "        function _htResolveDetachAwareDropParent(node, origin) {",
+            "\n\n        function _htSnapBackNode(node) {",
+        )
+
+        assert "function _htResolveDetachAwareDropParent" not in resolve_parent
+        assert "function _htSnapBackNode" not in resolve_parent
+        assert "function _htSnapBackNode" not in resolve_detach
+        assert "var parentBox = parent && parent.length" in CANVAS_CONTAINER_EVENTS_JS
+        assert "parentBox: _htCloneBounds(parentBox)," in CANVAS_CONTAINER_EVENTS_JS
+        assert "parentRenderedBounds: parent && parent.length ? _htRenderedBounds(parent) : null," in CANVAS_CONTAINER_EVENTS_JS
+        assert "dragParentBox: _htCloneBounds(parentBox)," in CANVAS_CONTAINER_EVENTS_JS
+        assert "if (_htContainsRenderedPoint(parentBox, centerX, centerY, tol)) {" in CANVAS_CONTAINER_EVENTS_JS
+
+    def test_drag_reparent_requires_preselected_leaf_node(self) -> None:
+        assert "wasSelected: !!(node.selected && node.selected())," in CANVAS_CONTAINER_EVENTS_JS
+        assert "isContainerNode: !!((node.hasClass && node.hasClass('container')) || (node.isParent && node.isParent()))," in CANVAS_CONTAINER_EVENTS_JS
+        assert "if (origin && origin.isContainerNode) {" not in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "var isSelectedForReparent = !!(" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "ownership && ownership.ownershipFrozen && ownership.selectedAtPointerdown" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "!ownership && origin && origin.wasSelected && dragDistance >= 5" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "node.selected && node.selected() && dragDistance >= 5 && origin" not in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (!isSelectedForReparent) {" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_drag_out_prefers_a_different_valid_container_before_detaching(self) -> None:
+        resolve_detach = _between(
+            CANVAS_CONTAINER_EVENTS_JS,
+            "        function _htResolveDetachAwareDropParent(node, origin) {",
+            "\n\n        function _htSnapBackNode(node) {",
+        )
+
+        assert "if (resolvedParent && resolvedParent !== originParentId) {" in resolve_detach
+        assert "return resolvedParent;" in resolve_detach
+        assert resolve_detach.index("if (resolvedParent && resolvedParent !== originParentId) {") < resolve_detach.index("var parent = originParentId")
+        assert resolve_detach.index("if (_htContainsRenderedPoint(parentBox, centerX, centerY, tol)) {") < resolve_detach.index("var fallbackParent = _htResolveDropParentIgnoring(node, originParentId);")
+
+    def test_drag_out_detaches_to_top_level_when_drop_leaves_origin_without_new_container(self) -> None:
+        resolve_detach = _between(
+            CANVAS_CONTAINER_EVENTS_JS,
+            "        function _htResolveDetachAwareDropParent(node, origin) {",
+            "\n\n        function _htSnapBackNode(node) {",
+        )
+
+        assert "if (_htContainsRenderedPoint(parentBox, centerX, centerY, tol)) {" in resolve_detach
+        assert "return originParentId;" in resolve_detach
+        assert "return null;" in resolve_detach
+
+    def test_drag_out_keeps_original_parent_when_released_inside_origin_container(self) -> None:
+        resolve_detach = _between(
+            CANVAS_CONTAINER_EVENTS_JS,
+            "        function _htResolveDetachAwareDropParent(node, origin) {",
+            "\n\n        function _htSnapBackNode(node) {",
+        )
+
+        assert "if (_htContainsRenderedPoint(parentBox, centerX, centerY, tol)) {" in resolve_detach
+        assert "return originParentId;" in resolve_detach
+        assert resolve_detach.index("if (_htContainsRenderedPoint(parentBox, centerX, centerY, tol)) {") < resolve_detach.index("return null;")
+
+    def test_drag_growth_uses_separate_bounds_without_mutating_detach_snapshot(self) -> None:
+        assert "var origin = window._htContainerDragOrigin && window._htContainerDragOrigin[String(node.id())];" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "var parentBox = _htCloneBounds(origin && origin.dragParentBox)" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "|| _htCloneBounds(origin && origin.parentBox)" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "origin.dragParentBox = { x1: nextCenterX - (nextWidth / 2), y1: nextCenterY - (nextHeight / 2), x2: nextCenterX + (nextWidth / 2), y2: nextCenterY + (nextHeight / 2) };" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "origin.parentRenderedBounds = _htRenderedBoundsFromModelBounds" not in CANVAS_CONTAINER_ACTIONS_JS
+
+    def test_successful_reparent_clears_source_container_growth_styles(self) -> None:
+        success_branch = _between(
+            CANVAS_CONTAINER_EVENTS_JS,
+            "            if (_htRequestNodeReparent(node, {",
+            "\n\n            _htSnapBackNode(node);",
+        )
+
+        assert "var sourceParentNode = cy.getElementById(currentParent);" in success_branch
+        assert "sourceParentNode.removeStyle('min-width min-height width height');" in success_branch
+        assert success_branch.index("sourceParentNode.removeStyle('min-width min-height width height');") < success_branch.index("_htFinalizeDragNode(nodeId, true);")
+
+    def test_successful_reparent_suppresses_generic_move_gesture_commit(self) -> None:
+        success_branch = _between(
+            CANVAS_CONTAINER_EVENTS_JS,
+            "            if (_htRequestNodeReparent(node, {",
+            "\n\n            _htSnapBackNode(node);",
+        )
+
+        assert "window._htContainerDragCancelled = true;" in success_branch
+        assert "window._htMoveGesture = null;" in success_branch
+        assert success_branch.index("window._htContainerDragCancelled = true;") < success_branch.index("_htFinalizeDragNode(nodeId, true);")
+        assert success_branch.index("window._htMoveGesture = null;") < success_branch.index("_htFinalizeDragNode(nodeId, true);")
+
+    def test_detach_to_top_level_preserves_rendered_position_and_remove_label(self) -> None:
+        assert "window._htRequestDetachToTopLevel = function(nodeId) {" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "toParentId: null," in CANVAS_CONTAINER_ACTIONS_JS
+        assert "fromRenderedPosition: rendered," in CANVAS_CONTAINER_ACTIONS_JS
+        assert "toRenderedPosition: rendered," in CANVAS_CONTAINER_ACTIONS_JS
+        assert "label: 'Remove from container'" in CANVAS_CONTAINER_ACTIONS_JS
+
+    def test_container_actions_wrap_api_failure_for_optimistic_reparent(self) -> None:
+        assert "window._htPendingPublishedReparent" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "window._htResolveUndoApiFailure = function(direction, entryId, message)" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "window._htApplyCanvasReparent" in CANVAS_CONTAINER_ACTIONS_JS
+
+    def test_local_detach_uses_reparent_node_undo_contract(self) -> None:
+        assert "type: 'reparent_node'" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "forward: { op: 'reparent_node', payload: payload }" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "reverse: { op: 'reparent_node', payload: payload }" in CANVAS_CONTAINER_ACTIONS_JS
+
+    def test_reparent_node_patch_only_moves_target_node_not_descendants(self) -> None:
+        reparent_body = _between(
+            CANVAS_UNDO_JS_GRAPH,
+            "    function _reparentNode(payload) {",
+            "\n\n    function _patchNode(payload) {",
+        )
+        assert "window._cy.getElementById(String(payload.node_id))" in reparent_body
+        assert "window._htApplyCanvasReparent(node, payload.parent_id, payload.rendered_position, payload.version);" in reparent_body
+        assert ".children()" not in reparent_body
+        assert "descendants" not in reparent_body
 
     def test_canvas_drag_undo_is_batched_on_dragstart_dragend(self) -> None:
         assert "cy.on('dragstart', 'node'" in CANVAS_INTERACTIONS_JS
         assert "cy.on('dragend', 'node'" in CANVAS_INTERACTIONS_JS
         assert "window._htBeginMoveGesture" in CANVAS_INTERACTIONS_JS
         assert "window._htCommitMoveGesture" in CANVAS_INTERACTIONS_JS
+
+
+class TestHt077DeterministicContainerOwnershipContract:
+    def test_pointerdown_ownership_freeze_model_exists_and_is_consumed(self) -> None:
+        assert "cy.on('pointerdown', 'node'" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "window._htContainerPointerOwnership" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "window._htContainerPointerOwnership[node.id()]" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "var ownership = _htGetPointerOwnership(nodeId);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_first_click_is_selection_only_until_ownership_gate_is_satisfied(self) -> None:
+        assert "var isSelectedForReparent" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (!isSelectedForReparent) {" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "window._htContainerDragCancelled = true;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "_htFinalizeDragNode(nodeId, true);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "return;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_pointerdown_frozen_selection_gate_rejects_late_selection(self) -> None:
+        assert "var selectedAtPointerdown = !!(node.selected && node.selected());" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "selectedAtPointerdown: selectedAtPointerdown" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "ownership.selectedAtPointerdown" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_selection_time_mixed_ancestor_descendant_selection_is_normalized(self) -> None:
+        assert "cy.on('select unselect boxselect', 'node'" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "window._htSelectionNormalizationInProgress" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "candidate.node.ancestors()" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "candidate.node.descendants()" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "_htNormalizeSelectionForContainerDrag" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_pointerdown_arms_ownership_without_stale_selection_normalization(self) -> None:
+        assert "cy.on('pointerdown', 'node'" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "window._htContainerPointerOwnership[node.id()]" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "window._htContainerGestureOwner" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+        pointerdown_body = _between(
+            CANVAS_CONTAINER_DRAG_EVENTS_JS,
+            "        cy.on('pointerdown', 'node', function(evt) {",
+            "\n\n        cy.on('drag', 'node', function(evt) {",
+        )
+        assert "_htNormalizeSelectionForContainerDrag(node);" not in pointerdown_body
+
+    def test_grab_phase_normalizes_selection_and_assigns_ownership_for_all_selected_nodes(self) -> None:
+        grab_body = _between(
+            CANVAS_CONTAINER_DRAG_EVENTS_JS,
+            "        cy.on('grab', 'node', function(evt) {",
+            "\n\n        cy.on('pointerdown', 'node', function(evt) {",
+        )
+        assert "window._htNormalizeSelectionForContainerDrag(node);" in grab_body
+        assert "cy.$('node:selected').forEach(function(selectedNode) {" in grab_body
+        assert "selectedAtPointerdown: true" in grab_body
+        assert "window._htContainerDragInProgress = true;" in grab_body
+
+    def test_drag_hysteresis_uses_strict_five_pixel_threshold(self) -> None:
+        assert "Math.hypot(" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "dragDistance" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (dragDistance < 5)" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_overlap_tie_break_order_is_depth_then_area_then_distance_then_lexical_id(self) -> None:
+        assert "candidateDepth" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "candidateArea" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "candidateCenterDistance" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "localeCompare" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+        sort_body = _between(
+            CANVAS_CONTAINER_DRAG_EVENTS_JS,
+            "            ranked.sort(function(a, b) {",
+            "            });\n            return ranked;",
+        )
+        assert sort_body.index("candidateDepth") < sort_body.index("candidateArea")
+        assert sort_body.index("candidateArea") < sort_body.index("candidateCenterDistance")
+        assert sort_body.index("candidateCenterDistance") < sort_body.index("localeCompare")
+
+    def test_interruptions_cancel_drag_ownership_for_all_contract_paths(self) -> None:
+        assert "pointercancel" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "Escape" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "pagehide" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "transition === 'edit-view' || transition === 'view-edit'" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "_htCancelContainerDrag" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "HT_READONLY" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_mode_transition_defers_cancel_until_drag_settles(self) -> None:
+        assert "window._htContainerDragInProgress" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "window._htDeferredContainerDragCancelReason = transition;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (!hasActiveOrigins && window._htDeferredContainerDragCancelReason) {" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "_htCancelContainerDrag(deferredReason);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_interruptions_snapback_and_clear_pending_move_gesture(self) -> None:
+        assert "_htSnapBackNode(draggedNode);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "window._htContainerDragCancelled = true;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "window._htMoveGesture = null;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "window._htContainerGestureOwner = null;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_readonly_cancel_notifies_only_for_active_drag_interruptions(self) -> None:
+        cancel_body = _between(
+            CANVAS_CONTAINER_DRAG_EVENTS_JS,
+            "        function _htCancelContainerDrag(reason) {",
+            "\n\n        function _htClearDragOrigin(nodeId) {",
+        )
+        assert "var hadActiveDrag = !!(" in cancel_body
+        assert "window._htContainerDragInProgress" in cancel_body
+        assert "if (reason === 'readonly-cancel' && hadActiveDrag) {" in cancel_body
+        assert "_notify('Container move canceled: canvas is read-only.', 'warning');" in cancel_body
+
+    def test_dragend_skips_move_commit_after_cancellation(self) -> None:
+        assert "if (window._htContainerDragCancelled) {" in CANVAS_INTERACTIONS_JS
+        assert "window._htCommitMoveGesture" in CANVAS_INTERACTIONS_JS
+        assert CANVAS_INTERACTIONS_JS.index("if (window._htContainerDragCancelled) {") < CANVAS_INTERACTIONS_JS.index("window._htCommitMoveGesture")
+
+    def test_published_reparent_keeps_pending_optimistic_lock_message_and_rollback_hooks(self) -> None:
+        assert "window._htPendingPublishedReparent" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "version_cursor" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "window._htResolveUndoApiFailure = function(direction, entryId, message)" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "rollback" in CANVAS_CONTAINER_ACTIONS_JS
+        assert "_htMoveReparentedNode(" in CANVAS_CONTAINER_ACTIONS_JS
+
+    def test_published_reparent_success_triggers_compensating_autosave_after_api_settlement(self) -> None:
+        match = re.search(
+            r"window\._htResolveUndoApiSuccess = function\(direction, entryId, result\) \{(?P<body>.*?)\n\s*\};\n\n\s*var baseFailure = window\._htResolveUndoApiFailure;",
+            CANVAS_CONTAINER_ACTIONS_JS,
+            re.S,
+        )
+        assert match is not None
+
+        success_body = match.group("body")
+        assert "if (direction === 'forward') {" in success_body
+        assert "_htTakePendingPublishedReparent(entryId);" in success_body
+        assert "_htShouldPersistPublishedReparent(direction, hadPendingReparent, result)" in success_body
+        assert "_htPersistPublishedReparentDraft();" in success_body
+
+        persist_helper = _between(
+            CANVAS_CONTAINER_ACTIONS_JS,
+            "        function _htPersistPublishedReparentDraft() {",
+            "\n\n        function _htShouldPersistPublishedReparent(direction, hadPendingReparent, result) {",
+        )
+        assert "window.scheduleAutosave(0);" in persist_helper
+        assert "window._htFlushAutosave();" in persist_helper
+
+        persist_guard = _between(
+            CANVAS_CONTAINER_ACTIONS_JS,
+            "        function _htShouldPersistPublishedReparent(direction, hadPendingReparent, result) {",
+            "\n\n        function _htWrapPublishedReparentResolvers() {",
+        )
+        assert "} else if (window.requestAnimationFrame) {" in success_body
+        assert "window.requestAnimationFrame(function() {" in success_body
+        assert "window.setTimeout(function() {" in success_body
+        assert "String(entry.type || '') === 'reparent_device'" in persist_guard
+        assert "String((forward && forward.op) || '') === 'reparent_device'" in persist_guard
+        assert "String((graphPatch && graphPatch.op) || '') === 'reparent_node'" in persist_guard
+
+    def test_published_reparent_replay_success_triggers_compensating_autosave_after_api_settlement(self) -> None:
+        persist_guard = _between(
+            CANVAS_CONTAINER_ACTIONS_JS,
+            "        function _htShouldPersistPublishedReparent(direction, hadPendingReparent, result) {",
+            "\n\n        function _htWrapPublishedReparentResolvers() {",
+        )
+
+        assert "if (direction !== 'forward') return false;" not in persist_guard
+        assert "entry_patch" in persist_guard
+        assert "reparent_device" in persist_guard
+
+    def test_container_child_mutual_exclusion_exists_for_drag_and_dragfree(self) -> None:
+        assert "cy.on('drag', 'node'" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "cy.on('dragfree', 'node'" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (origin && origin.isContainerNode) {" not in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "isContainerNode: !!((node.hasClass && node.hasClass('container')) || (node.isParent && node.isParent()))" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (node.isParent && node.isParent()) return;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_context_menu_bridge_uses_deterministic_event_dedup_without_timeout_race(self) -> None:
+        assert "function _htDedupContextMenuRequest(id, eventId)" in CANVAS_INTERACTIONS_JS
+        assert "var key = String(id) + ':' + String(eventId);" in CANVAS_INTERACTIONS_JS
+        assert "window._htCtxMenuRequestKeys" in CANVAS_INTERACTIONS_JS
+        assert "if (_htDedupContextMenuRequest(id, eventId)) return;" in CANVAS_INTERACTIONS_JS
+        assert "window.setTimeout(function() { window._htCtxMenuBridgeHandled = false; }, 50);" not in CANVAS_INTERACTIONS_JS
+        assert "_htCtxMenuBridgeHandled" not in CANVAS_INTERACTIONS_JS
+
+    def test_context_menu_requests_include_actual_pointer_coordinates(self) -> None:
+        assert "source: 'cxttap'" in CANVAS_INTERACTIONS_JS
+        assert "source: 'contextmenu'" in CANVAS_INTERACTIONS_JS
+        assert "clientX: e.clientX" in CANVAS_INTERACTIONS_JS
+        assert "clientY: e.clientY" in CANVAS_INTERACTIONS_JS
+        assert "var x = Number(d && d.clientX);" in CONTEXT_MENU_JS
+        assert "var y = Number(d && d.clientY);" in CONTEXT_MENU_JS
+
+    def test_contextmenu_fallback_prefers_rendered_bounds_before_center_distance(self) -> None:
+        assert "node.renderedBoundingBox({ includeLabels: false, includeOverlays: false })" in CANVAS_INTERACTIONS_JS
+        assert "var contains = rx >= box.x1 && rx <= box.x2 && ry >= box.y1 && ry <= box.y2;" in CANVAS_INTERACTIONS_JS
+        assert "if (hitNode) {" in CANVAS_INTERACTIONS_JS
+        assert "var nearest = null;" not in CANVAS_INTERACTIONS_JS
+
+    def test_parent_drag_cannot_trigger_descendant_detach_path(self) -> None:
+        assert "var owner = window._htContainerGestureOwner || null;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (owner && String(owner.nodeId) !== String(nodeId)) {" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (owner.isContainerNode && ownerIsAncestor) {" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "_htFinalizeDragNode(nodeId, true);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_dragfree_is_null_safe_when_ownership_map_is_missing(self) -> None:
+        assert "function _htGetPointerOwnership(nodeId) {" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "if (!ownershipMap || typeof ownershipMap !== 'object') return null;" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "var ownership = _htGetPointerOwnership(nodeId);" in CANVAS_CONTAINER_DRAG_EVENTS_JS
+        assert "var ownership = window._htContainerPointerOwnership[nodeId];" not in CANVAS_CONTAINER_DRAG_EVENTS_JS
+
+    def test_resolver_order_checks_origin_retention_before_fallback(self) -> None:
+        resolve_detach = _between(
+            CANVAS_CONTAINER_EVENTS_JS,
+            "        function _htResolveDetachAwareDropParent(node, origin) {",
+            "\n\n        function _htSnapBackNode(node) {",
+        )
+
+        assert resolve_detach.index("if (_htContainsRenderedPoint(parentBox, centerX, centerY, tol)) {") < resolve_detach.index("var fallbackParent = _htResolveDropParentIgnoring(node, originParentId);")
+
+    def test_grab_handler_seeds_primary_selection_from_settled_state_after_normalization(self) -> None:
+        grab_body = _between(
+            CANVAS_CONTAINER_DRAG_EVENTS_JS,
+            "        cy.on('grab', 'node', function(evt) {",
+            "\n\n        cy.on('pointerdown', 'node', function(evt) {",
+        )
+        assert "window._htNormalizeSelectionForContainerDrag(node);" in grab_body
+        assert "var selectedAtPointerdown = !!(" in grab_body
+        assert "existingOwnership && existingOwnership.selectedAtPointerdown" in grab_body
+        assert "|| (node.selected && node.selected())" in grab_body
+
+    def test_dragfree_fallback_selection_state_for_reparent_validation(self) -> None:
+        dragfree_body = _between(
+            CANVAS_CONTAINER_DRAG_EVENTS_JS,
+            "        cy.on('dragfree', 'node', function(evt) {",
+            "\n        document.addEventListener('pointercancel'",
+        )
+        assert "var isSelectedForReparent = !!(" in dragfree_body
+        assert "ownership && ownership.ownershipFrozen && ownership.selectedAtPointerdown" in dragfree_body
+        assert "!ownership && origin && origin.wasSelected && dragDistance >= 5" in dragfree_body
+        assert "|| (node.selected && node.selected() && dragDistance >= 5 && origin)" not in dragfree_body
+        assert "node.selected && node.selected()" not in dragfree_body
+
+    def test_contextmenu_target_prefers_depth_then_area_for_nested_nodes(self) -> None:
+        contextmenu_body = _between(
+            CANVAS_INTERACTIONS_JS,
+            "            cy.nodes().forEach(function(node) {",
+            "            if (hitNode) {",
+        )
+        assert "var depth = Number(node.ancestors" in contextmenu_body
+        assert "var isDeeper = !hitNode ||" in contextmenu_body
+        assert "var isSmallerAtSameDepth = !isDeeper && area < hitArea;" in contextmenu_body
+        assert "if (isDeeper || isSmallerAtSameDepth)" in contextmenu_body
+
+    def test_context_menu_coordinate_clamping_prevents_offscreen_positioning(self) -> None:
+        assert "var viewportWidth = window.innerWidth || document.documentElement.clientWidth;" in CONTEXT_MENU_JS
+        assert "var viewportHeight = window.innerHeight || document.documentElement.clientHeight;" in CONTEXT_MENU_JS
+        assert "var menuWidth = menu.offsetWidth || 160;" in CONTEXT_MENU_JS
+        assert "var menuHeight = menu.offsetHeight || 32;" in CONTEXT_MENU_JS
+        assert "var clampedX = Math.max(0, Math.min(x, viewportWidth - menuWidth - 4));" in CONTEXT_MENU_JS
+        assert "var clampedY = Math.max(0, Math.min(y, viewportHeight - menuHeight - 4));" in CONTEXT_MENU_JS
+        assert "menu.style.left = clampedX + 'px';" in CONTEXT_MENU_JS
+        assert "menu.style.top  = clampedY + 'px';" in CONTEXT_MENU_JS
+
+
+class TestHt077CurrentHeadBugProofs:
+    def test_pending_published_reparent_lock_blocks_resize_on_locked_selection(self) -> None:
+        assert "selection_ids: _htSelectedNodeIds()" in CANVAS_CONTAINER_ACTIONS_JS
+
+        resize_selection_guard_body = _between(
+            CANVAS_RESIZE_JS,
+            "    function _htResizeIsLocked(node) {",
+            "\n\n    function _htResizePlaceHandle(direction, x, y) {",
+        )
+
+        assert "state.cy.$('node:selected')" in resize_selection_guard_body
+        assert re.search(
+            r"pending.*published.*reparent|selection_ids|selection.*lock",
+            resize_selection_guard_body,
+            re.I | re.S,
+        ) is not None, "Expected resize selection gating to consult the pending published-reparent lock."
+
+    def test_pending_published_reparent_lock_blocks_local_structural_reparent_on_locked_selection(self) -> None:
+        assert "selection_ids: _htSelectedNodeIds()" in CANVAS_CONTAINER_ACTIONS_JS
+
+        dragfree_body = _between(
+            CANVAS_CONTAINER_DRAG_EVENTS_JS,
+            "        cy.on('dragfree', 'node', function(evt) {",
+            "\n        document.addEventListener('pointercancel'",
+        )
+        request_reparent_body = _between(
+            CANVAS_CONTAINER_ACTIONS_JS,
+            "        function _htRequestNodeReparent(node, spec) {",
+            "\n\n        window._htRequestDetachToTopLevel = function(nodeId) {",
+        )
+
+        assert "_htNormalizeSelectionForContainerDrag(node);" in dragfree_body
+        assert "_htRequestNodeReparent(node, {" in dragfree_body
+        assert "_htCommitLocalReparent(node, spec);" in request_reparent_body
+
+        dragfree_lock_check = re.search(
+            r"(?:pending.*published.*reparent|selection_ids|selection.*lock)[\s\S]+_htRequestNodeReparent\(node, \{",
+            dragfree_body,
+            re.I,
+        )
+        request_lock_check = re.search(
+            r"(?:pending.*published.*reparent|selection_ids|selection.*lock)[\s\S]+_htCommitLocalReparent\(node, spec\);",
+            request_reparent_body,
+            re.I,
+        )
+
+        assert dragfree_lock_check is not None or request_lock_check is not None, (
+            "Expected the structural drag/reparent path to block local reparent while a pending "
+            "published-reparent selection lock is active."
+        )
+
+    def test_remove_from_container_respects_data_draft_flag_before_api_reparent(self) -> None:
+        assert _is_draft_data({"id": "single-child-1776457558", "draft": True}) is True
+
+        request_reparent_body = _between(
+            CANVAS_CONTAINER_ACTIONS_JS,
+            "        function _htRequestNodeReparent(node, spec) {",
+            "\n\n        window._htRequestDetachToTopLevel = function(nodeId) {",
+        )
+
+        assert re.search(r"node\.data\(['\"]draft['\"]\)|node\.hasClass\(['\"]draft['\"]\)", request_reparent_body) is not None
+        assert "_htCommitLocalReparent(node, spec);" in request_reparent_body
+
+    def test_context_menu_right_click_selects_target_before_write_actions_open(self) -> None:
+        cxttap_body = _between(
+            CANVAS_INTERACTIONS_JS,
+            "        cy.on('cxttap', 'node', function(evt) {",
+            "\n\n        container.addEventListener('contextmenu', function(e) {",
+        )
+        assert re.search(
+            r"if \(_htNodeIsLocked\(node\)\) \{\s*emitNodeSelected\(node\);\s*return;\s*\}\s*emitNodeSelected\(node\);",
+            cxttap_body,
+            re.S,
+        ) is not None
+
+        contextmenu_hit_body = _between(
+            CANVAS_INTERACTIONS_JS,
+            "            if (hitNode) {",
+            "\n            // No nearest-center fallback: write actions must only target nodes whose",
+        )
+        assert "emitNodeSelected(hitNode);" in contextmenu_hit_body
+        assert contextmenu_hit_body.index("emitNodeSelected(hitNode);") < contextmenu_hit_body.index(
+            "dispatchContextMenuRequest({"
+        )
+
+    def test_convert_to_container_schedules_persistence_when_it_mutates_local_canvas_state(self) -> None:
+        convert_body = _between(
+            CANVAS_CONTAINER_EVENTS_JS,
+            "        document.addEventListener('ht:node-convert-container', function(evt) {",
+            "\n\n        function _htStripClasses(classes) {",
+        )
+
+        assert "node.addClass('container');" in convert_body
+        assert re.search(r"scheduleAutosave\(800\)|_htFlushAutosave\(", convert_body) is not None
+
+    def test_readonly_dom_contextmenu_suppresses_browser_menu_before_returning(self) -> None:
+        contextmenu_body = _between(
+            CANVAS_INTERACTIONS_JS,
+            "        container.addEventListener('contextmenu', function(e) {",
+            "\n\n        container.addEventListener('dragover', function(e) { e.preventDefault(); });",
+        )
+
+        assert "e.preventDefault();" in contextmenu_body
+        assert contextmenu_body.index("e.preventDefault();") < contextmenu_body.index(
+            "if (window.HT_READONLY) return;"
+        )
 
 
 class TestHt075GhostStyles:
@@ -601,6 +1370,329 @@ class TestCanvasAutosaveTemplate:
         assert "window.scheduleAutosave(800);" in CANVAS_CONTAINER_EVENTS_JS
         assert "clearTimeout(window._htAutosaveTimer)" not in CANVAS_CONTAINER_EVENTS_JS
 
+    def test_compound_resize_no_longer_repositions_children_during_drag(self) -> None:
+        assert "child.position({" not in CANVAS_RESIZE_JS_PART_B
+        assert "_htResizeCompoundMin(node, compoundState.minPadding)" in CANVAS_RESIZE_JS_PART_B
+        assert "CANVAS_RESIZE_JS_PART_C" in inspect.getsource(__import__('src.ui.components.canvas_js_resize', fromlist=['CANVAS_RESIZE_JS']))
+
+    def test_compound_resize_floor_uses_live_child_bounds_plus_padding(self) -> None:
+        assert "var childBox = children.boundingBox({ includeLabels: false, includeOverlays: false });" in CANVAS_RESIZE_JS
+        assert "minWidth = Math.max(minWidth, childWidth + padding.left + padding.right);" in CANVAS_RESIZE_JS
+        assert "minHeight = Math.max(minHeight, childHeight + padding.top + padding.bottom);" in CANVAS_RESIZE_JS
+        assert "var liveMin = _htResizeCompoundMin(node, compoundState.minPadding);" in CANVAS_RESIZE_JS_PART_B
+        assert "width: Math.max(calc.width, liveMin.width)," in CANVAS_RESIZE_JS_PART_B
+        assert "height: Math.max(calc.height, liveMin.height)," in CANVAS_RESIZE_JS_PART_B
+
+    def test_canvas_resize_bundle_keeps_single_iife_and_valid_final_box_sequence(self) -> None:
+        assert CANVAS_RESIZE_JS.count("})();") == 1
+        assert "var finalBox = node.boundingBox({ includeLabels: false, includeOverlays: false });" in CANVAS_RESIZE_JS_PART_B
+        assert "var finalWidth = _htResizeParsePx(finalBox ? (finalBox.w || (finalBox.x2 - finalBox.x1)) : nextCalc.width, nextCalc.width);" in CANVAS_RESIZE_JS_PART_B
+        assert "var finalHeight = _htResizeParsePx(finalBox ? (finalBox.h || (finalBox.y2 - finalBox.y1)) : nextCalc.height, nextCalc.height);" in CANVAS_RESIZE_JS_PART_B
+
+    def test_canvas_styles_render_container_watermarks_from_device_type_icons(self) -> None:
+        from src.ui.components.canvas_styles import build_theme_style_json
+
+        styles = json.loads(build_theme_style_json("dark"))
+        entry = next(
+            (row for row in styles if row.get("selector") == ':parent[device_type = "Server"]'),
+            None,
+        )
+        assert isinstance(entry, dict)
+        style_map = entry.get("style")
+        assert isinstance(style_map, dict)
+        assert str(style_map.get("background-image", "")).startswith("data:image/svg+xml")
+        assert style_map.get("background-image-opacity") == 0.15
+        assert style_map.get("background-fit") == "contain"
+
+    def test_container_watermark_uri_uses_material_icon_svg_contract(self) -> None:
+        icon_name = DEVICE_TYPE_ICONS[DeviceType.Server]
+        uri = _container_watermark_uri(icon_name, "#123456")
+
+        assert uri.startswith("data:image/svg+xml;utf8,")
+        svg = unquote(uri.split(",", 1)[1])
+        assert "font-family='Material Icons'" in svg
+        assert "fill='#123456'" in svg
+        assert "fill-opacity='0.15'" in svg
+        assert f">{icon_name}</text>" in svg
+
+
+class TestHt077UndoBridge:
+    def test_handle_canvas_action_request_reparents_via_patch_and_graph_patch(self) -> None:
+        device_id = "3db93d18-8c2f-4f1e-a6e3-9f7d3f0d1221"
+        captured: dict[str, object] = {}
+        api_calls: list[tuple[str, str, dict[str, object] | None]] = []
+
+        async def resolve_success(direction: str, entry_id: str, result: dict[str, object]) -> None:
+            captured["success"] = (direction, entry_id, result)
+
+        async def resolve_failure(direction: str, entry_id: str, message: str) -> None:
+            captured["failure"] = (direction, entry_id, message)
+
+        async def call_api(method: str, path: str, payload: dict[str, object] | None) -> _FakeResponse:
+            api_calls.append((method, path, payload))
+            return _FakeResponse(200, {"id": device_id, "version": 8})
+
+        asyncio.run(handle_canvas_action_request(
+            args={
+                "entry_id": "entry-1",
+                "action": {
+                    "type": "reparent_device",
+                    "payload": {
+                        "device_id": device_id,
+                        "from_parent_id": "outer-id",
+                        "to_parent_id": None,
+                        "from_rendered_position": {"x": 420.0, "y": 310.0},
+                        "to_rendered_position": {"x": 612.0, "y": 344.0},
+                        "version_cursor": 7,
+                        "label": "Remove from container",
+                    },
+                },
+            },
+            can_write=True,
+            token="token",
+            resolve_success=resolve_success,
+            resolve_failure=resolve_failure,
+            call_api=call_api,
+        ))
+
+        assert "failure" not in captured
+        assert api_calls == [
+            ("PATCH", f"/api/devices/{device_id}", {"parent_id": None, "version": 7})
+        ]
+        direction, entry_id, result = captured["success"]
+        assert direction == "forward"
+        assert entry_id == "entry-1"
+        assert result["entry"]["type"] == "reparent_device"
+        assert result["entry"]["forward"]["op"] == "reparent_device"
+        assert result["entry"]["reverse"]["op"] == "reparent_device"
+        assert result["graph_patch"] == {
+            "op": "reparent_node",
+            "node_id": device_id,
+            "parent_id": None,
+            "rendered_position": {"x": 612.0, "y": 344.0},
+            "version": 8,
+        }
+
+    def test_handle_canvas_undo_request_restores_parent_via_reparent_contract(self) -> None:
+        device_id = "3db93d18-8c2f-4f1e-a6e3-9f7d3f0d1221"
+        captured: dict[str, object] = {}
+        api_calls: list[tuple[str, str, dict[str, object] | None]] = []
+
+        async def resolve_success(direction: str, entry_id: str, result: dict[str, object]) -> None:
+            captured["success"] = (direction, entry_id, result)
+
+        async def resolve_failure(direction: str, entry_id: str, message: str) -> None:
+            captured["failure"] = (direction, entry_id, message)
+
+        async def call_api(method: str, path: str, payload: dict[str, object] | None) -> _FakeResponse:
+            api_calls.append((method, path, payload))
+            return _FakeResponse(200, {"id": device_id, "version": 9})
+
+        asyncio.run(handle_canvas_undo_request(
+            args={
+                "direction": "undo",
+                "entry": {
+                    "entry_id": "entry-undo",
+                    "reverse": {
+                        "op": "reparent_device",
+                        "payload": {
+                            "device_id": device_id,
+                            "from_parent_id": "outer-id",
+                            "to_parent_id": None,
+                            "from_rendered_position": {"x": 420.0, "y": 310.0},
+                            "to_rendered_position": {"x": 612.0, "y": 344.0},
+                            "version_cursor": 8,
+                            "label": "Remove from container",
+                        },
+                    },
+                },
+            },
+            can_write=True,
+            token="token",
+            resolve_success=resolve_success,
+            resolve_failure=resolve_failure,
+            call_api=call_api,
+        ))
+
+        assert "failure" not in captured
+        assert api_calls == [
+            ("PATCH", f"/api/devices/{device_id}", {"parent_id": "outer-id", "version": 8})
+        ]
+        direction, entry_id, result = captured["success"]
+        assert direction == "undo"
+        assert entry_id == "entry-undo"
+        assert result["entry_patch"]["forward"]["op"] == "reparent_device"
+        assert result["entry_patch"]["reverse"]["op"] == "reparent_device"
+        assert result["entry_patch"]["forward"]["payload"]["version_cursor"] == 9
+        assert result["graph_patch"] == {
+            "op": "reparent_node",
+            "node_id": device_id,
+            "parent_id": "outer-id",
+            "rendered_position": {"x": 420.0, "y": 310.0},
+            "version": 9,
+        }
+
+    def test_handle_canvas_action_request_converges_reparent_conflict_when_target_already_matches(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import src.ui.components.canvas_undo_action_device_support as action_support_module
+
+        device_id = "3db93d18-8c2f-4f1e-a6e3-9f7d3f0d1221"
+        captured: dict[str, object] = {}
+        api_calls: list[tuple[str, str, dict[str, object] | None]] = []
+
+        async def fake_fetch_current_device_version(
+            _token: str,
+            *,
+            device_id: object,
+            fallback: int,
+        ) -> int:
+            _ = device_id
+            return fallback
+
+        async def resolve_success(direction: str, entry_id: str, result: dict[str, object]) -> None:
+            captured["success"] = (direction, entry_id, result)
+
+        async def resolve_failure(direction: str, entry_id: str, message: str) -> None:
+            captured["failure"] = (direction, entry_id, message)
+
+        async def call_api(method: str, path: str, payload: dict[str, object] | None) -> _FakeResponse:
+            api_calls.append((method, path, payload))
+            if method == "PATCH":
+                return _FakeResponse(409, {"detail": "Conflict"})
+            if method == "GET":
+                return _FakeResponse(200, {"id": device_id, "parent_id": None, "version": 8})
+            raise AssertionError(f"Unexpected API call: {(method, path, payload)}")
+
+        monkeypatch.setattr(
+            action_support_module,
+            "fetch_current_device_version",
+            fake_fetch_current_device_version,
+        )
+
+        asyncio.run(
+            handle_canvas_action_request(
+                args={
+                    "entry_id": "entry-conflict",
+                    "action": {
+                        "type": "reparent_device",
+                        "payload": {
+                            "device_id": device_id,
+                            "from_parent_id": "outer-id",
+                            "to_parent_id": None,
+                            "from_rendered_position": {"x": 420.0, "y": 310.0},
+                            "to_rendered_position": {"x": 612.0, "y": 344.0},
+                            "version_cursor": 7,
+                            "label": "Remove from container",
+                        },
+                    },
+                },
+                can_write=True,
+                token="token",
+                resolve_success=resolve_success,
+                resolve_failure=resolve_failure,
+                call_api=call_api,
+            )
+        )
+
+        assert "failure" not in captured
+        assert api_calls == [
+            ("PATCH", f"/api/devices/{device_id}", {"parent_id": None, "version": 7}),
+            ("GET", f"/api/devices/{device_id}", None),
+        ]
+
+        direction, entry_id, result = captured["success"]
+        assert direction == "forward"
+        assert entry_id == "entry-conflict"
+        assert result["entry"]["forward"]["payload"]["version_cursor"] == 8
+        assert result["graph_patch"]["version"] == 8
+
+    def test_handle_canvas_undo_request_retries_reparent_once_after_conflict(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import src.ui.components.canvas_undo_operation_device_support as operation_support_module
+
+        device_id = "3db93d18-8c2f-4f1e-a6e3-9f7d3f0d1221"
+        captured: dict[str, object] = {}
+        api_calls: list[tuple[str, str, dict[str, object] | None]] = []
+        patch_attempts = 0
+
+        async def fake_fetch_current_device_version(
+            _token: str,
+            *,
+            device_id: object,
+            fallback: int,
+        ) -> int:
+            _ = device_id
+            return fallback
+
+        async def resolve_success(direction: str, entry_id: str, result: dict[str, object]) -> None:
+            captured["success"] = (direction, entry_id, result)
+
+        async def resolve_failure(direction: str, entry_id: str, message: str) -> None:
+            captured["failure"] = (direction, entry_id, message)
+
+        async def call_api(method: str, path: str, payload: dict[str, object] | None) -> _FakeResponse:
+            nonlocal patch_attempts
+            api_calls.append((method, path, payload))
+            if method == "PATCH":
+                patch_attempts += 1
+                if patch_attempts == 1:
+                    return _FakeResponse(409, {"detail": "Conflict"})
+                return _FakeResponse(200, {"id": device_id, "version": 10})
+            if method == "GET":
+                return _FakeResponse(200, {"id": device_id, "parent_id": None, "version": 9})
+            raise AssertionError(f"Unexpected API call: {(method, path, payload)}")
+
+        monkeypatch.setattr(
+            operation_support_module,
+            "fetch_current_device_version",
+            fake_fetch_current_device_version,
+        )
+
+        asyncio.run(
+            handle_canvas_undo_request(
+                args={
+                    "direction": "undo",
+                    "entry": {
+                        "entry_id": "entry-retry",
+                        "reverse": {
+                            "op": "reparent_device",
+                            "payload": {
+                                "device_id": device_id,
+                                "from_parent_id": "outer-id",
+                                "to_parent_id": None,
+                                "from_rendered_position": {"x": 420.0, "y": 310.0},
+                                "to_rendered_position": {"x": 612.0, "y": 344.0},
+                                "version_cursor": 8,
+                                "label": "Remove from container",
+                            },
+                        },
+                    },
+                },
+                can_write=True,
+                token="token",
+                resolve_success=resolve_success,
+                resolve_failure=resolve_failure,
+                call_api=call_api,
+            )
+        )
+
+        assert "failure" not in captured
+        assert api_calls == [
+            ("PATCH", f"/api/devices/{device_id}", {"parent_id": "outer-id", "version": 8}),
+            ("GET", f"/api/devices/{device_id}", None),
+            ("PATCH", f"/api/devices/{device_id}", {"parent_id": "outer-id", "version": 9}),
+        ]
+
+        direction, entry_id, result = captured["success"]
+        assert direction == "undo"
+        assert entry_id == "entry-retry"
+        assert result["entry_patch"]["forward"]["payload"]["version_cursor"] == 10
+        assert result["graph_patch"]["version"] == 10
+
     def test_notify_helper_supports_actionable_toasts(self) -> None:
         assert "window._htNotify = function(message, color, opts)" in CANVAS_DRAFT_JS
         assert "options.actions" in CANVAS_DRAFT_JS
@@ -621,9 +1713,21 @@ class TestCanvasAutosaveTemplate:
         assert match is not None
         assert "_htPrunePromotedDraftEdges(cy, node);" in match.group("cleanup")
 
+    def test_draft_publish_uses_event_bridge_for_stencil_inventory_update(self) -> None:
+        assert "ht:stencil-device-published" in CANVAS_DRAFT_PUBLISH_JS
+        assert "window.htStencilUpsertPublishedDevice" not in CANVAS_DRAFT_PUBLISH_JS
+
     def test_device_detail_draft_uses_shared_scheduler(self) -> None:
         from src.ui.components import device_detail_draft
 
         source = inspect.getsource(device_detail_draft.show_draft_panel)
         assert "window.scheduleAutosave(800);" in source
         assert "window._htAutosaveTimer" not in source
+
+    def test_device_detail_draft_uses_shared_panel_visibility_contract(self) -> None:
+        from src.ui.components import device_detail_draft
+
+        source = inspect.getsource(device_detail_draft.show_draft_panel)
+        assert 'build_panel_visibility_js("device-detail-panel", False)' in source
+        assert 'build_panel_visibility_js("device-detail-panel", True)' in source
+        assert ".style.display" not in source

@@ -164,3 +164,18 @@ def get_all_layouts(session: Session) -> list[DiagramLayout]:
     """Return every diagram layout (no pagination). Used for device placement scans."""
     statement = select(DiagramLayout).order_by(col(DiagramLayout.created_at))
     return list(session.exec(statement).all())
+
+
+def get_all_layouts_for_owner(
+    session: Session,
+    owner_id: uuid.UUID,
+) -> list[DiagramLayout]:
+    """Return every diagram layout visible to the provided owner."""
+    statement = (
+        select(DiagramLayout)
+        .join(Topology, col(DiagramLayout.topology_id) == col(Topology.id))
+        .join(Workspace, col(Topology.workspace_id) == col(Workspace.id))
+        .where(col(Workspace.owner_id) == owner_id)
+        .order_by(col(DiagramLayout.created_at))
+    )
+    return list(session.exec(statement).all())

@@ -4,59 +4,24 @@ All notable changes to Hometower will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — HT-082 dashboard owner-scope hardening
+### Fixed — HT-077 replay persistence and closeout hardening
 
-- Closed the dashboard legacy-schema compatibility path so All Workspaces falls back to owned current-diagram membership instead of dropping owner scoping when `Device.owner_id` is unavailable.
-- Added cross-owner legacy regressions for repository and API dashboard summaries, and split dashboard/canvas helper code so the cited source files stay under the 250-line project cap without changing shipped HT-082 behavior.
-- Hardened owner-scoped device repository reads against legacy no-`Device.owner_id` schemas, restricted device placement/orphan lookups to current topology layouts, and split the device domain Cytoscape helpers into a separate pure module to restore file-cap compliance.
+- Persisted personal-draft editor-state after successful API-backed published detach/reparent undo and redo resolution in `src/ui/components/canvas_container_actions_pending.py`, so replayed parent and rendered-position changes survive reload instead of rehydrating stale editor-state.
+- Waited the `reparent_device` undo/redo replay path for earlier autosaves to settle in `src/ui/components/canvas_undo_js_actions.py`, reducing replay races against the compensating draft flush.
+- Added regression proof for replay persistence and refactor-safe helper ownership in `tests/e2e/test_ht077_published_detach_persistence.py` and `tests/unit/test_ui_canvas.py`, including cleanup of stale helper-fragment assertions after the undo-JS file split.
 
-### Added — HT-081 data table enhancements and pagination
+### Fixed — test isolation for import/export gate stability
 
-- Standardized the Workspaces, workspace-detail Topologies, and Settings Users pages on a shared NiceGUI table pattern with client-side search, sorting, pagination defaults, and consistent HT-080 table chrome.
-- Added shared table helper wiring plus focused execution coverage for real search-handler registration and the Settings Users row-action event path, keeping browser-local timestamp formatting aligned with the existing HT-054 convention.
+- Cleared committed SQLite test rows after each test in `tests/conftest.py` so xdist worker-local API writes cannot leak into later tests and cause order-sensitive import/export failures.
 
-### Changed — HT-080 UI premiumization and component consistency
+### Fixed — HT-077 current-head closeout remediation
 
-- Added shared page, card, button, banner, and table primitives in `src/ui/design/primitives.py` and expanded the theme token set in `src/ui/design/tokens.py` so typography, spacing, and semantic actions now resolve through one global UI specification.
-- Reworked the app shell plus first-class surfaces across dashboard, workspaces, workspace detail, login/access-denied, IPAM, settings pages, inventory tables, and the dedicated inventory editor to use the shared HT-080 visual language instead of page-local styling.
-- Standardized destructive/secondary/primary action treatments in shared dialogs and detail panels, and removed remaining hardcoded hex colors from `src/ui` component files outside the design-token layer.
-- Normalized supporting topology/canvas helpers to read semantic colors from the theme system, keeping UI chrome and canvas affordances aligned across light, dark, and midnight themes.
-
-### Added — HT-087 quick wins
-
-- Added a new topology Auto-Layout toolbar action that runs an animated Cytoscape layout and persists the resulting node positions through the existing draft/autosave path.
-- Device notes now render sanitized markdown in read mode while preserving raw markdown editing in the existing device detail workflow.
-- The inventory page now exposes one-click CSV export for the current filtered rows, including Name, Status, Type, IP, MAC, Location, and Notes, with spreadsheet-formula prefix hardening.
-- Device detail views now expose dense SSH, HTTP, and HTTPS quick-connect actions when an IP address is present.
-
-### Added — HT-050 node and container drag resize
-
-- Added edit-mode-only resize handles for topology nodes and containers through a new canvas overlay bridge, with corner proportional resize, edge-only dimension resize, minimum-size clamping, and compound/container child-bounds enforcement.
-- Persisted resized dimensions through existing topology autosave/save/history flows by serializing inline Cytoscape `style.width` and `style.height` into the existing canvas JSON path and restoring them on reload and history restore.
-- Fixed the topology history restore dialog flow so the restore confirmation is no longer blocked by an overlapping history-dialog backdrop, and added focused unit, integration, and browser proof coverage for resize persistence and restore behavior.
-
-### Fixed — HT-050 nested container clamp regression
-
-- Corrected compound/container minimum-size enforcement when resizing a nested container or a parent container with children, so shrink attempts now clamp against child bounds plus directional padding instead of allowing undersized persisted layouts.
-- Tightened the resize baseline to prefer persisted inline `style.width` / `style.height` values for compound nodes, and added focused unit plus deep browser-proof coverage for nested-container clamp behavior.
-
-### Fixed — HT-050 container child-drift during resize
-
-- Corrected compound/container one-sided resize math so the non-dragged interior edge remains visually pinned and child nodes no longer slide with the container during expand or shrink operations.
-- Added focused browser-proof coverage for the exact user-reported case: one container with one child node now resizes cleanly across all four axes and remains sane after refresh.
-- Hardened the deep browser-proof harness for HT-050 with stronger post-login readiness checks and longer nested-container settle waits so the direct-run canvas proof is more reliable during local verification.
-
-### Fixed — HT-068 reliable JSON export from Settings
-
-- Settings -> Data export now completes successfully for authenticated Admin and Contributor users through the existing credentialed `/api/export` download path, without redirecting to `/login` or showing stale-session failure copy on successful exports.
-- Reader users now see the export action as unavailable/disabled with clear role guidance, and failed export responses surface explicit session/permission/server messaging instead of the old generic browser-alert path.
-- Added focused proof coverage for the shipped export behavior in `tests/unit/test_settings_data_page.py`, `tests/unit/test_settings_pages_execution.py`, `tests/integration/test_export.py`, and direct-run browser proof `tests/e2e/test_export_clickpath.py`.
-
-### Fixed — HT-008 map first-load rendering stability
-
-- Hardened Leaflet map bootstrap in `src/ui/components/map_view.py` with post-mount size invalidation retries so `/map` no longer initializes against a transient 0x0 container during NiceGUI layout settle.
-- Added scoped Leaflet image guards (`#ht-map-canvas .leaflet-tile/.leaflet-marker-icon/.leaflet-marker-shadow { max-width: none !important; }`) to prevent Tailwind base `img { max-width: 100% }` from collapsing map tiles/markers on first load.
-- Added HT-008 regression coverage in `tests/integration/test_runtime_ui_routes.py` to lock both the Leaflet image-size guard and post-layout invalidate retry behavior.
+- Restored the published-draft to stencil-inventory bridge by consuming `ht:stencil-device-published` in `src/ui/components/stencils_panel_js.py`, keeping newly published devices immediately visible and marked as placed in the stencil panel without waiting for a broader refresh.
+- Split the drag/reparent block out of `src/ui/components/canvas_container_events.py` into `src/ui/components/canvas_container_drag_events.py`, preserving HT-077 container behavior while bringing the aggregator file back under the repo file cap.
+- Added focused regression coverage for the restored stencil publish contract and the container-events split boundary in `tests/unit/test_canvas_draft.py`, `tests/unit/test_stencils_panel.py`, and `tests/unit/test_ui_canvas.py`.
+- Kept draft detach and remove-from-container local whenever the node carries canonical draft markers in node data or the draft CSS class, preventing draft nodes from falling into the published reparent path.
+- Right-click interactions now align active node selection to the clicked target before opening write actions, and readonly DOM context menus suppress the native browser menu before returning.
+- Convert-to-container now flushes the existing personal-draft autosave path immediately after the local container-class mutation, with debounced scheduling retained as fallback, so the change persists without requiring a later side effect.
 
 ### Added — HT-075 restore history safely when inventory devices were deleted
 

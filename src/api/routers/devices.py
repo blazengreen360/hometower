@@ -140,7 +140,11 @@ def get_device(
             include_set,
             owner_id=_owner_id(request),
         )
-    device = device_service.get_by_id(device_id, session, owner_id=_owner_id(request))
+    device = device_service.get_by_id(
+        device_id,
+        session,
+        owner_id=_owner_id(request),
+    )
     return DeviceResponse.model_validate(device.model_dump())
 
 

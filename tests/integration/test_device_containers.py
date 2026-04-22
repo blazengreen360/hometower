@@ -9,9 +9,12 @@ from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session
 
 from src.domain.export import EXPORT_VERSION
+from src.models.types import Role
 from src.models.user import User
+from src.utils.auth import create_jwt, hash_password
 
 
 def _now() -> str:
@@ -68,6 +71,22 @@ def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _make_user(session: Session, role: Role = Role.Contributor) -> tuple[User, str]:
+    user = User(
+        username=f"device_containers_{uuid.uuid4().hex[:8]}",
+        email=f"{uuid.uuid4().hex[:8]}@device-containers.local",
+        password_hash=hash_password("x"),
+        role=role,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    token = create_jwt(
+        {"sub": str(user.id), "role": role.value, "version": user.token_version}
+    )
+    return user, token
+
+
 # ---------------------------------------------------------------------------
 # ?include=children / ?include=ancestors
 # ---------------------------------------------------------------------------
@@ -75,9 +94,10 @@ def _headers(token: str) -> dict[str, str]:
 
 class TestIncludeChildren:
     def test_include_children_returns_child_devices(
-        self, client: TestClient, contributor_token: str
+        self, session: Session, client: TestClient
     ) -> None:
-        h = _headers(contributor_token)
+        owner, owner_token = _make_user(session, Role.Contributor)
+        h = _headers(owner_token)
         parent = client.post(
             "/api/devices/", json={"name": "Parent", "type": "Server"}, headers=h
         )
@@ -91,9 +111,17 @@ class TestIncludeChildren:
         )
         assert child.status_code == 201
 
+        owner.role = Role.Reader
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+        owner_reader_token = create_jwt(
+            {"sub": str(owner.id), "role": Role.Reader.value, "version": owner.token_version}
+        )
+
         resp = client.get(
             f"/api/devices/{parent_id}?include=children",
-            headers=h,
+            headers=_headers(owner_reader_token),
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -102,18 +130,27 @@ class TestIncludeChildren:
         assert data["children"][0]["name"] == "Child"
 
     def test_include_children_empty_when_no_children(
-        self, client: TestClient, contributor_token: str
+        self, session: Session, client: TestClient
     ) -> None:
-        h = _headers(contributor_token)
+        owner, owner_token = _make_user(session, Role.Contributor)
+        h = _headers(owner_token)
         device = client.post(
             "/api/devices/", json={"name": "Standalone", "type": "Switch"}, headers=h
         )
         assert device.status_code == 201
         device_id = device.json()["id"]
 
+        owner.role = Role.Reader
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+        owner_reader_token = create_jwt(
+            {"sub": str(owner.id), "role": Role.Reader.value, "version": owner.token_version}
+        )
+
         resp = client.get(
             f"/api/devices/{device_id}?include=children",
-            headers=h,
+            headers=_headers(owner_reader_token),
         )
         assert resp.status_code == 200
         assert resp.json()["children"] == []
@@ -121,9 +158,10 @@ class TestIncludeChildren:
 
 class TestIncludeAncestors:
     def test_include_ancestors_returns_parent_chain(
-        self, client: TestClient, contributor_token: str
+        self, session: Session, client: TestClient
     ) -> None:
-        h = _headers(contributor_token)
+        owner, owner_token = _make_user(session, Role.Contributor)
+        h = _headers(owner_token)
         grandparent = client.post(
             "/api/devices/", json={"name": "Grandparent", "type": "Server"}, headers=h
         )
@@ -146,9 +184,17 @@ class TestIncludeAncestors:
         assert child.status_code == 201
         child_id = child.json()["id"]
 
+        owner.role = Role.Reader
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+        owner_reader_token = create_jwt(
+            {"sub": str(owner.id), "role": Role.Reader.value, "version": owner.token_version}
+        )
+
         resp = client.get(
             f"/api/devices/{child_id}?include=ancestors",
-            headers=h,
+            headers=_headers(owner_reader_token),
         )
         assert resp.status_code == 200
         chain = resp.json()["parent_chain"]
@@ -156,6 +202,60 @@ class TestIncludeAncestors:
         assert len(chain) == 2
         assert chain[0]["name"] == "Parent"
         assert chain[1]["name"] == "Grandparent"
+
+
+class TestDetachParentId:
+    def test_patch_parent_id_null_detaches_nested_container_without_rewriting_descendants(
+        self, client: TestClient, contributor_token: str
+    ) -> None:
+        h = _headers(contributor_token)
+        outer = client.post(
+            "/api/devices/", json={"name": "Outer", "type": "Server"}, headers=h
+        )
+        assert outer.status_code == 201
+        outer_id = outer.json()["id"]
+
+        inner = client.post(
+            "/api/devices/",
+            json={"name": "Inner", "type": "Server", "parent_id": outer_id},
+            headers=h,
+        )
+        assert inner.status_code == 201
+        inner_payload = inner.json()
+        inner_id = inner_payload["id"]
+
+        leaf = client.post(
+            "/api/devices/",
+            json={"name": "Leaf", "type": "Server", "parent_id": inner_id},
+            headers=h,
+        )
+        assert leaf.status_code == 201
+        leaf_id = leaf.json()["id"]
+
+        detach = client.patch(
+            f"/api/devices/{inner_id}",
+            json={"parent_id": None, "version": inner_payload["version"]},
+            headers=h,
+        )
+
+        assert detach.status_code == 200
+        assert detach.json()["parent_id"] is None
+        assert detach.json()["version"] == inner_payload["version"] + 1
+
+        inner_with_children = client.get(
+            f"/api/devices/{inner_id}?include=children",
+            headers=h,
+        )
+        assert inner_with_children.status_code == 200
+        assert [child["id"] for child in inner_with_children.json()["children"]] == [leaf_id]
+
+        leaf_with_ancestors = client.get(
+            f"/api/devices/{leaf_id}?include=ancestors",
+            headers=h,
+        )
+        assert leaf_with_ancestors.status_code == 200
+        ancestor_names = [row["name"] for row in leaf_with_ancestors.json()["parent_chain"]]
+        assert ancestor_names == ["Inner"]
 
 
 # ---------------------------------------------------------------------------

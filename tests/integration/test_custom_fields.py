@@ -10,8 +10,33 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session
+
+from src.models.types import Role
+from src.models.user import User
+from src.utils.auth import create_jwt, hash_password
 
 _DEVICE = {"name": "cf-test-node", "type": "Server"}
+
+
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _make_user(session: Session, role: Role = Role.Reader) -> tuple[User, str]:
+    user = User(
+        username=f"custom_fields_{uuid.uuid4().hex[:8]}",
+        email=f"{uuid.uuid4().hex[:8]}@custom-fields.local",
+        password_hash=hash_password("x"),
+        role=role,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    token = create_jwt(
+        {"sub": str(user.id), "role": role.value, "version": user.token_version}
+    )
+    return user, token
 
 
 def _create_device(client: TestClient, token: str) -> dict:
@@ -148,6 +173,21 @@ class TestCustomFieldCreate:
         )
         assert resp.status_code == 403
 
+    def test_create_returns_404_for_device_owned_by_another_contributor(
+        self, client: TestClient, session: Session
+    ) -> None:
+        _, owner_token = _make_user(session, role=Role.Contributor)
+        _, other_contributor_token = _make_user(session, role=Role.Contributor)
+        device = _create_device(client, owner_token)
+
+        response = client.post(
+            f"/api/devices/{device['id']}/custom-fields",
+            json={"key": "serial", "value": "x"},
+            headers=_auth(other_contributor_token),
+        )
+
+        assert response.status_code == 404
+
     def test_create_whitespace_only_key_returns_422(
         self, client: TestClient, contributor_token: str
     ) -> None:
@@ -190,7 +230,7 @@ class TestCustomFieldCreate:
 
 class TestCustomFieldList:
     def test_list_returns_all_for_device(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         device = _create_device(client, contributor_token)
         _create_cf(client, contributor_token, device["id"], key="serial", value="S1")
@@ -198,7 +238,7 @@ class TestCustomFieldList:
 
         resp = client.get(
             f"/api/devices/{device['id']}/custom-fields",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(contributor_token),
         )
         assert resp.status_code == 200
         items = resp.json()
@@ -207,15 +247,30 @@ class TestCustomFieldList:
         assert keys == {"serial", "wattage"}
 
     def test_list_empty_device_returns_empty_list(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         device = _create_device(client, contributor_token)
         resp = client.get(
             f"/api/devices/{device['id']}/custom-fields",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(contributor_token),
         )
         assert resp.status_code == 200
         assert resp.json() == []
+
+    def test_list_returns_404_for_device_owned_by_another_reader(
+        self, client: TestClient, session: Session
+    ) -> None:
+        _, owner_token = _make_user(session, role=Role.Contributor)
+        _, other_reader_token = _make_user(session, role=Role.Reader)
+        device = _create_device(client, owner_token)
+        _create_cf(client, owner_token, device["id"], key="serial", value="S1")
+
+        response = client.get(
+            f"/api/devices/{device['id']}/custom-fields",
+            headers=_auth(other_reader_token),
+        )
+
+        assert response.status_code == 404
 
     def test_list_device_not_found_returns_404(
         self, client: TestClient, reader_token: str
@@ -434,12 +489,12 @@ class TestDeviceEnrichedWithCustomFields:
 
 class TestDeviceConnections:
     def test_list_connections_empty(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         device = _create_device(client, contributor_token)
         resp = client.get(
             f"/api/devices/{device['id']}/connections",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(contributor_token),
         )
         assert resp.status_code == 200
         assert resp.json() == []
@@ -455,7 +510,7 @@ class TestDeviceConnections:
         assert resp.status_code == 404
 
     def test_list_connections_as_source(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         dev1 = _create_device(client, contributor_token)
         dev2 = _create_device(client, contributor_token)
@@ -472,7 +527,7 @@ class TestDeviceConnections:
 
         resp = client.get(
             f"/api/devices/{dev1['id']}/connections",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(contributor_token),
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -480,8 +535,34 @@ class TestDeviceConnections:
         assert data[0]["source_id"] == dev1["id"]
         assert data[0]["target_id"] == dev2["id"]
 
+    def test_list_connections_returns_404_for_device_owned_by_another_reader(
+        self, client: TestClient, session: Session
+    ) -> None:
+        _, owner_token = _make_user(session, role=Role.Contributor)
+        _, other_reader_token = _make_user(session, role=Role.Reader)
+        dev1 = _create_device(client, owner_token)
+        dev2 = _create_device(client, owner_token)
+
+        conn_resp = client.post(
+            "/api/connections/",
+            json={
+                "source_id": dev1["id"],
+                "target_id": dev2["id"],
+                "type": "Ethernet",
+            },
+            headers=_auth(owner_token),
+        )
+        assert conn_resp.status_code == 201
+
+        response = client.get(
+            f"/api/devices/{dev1['id']}/connections",
+            headers=_auth(other_reader_token),
+        )
+
+        assert response.status_code == 404
+
     def test_list_connections_as_target(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         dev1 = _create_device(client, contributor_token)
         dev2 = _create_device(client, contributor_token)
@@ -497,7 +578,7 @@ class TestDeviceConnections:
 
         resp = client.get(
             f"/api/devices/{dev2['id']}/connections",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(contributor_token),
         )
         assert resp.status_code == 200
         assert len(resp.json()) == 1

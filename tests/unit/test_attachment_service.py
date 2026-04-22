@@ -13,7 +13,7 @@ from sqlmodel import Session
 from src.models.device import Device
 from src.models.types import DeviceType
 from src.services import attachment_service
-from src.utils.settings import settings
+from src.utils.settings import Settings, settings
 
 
 
@@ -113,3 +113,14 @@ def test_delete_all_for_device_without_commit_keeps_files_until_outer_commit(
 
     assert deleted_count == 2
     assert (attachment_root / str(device_id)).exists()
+
+
+def test_settings_default_attachment_root_targets_persistent_volume() -> None:
+    config = Settings(
+        database_url="sqlite://",
+        secret_key="x" * 32,
+        admin_email="admin@test.local",
+        admin_password="strong_test_password_123",
+    )
+
+    assert config.attachments_root == "/data/attachments"

@@ -23,8 +23,8 @@ def render_topology_undo_bar(user_role: str) -> None:
 
     with ui.row().classes("items-center gap-1"):
         ui.button(icon="undo", on_click=_request_undo).props(
-            'flat dense round disable id="ht-undo-button" title="Undo unavailable"'
+            'flat dense round id="ht-undo-button" title="Undo unavailable"'
         )
         ui.button(icon="redo", on_click=_request_redo).props(
-            'flat dense round disable id="ht-redo-button" title="Redo unavailable"'
+            'flat dense round id="ht-redo-button" title="Redo unavailable"'
         )

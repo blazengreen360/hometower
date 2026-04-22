@@ -9,6 +9,7 @@ VIEW_MODE_JS: str = """
 (function() {
     window.htSetViewMode = function() {
         if (!window._cy) return;
+        document.dispatchEvent(new CustomEvent('ht:mode-transition', { detail: { transition: 'edit-view' } }));
         window.HT_READONLY = true;
         window._cy.autoungrabify(true);
         // autounselectify deliberately omitted: it globally locks selectable:false
@@ -23,6 +24,7 @@ EDIT_MODE_JS: str = """
 (function() {
     window.htSetEditMode = function() {
         if (!window._cy) return;
+        document.dispatchEvent(new CustomEvent('ht:mode-transition', { detail: { transition: 'view-edit' } }));
         window.HT_READONLY = false;
         window._cy.autoungrabify(false);
         window._cy.autounselectify(false);

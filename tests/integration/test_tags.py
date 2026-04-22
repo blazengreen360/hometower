@@ -12,8 +12,33 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session
+
+from src.models.types import Role
+from src.models.user import User
+from src.utils.auth import create_jwt, hash_password
 
 _DEVICE = {"name": "test-node", "type": "Server"}
+
+
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _make_user(session: Session, role: Role = Role.Reader) -> tuple[User, str]:
+    user = User(
+        username=f"tags_{uuid.uuid4().hex[:8]}",
+        email=f"{uuid.uuid4().hex[:8]}@tags.local",
+        password_hash=hash_password("x"),
+        role=role,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    token = create_jwt(
+        {"sub": str(user.id), "role": role.value, "version": user.token_version}
+    )
+    return user, token
 
 
 def _fresh_tag(color: str = "#4f46e5") -> dict:
@@ -268,7 +293,7 @@ class TestTagDelete:
 
 class TestTagAttachDetach:
     def test_attach_tag_to_device(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         tag = _create_tag(client, contributor_token)
         device = _create_device(client, contributor_token)
@@ -282,13 +307,13 @@ class TestTagAttachDetach:
 
         tags_resp = client.get(
             f"/api/devices/{device['id']}/tags",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(contributor_token),
         )
         assert tags_resp.status_code == 200
         assert any(t["id"] == tag["id"] for t in tags_resp.json())
 
     def test_attach_idempotent(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         tag = _create_tag(client, contributor_token)
         device = _create_device(client, contributor_token)
@@ -309,12 +334,13 @@ class TestTagAttachDetach:
 
         tags_resp = client.get(
             f"/api/devices/{device['id']}/tags",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(contributor_token),
         )
+        assert tags_resp.status_code == 200
         assert len([t for t in tags_resp.json() if t["id"] == tag["id"]]) == 1
 
     def test_detach_tag_from_device(
-        self, client: TestClient, contributor_token: str, reader_token: str
+        self, client: TestClient, contributor_token: str
     ) -> None:
         tag = _create_tag(client, contributor_token)
         device = _create_device(client, contributor_token)
@@ -333,9 +359,70 @@ class TestTagAttachDetach:
 
         tags_resp = client.get(
             f"/api/devices/{device['id']}/tags",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers=_auth(contributor_token),
         )
+        assert tags_resp.status_code == 200
         assert all(t["id"] != tag["id"] for t in tags_resp.json())
+
+    def test_list_tags_returns_404_for_device_owned_by_another_reader(
+        self, client: TestClient, session: Session
+    ) -> None:
+        _, owner_token = _make_user(session, role=Role.Contributor)
+        _, other_reader_token = _make_user(session, role=Role.Reader)
+        tag = _create_tag(client, owner_token)
+        device = _create_device(client, owner_token)
+
+        attach_response = client.post(
+            f"/api/devices/{device['id']}/tags",
+            json={"tag_id": tag["id"]},
+            headers=_auth(owner_token),
+        )
+        assert attach_response.status_code == 204
+
+        response = client.get(
+            f"/api/devices/{device['id']}/tags",
+            headers=_auth(other_reader_token),
+        )
+
+        assert response.status_code == 404
+
+    def test_attach_tag_returns_404_for_device_owned_by_another_contributor(
+        self, client: TestClient, session: Session
+    ) -> None:
+        _, owner_token = _make_user(session, role=Role.Contributor)
+        _, other_contributor_token = _make_user(session, role=Role.Contributor)
+        tag = _create_tag(client, owner_token)
+        device = _create_device(client, owner_token)
+
+        response = client.post(
+            f"/api/devices/{device['id']}/tags",
+            json={"tag_id": tag["id"]},
+            headers=_auth(other_contributor_token),
+        )
+
+        assert response.status_code == 404
+
+    def test_detach_tag_returns_404_for_device_owned_by_another_contributor(
+        self, client: TestClient, session: Session
+    ) -> None:
+        _, owner_token = _make_user(session, role=Role.Contributor)
+        _, other_contributor_token = _make_user(session, role=Role.Contributor)
+        tag = _create_tag(client, owner_token)
+        device = _create_device(client, owner_token)
+
+        attach_response = client.post(
+            f"/api/devices/{device['id']}/tags",
+            json={"tag_id": tag["id"]},
+            headers=_auth(owner_token),
+        )
+        assert attach_response.status_code == 204
+
+        response = client.delete(
+            f"/api/devices/{device['id']}/tags/{tag['id']}",
+            headers=_auth(other_contributor_token),
+        )
+
+        assert response.status_code == 404
 
     def test_detach_noop_if_not_attached(
         self, client: TestClient, contributor_token: str

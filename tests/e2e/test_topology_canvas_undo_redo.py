@@ -7,15 +7,16 @@ Run directly (requires app on http://localhost:8080):
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.error
 import urllib.request
 
 from playwright.sync_api import Page, sync_playwright
 
-BASE = "http://localhost:8080"
-ADMIN_EMAIL = "admin@hometower.local"
-ADMIN_PASS = "changeme_on_first_boot"
+BASE = os.getenv("HT_E2E_BASE_URL", "http://localhost:8080")
+ADMIN_EMAIL = os.getenv("HT_E2E_ADMIN_EMAIL", "admin@hometower.local")
+ADMIN_PASS = os.getenv("HT_E2E_ADMIN_PASSWORD", "changeme_on_first_boot")
 
 
 def _api(
@@ -170,6 +171,22 @@ def _published_node_ids(page: Page) -> list[str]:
     return node_ids if isinstance(node_ids, list) else []
 
 
+def _stencil_row_state(page: Page, node_id: str) -> dict[str, object]:
+    state = page.evaluate(
+        """(nodeId) => {
+            var row = document.getElementById('stencil-' + String(nodeId));
+            return {
+                exists: !!row,
+                row_class: row ? row.className : '',
+                draggable: row ? String(row.getAttribute('draggable') || '') : '',
+                has_badge: row ? !!row.querySelector('.ht-placed-badge') : false,
+            };
+        }""",
+        node_id,
+    )
+    return state if isinstance(state, dict) else {}
+
+
 def _wait_for_node_position(page: Page, node_id: str, expected: dict[str, object]) -> bool:
     return _wait_for_condition(
         page,
@@ -200,6 +217,163 @@ def _wait_for_node_name(page: Page, node_id: str, expected_name: str) -> bool:
         {"node_id": node_id, "expected_name": expected_name},
         timeout_ms=15000,
     )
+
+
+def _capture_canvas_undo_state(page: Page, node_id: str) -> dict[str, object]:
+    state = page.evaluate(
+        """(nodeId) => {
+            function summarize(entries) {
+                return (entries || []).map(function(entry) {
+                    var forward = entry && entry.forward ? entry.forward : {};
+                    var reverse = entry && entry.reverse ? entry.reverse : {};
+                    return {
+                        type: String((entry && entry.type) || ''),
+                        label: String((entry && entry.label) || ''),
+                        execution: String((entry && entry.execution) || ''),
+                        forward_op: String((forward && forward.op) || ''),
+                        reverse_op: String((reverse && reverse.op) || ''),
+                    };
+                });
+            }
+
+            if (window.__htCaptureDraftReparentUndoState) {
+                return window.__htCaptureDraftReparentUndoState(nodeId);
+            }
+
+            if (!window._cy || !window._htUndoState) {
+                return {
+                    exists: false,
+                    error: 'canvas_or_undo_missing',
+                    node_id: String(nodeId || ''),
+                };
+            }
+
+            var node = window._cy.getElementById(String(nodeId || ''));
+            return {
+                exists: !!(node && node.length),
+                node_id: String(nodeId || ''),
+                parent_id: node && node.length ? String(node.data('parent') || '') : '',
+                undo_count: Number(window._htUndoState.undoStack.length || 0),
+                redo_count: Number(window._htUndoState.redoStack.length || 0),
+                undo_stack: summarize(window._htUndoState.undoStack),
+                redo_stack: summarize(window._htUndoState.redoStack),
+                drag_cancelled: !!window._htContainerDragCancelled,
+                move_gesture_active: !!window._htMoveGesture,
+            };
+        }""",
+        node_id,
+    )
+    return state if isinstance(state, dict) else {}
+
+
+def _cleanup_local_busy_probe(page: Page, node_id: str) -> None:
+    page.evaluate(
+        """(targetId) => {
+            if (window._htResetUndoState) window._htResetUndoState();
+            if (!window._cy) return;
+            var node = window._cy.getElementById(String(targetId || ''));
+            if (node && node.length) node.remove();
+        }""",
+        node_id,
+    )
+
+
+def _scenario_visible_local_undo_button_while_busy(page: Page) -> tuple[bool, str]:
+    state = page.evaluate(
+        """() => {
+            if (!window._cy || !window._htUndoState) {
+                return { ok: false, reason: 'undo_or_canvas_missing' };
+            }
+            var removeFn = window._htCommitLocalRemoveFromView || window._htCommitLocalDraftDelete;
+            if (!removeFn) {
+                return { ok: false, reason: 'remove_helper_missing' };
+            }
+
+            var probeId = 'draft-undo-busy-probe-' + String(Date.now());
+            window._cy.add({
+                group: 'nodes',
+                classes: 'draft',
+                data: {
+                    id: probeId,
+                    label: 'Busy Undo Probe',
+                    raw_name: 'Busy Undo Probe',
+                    draft: true,
+                },
+                position: { x: 260, y: 180 },
+            });
+
+            var node = window._cy.getElementById(probeId);
+            if (!node || !node.length) {
+                return { ok: false, reason: 'probe_missing' };
+            }
+
+            window._htUndoState.busy = true;
+            window._htUndoState.pending = {
+                direction: 'forward',
+                entry_id: 'simulated-busy-' + String(Date.now()),
+            };
+            removeFn(node);
+
+            var undoButton = document.getElementById('ht-undo-button');
+            return {
+                ok: true,
+                probe_id: probeId,
+                removed: window._cy.getElementById(probeId).length === 0,
+                undo_count: window._htUndoState.undoStack.length,
+                button_disabled: !undoButton || !!undoButton.disabled,
+                button_title: undoButton ? String(undoButton.title || '') : '',
+            };
+        }"""
+    )
+    if not isinstance(state, dict) or not state.get("ok"):
+        reason = str(state.get("reason", "unknown")) if isinstance(state, dict) else "invalid_setup"
+        return False, f"unable to set up busy local remove scenario ({reason})"
+
+    probe_id = str(state["probe_id"])
+    if not bool(state.get("removed")):
+        _cleanup_local_busy_probe(page, probe_id)
+        return False, "local Remove from View did not remove the probe node"
+    if int(state.get("undo_count", 0)) <= 0:
+        _cleanup_local_busy_probe(page, probe_id)
+        return False, "local Remove from View did not push an undo entry"
+    if "Remove from View" not in str(state.get("button_title", "")):
+        _cleanup_local_busy_probe(page, probe_id)
+        return False, "visible undo button did not advertise the local Remove from View label"
+    if not _wait_for_condition(
+        page,
+        """() => {
+            var undoButton = document.getElementById('ht-undo-button');
+            return !!undoButton
+                && !undoButton.hasAttribute('disabled')
+                && undoButton.getAttribute('aria-disabled') !== 'true'
+                && !undoButton.classList.contains('disabled')
+                && String(undoButton.getAttribute('tabindex') || '0') !== '-1';
+        }""",
+        timeout_ms=5000,
+    ):
+        _cleanup_local_busy_probe(page, probe_id)
+        return False, "visible undo button stayed disabled while the top undo entry was local"
+
+    try:
+        page.locator("#ht-undo-button").click(timeout=5000)
+    except Exception as exc:
+        _cleanup_local_busy_probe(page, probe_id)
+        return False, f"visible undo button click failed ({exc})"
+
+    restored = _wait_for_condition(
+        page,
+        """(nodeId) => {
+            if (!window._cy) return false;
+            return window._cy.getElementById(String(nodeId)).length > 0;
+        }""",
+        probe_id,
+        timeout_ms=8000,
+    )
+    _cleanup_local_busy_probe(page, probe_id)
+    if not restored:
+        return False, "visible undo button did not restore the locally removed node while busy"
+
+    return True, "visible local undo button stayed enabled and restored the node while busy"
 
 
 def _scenario_move_and_remove(page: Page) -> tuple[bool, str]:
@@ -281,6 +455,120 @@ def _scenario_move_and_remove(page: Page) -> tuple[bool, str]:
         return False, "remove-from-view undo did not restore nodes"
 
     return True, "move/remove local undo checks passed"
+
+
+def _scenario_local_remove_from_view_resyncs_stencil_row(page: Page) -> tuple[bool, str]:
+    console_errors: list[str] = []
+    response_errors: list[str] = []
+
+    def _capture_console(msg: object) -> None:
+        msg_type = getattr(msg, "type", "")
+        if msg_type == "error":
+            console_errors.append(str(getattr(msg, "text", "console error")))
+
+    def _capture_response(response: object) -> None:
+        status = int(getattr(response, "status", 0))
+        if status >= 400:
+            response_errors.append(f"{status} {getattr(response, 'url', '')}")
+
+    page.on("console", _capture_console)
+    page.on("response", _capture_response)
+
+    try:
+        target = page.evaluate(
+            """() => {
+                if (!window._cy) return null;
+                var found = null;
+                window._cy.nodes().forEach(function(node) {
+                    if (found) return;
+                    var id = String(node.id());
+                    var isDraft = Boolean(
+                        (window._htIsDraft && window._htIsDraft(id))
+                        || id.indexOf('draft-') === 0
+                        || node.data('draft')
+                    );
+                    if (isDraft) return;
+                    var row = document.getElementById('stencil-' + id);
+                    if (!row || !row.classList.contains('ht-stencil-placed')) return;
+                    found = { id: id };
+                });
+                return found;
+            }"""
+        )
+        if not isinstance(target, dict) or not target.get("id"):
+            return False, "no placed published stencil row was available for local undo proof"
+
+        node_id = str(target["id"])
+        removed = page.evaluate(
+            """(nodeId) => {
+                if (!window._cy || !window._htCommitLocalRemoveFromView) return false;
+                var node = window._cy.getElementById(String(nodeId));
+                if (!node || !node.length) return false;
+                window._htCommitLocalRemoveFromView(node);
+                return true;
+            }""",
+            node_id,
+        )
+        if not removed:
+            return False, "unable to trigger local Remove from View for a published node"
+
+        if not _wait_for_condition(
+            page,
+            """(nodeId) => {
+                var row = document.getElementById('stencil-' + String(nodeId));
+                return !!row
+                    && !row.classList.contains('ht-stencil-placed')
+                    && row.getAttribute('draggable') === 'true'
+                    && !row.querySelector('.ht-placed-badge');
+            }""",
+            node_id,
+            timeout_ms=10000,
+        ):
+            return False, f"stencil row did not become unplaced after Remove from View ({_stencil_row_state(page, node_id)})"
+
+        try:
+            page.locator("#ht-undo-button").click(timeout=5000)
+        except Exception as exc:
+            return False, f"visible undo button click failed ({exc})"
+
+        if not _wait_for_condition(
+            page,
+            """(nodeId) => {
+                if (!window._cy || !window._htUndoState) return false;
+                return window._cy.getElementById(String(nodeId)).length > 0 && !window._htUndoState.busy;
+            }""",
+            node_id,
+            timeout_ms=10000,
+        ):
+            return False, "undo did not restore the removed published node on canvas"
+
+        if not _wait_for_condition(
+            page,
+            """(nodeId) => {
+                var row = document.getElementById('stencil-' + String(nodeId));
+                return !!row
+                    && row.classList.contains('ht-stencil-placed')
+                    && !row.hasAttribute('draggable')
+                    && !!row.querySelector('.ht-placed-badge');
+            }""",
+            node_id,
+            timeout_ms=5000,
+        ):
+            return False, (
+                "undo restored the canvas node but the stencil row stayed stale "
+                f"({_stencil_row_state(page, node_id)})"
+            )
+
+        page.wait_for_timeout(400)
+        if response_errors:
+            return False, f"unexpected HTTP errors during Remove from View undo ({response_errors[:3]})"
+        if console_errors:
+            return False, f"error-level console noise during Remove from View undo ({console_errors[:3]})"
+
+        return True, "published Remove from View undo restored stencil placed state"
+    finally:
+        page.remove_listener("console", _capture_console)
+        page.remove_listener("response", _capture_response)
 
 
 def _scenario_published_edge_cycle(page: Page, token: str) -> tuple[bool, str]:
@@ -879,10 +1167,457 @@ def _scenario_patch_backed_field_cycle(page: Page) -> tuple[bool, str]:
     return True, "PATCH-backed detail-panel-style stacked undo/redo cycle passed"
 
 
+def _scenario_draft_reparent_dragend_stays_single_step(page: Page) -> tuple[bool, str]:
+    setup = page.evaluate(
+        """() => {
+            if (!window._cy || !window._htUndoState) {
+                return { ok: false, error: 'canvas_or_undo_missing' };
+            }
+
+            var cy = window._cy;
+            var suffix = String(Date.now()) + '-' + String(Math.floor(Math.random() * 10000));
+            var ids = {
+                origin: 'ht-undo-origin-' + suffix,
+                target: 'ht-undo-target-' + suffix,
+                child: 'ht-undo-child-' + suffix,
+            };
+
+            function summarize(entries) {
+                return (entries || []).map(function(entry) {
+                    var forward = entry && entry.forward ? entry.forward : {};
+                    var reverse = entry && entry.reverse ? entry.reverse : {};
+                    return {
+                        type: String((entry && entry.type) || ''),
+                        label: String((entry && entry.label) || ''),
+                        execution: String((entry && entry.execution) || ''),
+                        forward_op: String((forward && forward.op) || ''),
+                        reverse_op: String((reverse && reverse.op) || ''),
+                    };
+                });
+            }
+
+            function capture(nodeId) {
+                var node = cy.getElementById(String(nodeId || ''));
+                return {
+                    exists: !!(node && node.length),
+                    node_id: String(nodeId || ''),
+                    parent_id: node && node.length ? String(node.data('parent') || '') : '',
+                    undo_count: Number(window._htUndoState.undoStack.length || 0),
+                    redo_count: Number(window._htUndoState.redoStack.length || 0),
+                    undo_stack: summarize(window._htUndoState.undoStack),
+                    redo_stack: summarize(window._htUndoState.redoStack),
+                    drag_cancelled: !!window._htContainerDragCancelled,
+                    move_gesture_active: !!window._htMoveGesture,
+                };
+            }
+
+            window.__htCaptureDraftReparentUndoState = capture;
+            window.__htDraftReparentUndoProbe = { dragfree: [], dragend: [] };
+            if (!window.__htDraftReparentUndoProbeInstalled) {
+                window.__htDraftReparentUndoProbeInstalled = true;
+                cy.on('dragfree', 'node', function(evt) {
+                    if (!window.__htDraftReparentUndoProbe) return;
+                    window.__htDraftReparentUndoProbe.dragfree.push(capture(evt.target.id()));
+                });
+                cy.on('dragend', 'node', function(evt) {
+                    if (!window.__htDraftReparentUndoProbe) return;
+                    window.__htDraftReparentUndoProbe.dragend.push(capture(evt.target.id()));
+                });
+            }
+
+            function findByRawName(name) {
+                return cy.nodes().filter(function(node) {
+                    var raw = String(node.data('raw_name') || node.data('label') || '');
+                    return raw === String(name);
+                }).first();
+            }
+
+            cy.nodes().unselect();
+            window._htUndoState.undoStack = [];
+            window._htUndoState.redoStack = [];
+            window._htUndoState.busy = false;
+            window._htUndoState.pending = null;
+            window._htContainerDragCancelled = false;
+            window._htMoveGesture = null;
+            window._htContainerDragOrigin = {};
+            window._htContainerPointerOwnership = {};
+            window._htContainerGestureOwner = null;
+            window._htContainerDragInProgress = false;
+            window._htDeferredContainerDragCancelReason = null;
+
+            var liveChild = findByRawName('CTRL Draft Child X');
+            var liveTarget = findByRawName('CTRL Draft Node B');
+            if (!liveTarget || !liveTarget.length) {
+                liveTarget = findByRawName('CTRL Draft Node A');
+            }
+
+            if (liveChild && liveChild.length && liveTarget && liveTarget.length) {
+                var liveOriginId = String(liveChild.data('parent') || '');
+                if (cy.fit) {
+                    var focus = cy.collection().add(liveChild).add(liveTarget);
+                    cy.fit(focus, 120);
+                }
+                ids = {
+                    origin: liveOriginId,
+                    target: String(liveTarget.id()),
+                    child: String(liveChild.id()),
+                };
+            } else {
+                cy.batch(function() {
+                    Object.values(ids).forEach(function(id) {
+                        var existing = cy.getElementById(String(id));
+                        if (existing && existing.length) cy.remove(existing);
+                    });
+
+                    var extent = cy.extent();
+                    var centerX = (Number(extent.x1 || 0) + Number(extent.x2 || 0)) / 2;
+                    var centerY = (Number(extent.y1 || 0) + Number(extent.y2 || 0)) / 2;
+                    var originX = centerX - 260;
+                    var targetX = centerX + 260;
+                    var sharedY = centerY;
+
+                    cy.add({
+                        group: 'nodes',
+                        classes: 'container draft',
+                        data: {
+                            id: ids.origin,
+                            draft: true,
+                            draft_name: 'CTRL Draft Origin Container',
+                            draft_type: 'Rack',
+                            label: 'CTRL Draft Origin Container',
+                            raw_name: 'CTRL Draft Origin Container',
+                            device_type: 'Rack',
+                            raw_device_type: 'Rack',
+                            shape: 'round-rectangle',
+                            status: 'Active',
+                        },
+                        position: { x: originX, y: sharedY },
+                        style: { width: 220, height: 180, padding: '24px' },
+                    });
+
+                    cy.add({
+                        group: 'nodes',
+                        classes: 'container draft',
+                        data: {
+                            id: ids.target,
+                            draft: true,
+                            draft_name: 'CTRL Draft Target Container',
+                            draft_type: 'Rack',
+                            label: 'CTRL Draft Target Container',
+                            raw_name: 'CTRL Draft Target Container',
+                            device_type: 'Rack',
+                            raw_device_type: 'Rack',
+                            shape: 'round-rectangle',
+                            status: 'Active',
+                        },
+                        position: { x: targetX, y: sharedY },
+                        style: { width: 220, height: 180, padding: '24px' },
+                    });
+
+                    cy.add({
+                        group: 'nodes',
+                        classes: 'draft',
+                        data: {
+                            id: ids.child,
+                            parent: ids.origin,
+                            draft: true,
+                            draft_name: 'CTRL Draft Child X',
+                            draft_type: 'Server',
+                            label: 'CTRL Draft Child X',
+                            raw_name: 'CTRL Draft Child X',
+                            device_type: 'Server',
+                            raw_device_type: 'Server',
+                            shape: 'rectangle',
+                            status: 'Active',
+                        },
+                        position: { x: originX, y: sharedY },
+                        style: { width: 84, height: 62 },
+                    });
+                });
+            }
+
+            var child = cy.getElementById(ids.child);
+            var target = cy.getElementById(ids.target);
+            var container = cy.container ? cy.container() : document.getElementById('cy');
+            if (!child || !child.length || !target || !target.length || !container) {
+                return { ok: false, error: 'fixture_creation_failed' };
+            }
+
+            child.select();
+            if (window._htNormalizeSelectionForContainerDrag) {
+                window._htNormalizeSelectionForContainerDrag();
+            }
+
+            var containerRect = container.getBoundingClientRect();
+            var childRendered = child.renderedPosition ? child.renderedPosition() : child.position();
+            var targetBox = target.renderedBoundingBox
+                ? target.renderedBoundingBox({ includeLabels: false, includeOverlays: false })
+                : null;
+            if (!targetBox) {
+                return { ok: false, error: 'target_box_missing' };
+            }
+
+            var targetCenterX = (Number(targetBox.x1 || 0) + Number(targetBox.x2 || 0)) / 2;
+            var targetCenterY = (Number(targetBox.y1 || 0) + Number(targetBox.y2 || 0)) / 2;
+            var endRenderedX = targetCenterX + 38;
+            var endRenderedY = targetCenterY + 22;
+
+            return {
+                ok: true,
+                child_id: ids.child,
+                origin_id: ids.origin,
+                target_id: ids.target,
+                start_rendered: {
+                    x: Number(childRendered.x || 0),
+                    y: Number(childRendered.y || 0),
+                },
+                end_rendered: {
+                    x: endRenderedX,
+                    y: endRenderedY,
+                },
+                target_model: {
+                    x: Number(target.position('x') || 0),
+                    y: Number(target.position('y') || 0),
+                },
+                start_client: {
+                    x: Number(containerRect.left || 0) + Number(childRendered.x || 0),
+                    y: Number(containerRect.top || 0) + Number(childRendered.y || 0),
+                },
+                end_client: {
+                    x: Number(containerRect.left || 0) + endRenderedX,
+                    y: Number(containerRect.top || 0) + endRenderedY,
+                },
+                driver: 'runtime_emit',
+            };
+        }"""
+    )
+    if not isinstance(setup, dict) or not setup.get("ok"):
+        reason = str(setup.get("error", "invalid_setup")) if isinstance(setup, dict) else "invalid_setup"
+        return False, f"unable to set up draft reparent undo contract scenario ({reason})"
+
+    start_client = setup.get("start_client")
+    end_client = setup.get("end_client")
+    if not isinstance(start_client, dict) or not isinstance(end_client, dict):
+        return False, "draft reparent undo contract scenario did not return drag coordinates"
+
+    child_id = str(setup["child_id"])
+    origin_id = str(setup["origin_id"])
+    target_id = str(setup["target_id"])
+    driver = str(setup.get("driver", "runtime_emit"))
+    start_rendered = setup.get("start_rendered")
+    end_rendered = setup.get("end_rendered")
+    target_model = setup.get("target_model")
+    if not isinstance(start_rendered, dict) or not isinstance(end_rendered, dict) or not isinstance(target_model, dict):
+        return False, "draft reparent undo contract scenario did not return rendered/model drag coordinates"
+
+    page.wait_for_timeout(250)
+    emission = page.evaluate(
+        """(args) => {
+            if (!window._cy) {
+                return { ok: false, error: 'canvas_missing' };
+            }
+
+            var cy = window._cy;
+            var node = cy.getElementById(String(args.child_id || ''));
+            if (!node || !node.length) {
+                return { ok: false, error: 'child_missing' };
+            }
+
+            function emitNodeEvent(type, rendered, client) {
+                var event = {
+                    type: String(type || ''),
+                    target: node,
+                    cyTarget: node,
+                    position: node.position ? node.position() : { x: 0, y: 0 },
+                    renderedPosition: {
+                        x: Number((rendered && rendered.x) || 0),
+                        y: Number((rendered && rendered.y) || 0),
+                    },
+                    originalEvent: {
+                        clientX: Number((client && client.x) || 0),
+                        clientY: Number((client && client.y) || 0),
+                        pointerId: 424242,
+                        timeStamp: Date.now(),
+                    },
+                };
+
+                try {
+                    node.emit(event);
+                    return { ok: true, transport: 'node.emit' };
+                } catch (nodeError) {
+                    try {
+                        cy.emit(event);
+                        return { ok: true, transport: 'cy.emit' };
+                    } catch (cyError) {
+                        return {
+                            ok: false,
+                            error: String(nodeError) + ' | ' + String(cyError),
+                        };
+                    }
+                }
+            }
+
+            var emitted = [];
+            emitted.push({ type: 'pointerdown', result: emitNodeEvent('pointerdown', args.start_rendered, args.start_client) });
+            emitted.push({ type: 'grab', result: emitNodeEvent('grab', args.start_rendered, args.start_client) });
+            emitted.push({ type: 'dragstart', result: emitNodeEvent('dragstart', args.start_rendered, args.start_client) });
+
+            if (node.renderedPosition) {
+                node.renderedPosition({
+                    x: Number(args.end_rendered.x || 0),
+                    y: Number(args.end_rendered.y || 0),
+                });
+            } else if (node.position) {
+                node.position({
+                    x: Number(args.target_model.x || 0),
+                    y: Number(args.target_model.y || 0),
+                });
+            }
+
+            emitted.push({ type: 'drag', result: emitNodeEvent('drag', args.end_rendered, args.end_client) });
+            emitted.push({ type: 'dragfree', result: emitNodeEvent('dragfree', args.end_rendered, args.end_client) });
+            emitted.push({ type: 'dragend', result: emitNodeEvent('dragend', args.end_rendered, args.end_client) });
+
+            return {
+                ok: emitted.every(function(entry) { return !!(entry.result && entry.result.ok); }),
+                emitted: emitted,
+                current_state: window.__htCaptureDraftReparentUndoState
+                    ? window.__htCaptureDraftReparentUndoState(args.child_id)
+                    : null,
+            };
+        }""",
+        {
+            "child_id": child_id,
+            "start_client": start_client,
+            "end_client": end_client,
+            "start_rendered": start_rendered,
+            "end_rendered": end_rendered,
+            "target_model": target_model,
+        },
+    )
+    if not isinstance(emission, dict) or not emission.get("ok"):
+        detail = json.dumps(emission, sort_keys=True) if isinstance(emission, dict) else str(emission)
+        return False, f"unable to emit draft reparent runtime event path ({detail})"
+
+
+    if not _wait_for_condition(
+        page,
+        """(nodeId) => {
+            var probe = window.__htDraftReparentUndoProbe || {};
+            var dragfree = (probe.dragfree || []).filter(function(snapshot) {
+                return String(snapshot.node_id || '') === String(nodeId);
+            });
+            var dragend = (probe.dragend || []).filter(function(snapshot) {
+                return String(snapshot.node_id || '') === String(nodeId);
+            });
+            return dragfree.length > 0 && dragend.length > 0;
+        }""",
+        child_id,
+        timeout_ms=6000,
+        interval_ms=100,
+    ):
+        probe = page.evaluate("() => window.__htDraftReparentUndoProbe || {}")
+        return False, f"runtime event path did not record both dragfree and dragend snapshots ({json.dumps({'probe': probe, 'emission': emission}, sort_keys=True)})"
+
+    probe = page.evaluate(
+        """(nodeId) => {
+            var state = window.__htDraftReparentUndoProbe || { dragfree: [], dragend: [] };
+            function byNode(entries) {
+                return (entries || []).filter(function(snapshot) {
+                    return String(snapshot.node_id || '') === String(nodeId);
+                });
+            }
+            return {
+                dragfree: byNode(state.dragfree),
+                dragend: byNode(state.dragend),
+            };
+        }""",
+        child_id,
+    )
+    if not isinstance(probe, dict):
+        return False, "draft reparent undo contract probe returned invalid snapshots"
+
+    dragfree_entries = probe.get("dragfree")
+    dragend_entries = probe.get("dragend")
+    if not isinstance(dragfree_entries, list) or not dragfree_entries:
+        return False, "draft reparent undo contract probe missed the dragfree snapshot"
+    if not isinstance(dragend_entries, list) or not dragend_entries:
+        return False, "draft reparent undo contract probe missed the dragend snapshot"
+
+    dragfree_state = dragfree_entries[-1]
+    dragend_state = dragend_entries[-1]
+
+    page.evaluate("() => window._htRequestUndo && window._htRequestUndo()")
+    page.wait_for_timeout(250)
+    if not _wait_for_undo_idle(page):
+        return False, "undo request for draft reparent contract did not settle"
+
+    after_undo_state = _capture_canvas_undo_state(page, child_id)
+    failures: list[str] = []
+
+    if str(dragfree_state.get("parent_id", "")) != target_id:
+        failures.append("post-dragfree parent did not move into target container")
+    if int(dragfree_state.get("undo_count", -1)) != 1:
+        failures.append("post-dragfree undo stack was not exactly one entry")
+    dragfree_stack = dragfree_state.get("undo_stack")
+    if not isinstance(dragfree_stack, list) or not dragfree_stack:
+        failures.append("post-dragfree undo stack snapshot was empty")
+    else:
+        top = dragfree_stack[-1]
+        if str(top.get("type", "")) != "reparent_node":
+            failures.append("post-dragfree top undo entry was not reparent_node")
+        if str(top.get("label", "")) != "Move into container":
+            failures.append("post-dragfree top undo label was not Move into container")
+
+    if str(dragend_state.get("parent_id", "")) != target_id:
+        failures.append("post-dragend parent no longer pointed at target container")
+    if int(dragend_state.get("undo_count", -1)) != 1:
+        failures.append("post-dragend undo stack appended an extra entry")
+    dragend_stack = dragend_state.get("undo_stack")
+    if not isinstance(dragend_stack, list) or not dragend_stack:
+        failures.append("post-dragend undo stack snapshot was empty")
+    else:
+        top = dragend_stack[-1]
+        if str(top.get("type", "")) != "reparent_node":
+            failures.append("post-dragend top undo entry was not reparent_node")
+        if str(top.get("label", "")) != "Move into container":
+            failures.append("post-dragend top undo label drifted away from Move into container")
+
+    if str(after_undo_state.get("parent_id", "")) != origin_id:
+        failures.append("first undo did not restore the original parent")
+    if int(after_undo_state.get("undo_count", -1)) != 0:
+        failures.append("first undo did not consume the only undo entry")
+    redo_stack = after_undo_state.get("redo_stack")
+    if not isinstance(redo_stack, list) or len(redo_stack) != 1:
+        failures.append("first undo did not leave a single redo entry")
+    else:
+        top = redo_stack[-1]
+        if str(top.get("type", "")) != "reparent_node":
+            failures.append("first undo redo-stack top was not reparent_node")
+
+    if failures:
+        states = {
+            "dragfree": dragfree_state,
+            "dragend": dragend_state,
+            "after_undo": after_undo_state,
+        }
+        return False, f"one-step draft reparent undo contract violated: {'; '.join(failures)} | states={json.dumps(states, sort_keys=True)}"
+
+    return True, "draft structural drag kept a single reparent undo entry through dragend and first undo"
+
+
 def _run() -> int:
     token = _login_api()
-    workspace_id, topology_id = _first_workspace_topology(token)
+    workspace_id = os.getenv("HT_E2E_WORKSPACE_ID", "").strip()
+    topology_id = os.getenv("HT_E2E_TOPOLOGY_ID", "").strip()
+    if not workspace_id or not topology_id:
+        workspace_id, topology_id = _first_workspace_topology(token)
     url = f"{BASE}/topology?workspace_id={workspace_id}&topology_id={topology_id}"
+    selected_checks = {
+        name.strip()
+        for name in os.getenv("HT_E2E_UNDO_SCENARIOS", "").split(",")
+        if name.strip()
+    }
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
@@ -906,6 +1641,18 @@ def _run() -> int:
             return 1
 
         checks: list[tuple[str, tuple[bool, str]]] = [
+            (
+                "draft structural drag remains single-step after dragend",
+                _scenario_draft_reparent_dragend_stays_single_step(page),
+            ),
+            (
+                "visible local remove undo while busy",
+                _scenario_visible_local_undo_button_while_busy(page),
+            ),
+            (
+                "published remove-from-view undo re-syncs stencil row",
+                _scenario_local_remove_from_view_resyncs_stencil_row(page),
+            ),
             ("baseline local move/remove", _scenario_move_and_remove(page)),
             ("published edge create->undo->redo->undo", _scenario_published_edge_cycle(page, token)),
             (
@@ -914,6 +1661,13 @@ def _run() -> int:
             ),
             ("PATCH-backed detail-panel field undo/redo", _scenario_patch_backed_field_cycle(page)),
         ]
+
+        if selected_checks:
+            checks = [check for check in checks if check[0] in selected_checks]
+            if not checks:
+                print("FAIL: no matching undo/redo browser checks were selected")
+                browser.close()
+                return 1
 
         for name, (ok, message) in checks:
             if not ok:

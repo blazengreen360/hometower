@@ -2,7 +2,7 @@
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlmodel import Session, SQLModel
 
 from src.api.dependencies.rbac import require_role
@@ -12,6 +12,10 @@ from src.services import connection_service
 from src.utils.db import get_session
 
 router = APIRouter(prefix="/connections", tags=["connections"])
+
+
+def _owner_id(request: Request) -> uuid.UUID:
+    return uuid.UUID(request.state.user_id)
 
 
 class PaginatedConnectionResponse(SQLModel):
@@ -27,6 +31,7 @@ class PaginatedConnectionResponse(SQLModel):
     dependencies=[Depends(require_role(Role.Reader))],
 )
 def list_connections(
+    request: Request,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=100),
     source_id: Optional[uuid.UUID] = Query(default=None),
@@ -34,7 +39,14 @@ def list_connections(
     session: Session = Depends(get_session),
 ) -> PaginatedConnectionResponse:
     """List connections with optional filters and pagination. Requires Reader role."""
-    items, total = connection_service.get_all(session, page, limit, source_id, target_id)
+    items, total = connection_service.get_all(
+        session,
+        page,
+        limit,
+        source_id,
+        target_id,
+        owner_id=_owner_id(request),
+    )
     return PaginatedConnectionResponse(
         items=[ConnectionResponse.model_validate(c.model_dump()) for c in items],
         total=total,
@@ -51,10 +63,11 @@ def list_connections(
 )
 def create_connection(
     data: ConnectionCreate,
+    request: Request,
     session: Session = Depends(get_session),
 ) -> ConnectionResponse:
     """Create a new connection. Requires Contributor role."""
-    conn = connection_service.create(data, session)
+    conn = connection_service.create(data, session, owner_id=_owner_id(request))
     return ConnectionResponse.model_validate(conn.model_dump())
 
 
@@ -64,11 +77,16 @@ def create_connection(
     dependencies=[Depends(require_role(Role.Reader))],
 )
 def get_connection(
+    request: Request,
     connection_id: uuid.UUID,
     session: Session = Depends(get_session),
 ) -> ConnectionResponse:
     """Get a connection by ID. Requires Reader role."""
-    conn = connection_service.get_by_id(connection_id, session)
+    conn = connection_service.get_by_id(
+        connection_id,
+        session,
+        owner_id=_owner_id(request),
+    )
     return ConnectionResponse.model_validate(conn.model_dump())
 
 
@@ -78,12 +96,18 @@ def get_connection(
     dependencies=[Depends(require_role(Role.Contributor))],
 )
 def update_connection(
+    request: Request,
     connection_id: uuid.UUID,
     data: ConnectionUpdate,
     session: Session = Depends(get_session),
 ) -> ConnectionResponse:
     """Partially update a connection. Requires Contributor role."""
-    conn = connection_service.update(connection_id, data, session)
+    conn = connection_service.update(
+        connection_id,
+        data,
+        session,
+        owner_id=_owner_id(request),
+    )
     return ConnectionResponse.model_validate(conn.model_dump())
 
 
@@ -93,8 +117,9 @@ def update_connection(
     dependencies=[Depends(require_role(Role.Contributor))],
 )
 def delete_connection(
+    request: Request,
     connection_id: uuid.UUID,
     session: Session = Depends(get_session),
 ) -> None:
     """Delete a connection. Requires Contributor role."""
-    connection_service.delete(connection_id, session)
+    connection_service.delete(connection_id, session, owner_id=_owner_id(request))

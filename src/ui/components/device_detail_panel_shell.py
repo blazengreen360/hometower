@@ -9,19 +9,66 @@ from nicegui import ui
 from src.models.connection import ConnectionResponse
 from src.models.device import DeviceResponseEnriched
 
+RIGHT_RAIL_PANEL_WIDTH_PX = 320
+RIGHT_RAIL_PANEL_IDS: tuple[str, ...] = (
+    "device-detail-panel",
+    "ghost-detail-panel",
+    "connection-detail-panel",
+)
+
+
+def build_panel_visibility_batch_js(panel_ids: Sequence[str], visible: bool) -> str:
+    """Build a small DOM toggle for multiple topology right-rail panels."""
+    display = "flex" if visible else "none"
+    statements = [
+        f"var panel=document.getElementById({json.dumps(panel_id)});"
+        f"if(panel)panel.style.display={json.dumps(display)};"
+        for panel_id in panel_ids
+    ]
+    statements.extend(
+        [
+            "window.dispatchEvent(new CustomEvent('ht:topology-layout-sync'));",
+            "window.setTimeout(function(){",
+            "window.dispatchEvent(new CustomEvent('ht:topology-layout-sync'));",
+            "}, 160);",
+        ]
+    )
+    return "".join(statements)
+
+
+def build_panel_visibility_js(panel_id: str, visible: bool) -> str:
+    """Build a small DOM toggle for one of the topology right-rail panels."""
+    return build_panel_visibility_batch_js((panel_id,), visible)
+
+
+def build_right_rail_panel(
+    panel_id: str,
+    aria_label: str,
+    width_px: int = RIGHT_RAIL_PANEL_WIDTH_PX,
+    element_builder: Callable[[str], ui.element] | None = None,
+) -> ui.element:
+    """Build a panel shell that can live in the current row or a future right rail."""
+    width = f"{width_px}px"
+    builder = ui.element if element_builder is None else element_builder
+    return (
+        builder("div")
+        .props(f'role="complementary" aria-label="{aria_label}" id="{panel_id}"')
+        .classes("ht-right-rail-panel")
+        .style(
+            "display:none; flex-direction:column; gap:8px; "
+            f"width:min(100%, {width}); min-width:min(100%, {width}); "
+            "max-width:100%; padding:16px; background:var(--ht-bg-surface-raised); "
+            "overflow-y:auto; flex-shrink:0; box-sizing:border-box;"
+        )
+    )
+
 
 def build_detail_panel(
     is_editor: bool,
     on_duplicate: Callable[[], Awaitable[None]],
     on_close: Callable[[], Awaitable[None]],
 ) -> tuple[ui.label, ui.column]:
-    panel = ui.element("div").props(
-        'role="complementary" aria-label="Device details" id="device-detail-panel"'
-    ).style(
-        "display:none; flex-direction:column; gap:8px; width:280px; "
-        "min-width:280px; padding:16px; background:var(--ht-bg-surface-raised); "
-        "overflow-y:auto; flex-shrink:0;"
-    )
+    panel = build_right_rail_panel("device-detail-panel", "Device details")
 
     with panel:
         with ui.row().classes("justify-between items-center w-full"):
@@ -43,7 +90,7 @@ def build_detail_panel(
             .props("aria-live=polite")
             .style("position:absolute; width:1px; height:1px; overflow:hidden;")
         )
-        content = ui.column().classes("w-full gap-2")
+        content = ui.column().classes("w-full gap-2 ht-right-rail-panel__content")
     return live_lbl, content
 
 

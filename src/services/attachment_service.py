@@ -30,8 +30,12 @@ from src.services.attachment_service_validation import (
 from src.utils.logger import logger
 
 
-def _assert_device_exists(device_id: uuid.UUID, session: Session) -> None:
-    if device_repository.get_by_id(session, device_id) is None:
+def _assert_device_exists(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> None:
+    if device_repository.get_by_id(session, device_id, owner_id=owner_id) is None:
         raise HTTPException(status_code=404, detail="Device not found")
 
 
@@ -54,9 +58,10 @@ def _to_response(attachment: DeviceAttachment) -> DeviceAttachmentResponse:
 def list_for_device(
     device_id: uuid.UUID,
     session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> list[DeviceAttachmentResponse]:
     """List all attachments for a device."""
-    _assert_device_exists(device_id, session)
+    _assert_device_exists(device_id, session, owner_id=owner_id)
     attachments = attachment_repository.list_by_device(session, device_id)
     return [_to_response(attachment) for attachment in attachments]
 
@@ -66,9 +71,10 @@ def upload(
     filename: str,
     raw: bytes,
     session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> DeviceAttachmentResponse:
     """Validate, store, and persist an uploaded attachment."""
-    _assert_device_exists(device_id, session)
+    _assert_device_exists(device_id, session, owner_id=owner_id)
 
     if len(raw) > MAX_ATTACHMENT_BYTES:
         raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
@@ -124,8 +130,10 @@ def get_attachment(
     device_id: uuid.UUID,
     attachment_id: uuid.UUID,
     session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> DeviceAttachment:
     """Return one attachment scoped to a device or raise 404."""
+    _assert_device_exists(device_id, session, owner_id=owner_id)
     attachment = attachment_repository.get_by_id(session, device_id, attachment_id)
     if attachment is None:
         raise HTTPException(status_code=404, detail="Attachment not found")
@@ -136,9 +144,15 @@ def delete(
     device_id: uuid.UUID,
     attachment_id: uuid.UUID,
     session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> None:
     """Delete one attachment, its files, and its DB row."""
-    attachment = get_attachment(device_id, attachment_id, session)
+    attachment = get_attachment(
+        device_id,
+        attachment_id,
+        session,
+        owner_id=owner_id,
+    )
     original_path = resolve_original_path(attachment)
     thumbnail_path = resolve_thumbnail_path(attachment)
 

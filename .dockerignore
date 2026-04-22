@@ -24,3 +24,6 @@ Thumbs.db
 doc
 memory
 tests
+tmp/
+artifacts/
+doc/

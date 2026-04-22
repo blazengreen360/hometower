@@ -146,15 +146,11 @@ def import_json(
 
     try:
         counts = import_full_snapshot(session, payload)
-        session.commit()
     except ImportPayloadValidationError as exc:
-        session.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ValueError as exc:
-        session.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except IntegrityError as exc:
-        session.rollback()
         logger.error("import IntegrityError on data_transfer import")
         raise HTTPException(
             status_code=422,

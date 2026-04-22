@@ -67,7 +67,7 @@ Produce exactly this structure in chat. No file writes — this is a handoff art
 - If user-visible: relevant story in doc/stories/
 
 ### 10. Verification
-- bash .github/skills/verify-gate/scripts/run.sh
+- .venv/bin/python .github/skills/deterministic-review-tooling/scripts/run_review_gates.py
 - If migration involved: bash .github/skills/migration-safety/scripts/check.sh <migration file>
 
 ### Risks / open questions for Architect

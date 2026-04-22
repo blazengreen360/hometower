@@ -19,7 +19,7 @@ async def _invoke(handler: Callable[..., object]) -> object:
 
 
 class TestTopologyUndoBarExecution:
-    def test_editor_roles_render_disabled_undo_redo_buttons(
+    def test_editor_roles_render_runtime_managed_undo_redo_buttons(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -40,8 +40,8 @@ class TestTopologyUndoBarExecution:
         redo_button = next(button for button in buttons if button.value == "redo")
         assert any("ht-undo-button" in props for props in undo_button.props_calls)
         assert any("ht-redo-button" in props for props in redo_button.props_calls)
-        assert any("disable" in props for props in undo_button.props_calls)
-        assert any("disable" in props for props in redo_button.props_calls)
+        assert not any("disable" in props for props in undo_button.props_calls)
+        assert not any("disable" in props for props in redo_button.props_calls)
 
     def test_reader_role_hides_undo_bar(
         self,

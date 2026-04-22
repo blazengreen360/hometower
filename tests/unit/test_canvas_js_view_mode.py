@@ -35,27 +35,28 @@ class TestCanvasJsViewModeDefaults:
         assert "ht:context-menu-request" in CANVAS_INIT_JS_TEMPLATE
 
     def test_contextmenu_dedup_uses_flag_bridge_instead_of_timestamp_window(self) -> None:
-        assert "_htCtxMenuBridgeHandled" in CANVAS_INIT_JS_TEMPLATE
-        assert "setTimeout(function() { window._htCtxMenuBridgeHandled = false; }, 50);" in CANVAS_INIT_JS_TEMPLATE
+        assert "function _htDedupContextMenuRequest(id, eventId)" in CANVAS_INIT_JS_TEMPLATE
+        assert "window._htCtxMenuRequestKeys" in CANVAS_INIT_JS_TEMPLATE
+        assert "if (_htDedupContextMenuRequest(id, eventId)) return;" in CANVAS_INIT_JS_TEMPLATE
+        assert "window.setTimeout(function() { window._htCtxMenuBridgeHandled = false; }, 50);" not in CANVAS_INIT_JS_TEMPLATE
+        assert "_htCtxMenuBridgeHandled" not in CANVAS_INIT_JS_TEMPLATE
         assert "_htLastCtxMenuTime" not in CANVAS_INIT_JS_TEMPLATE
-        assert "Date.now() - window._htLastCtxMenuTime" not in CANVAS_INIT_JS_TEMPLATE
 
     def test_contextmenu_bridge_helper_guards_then_dispatches(self) -> None:
+        assert "function _htDedupContextMenuRequest(id, eventId)" in CANVAS_INTERACTIONS_JS
+        assert "var key = String(id) + ':' + String(eventId);" in CANVAS_INTERACTIONS_JS
+        
         helper = _between(
             CANVAS_INTERACTIONS_JS,
             "        function dispatchContextMenuRequest(detail) {",
             "\n\n        cy.on('tap', 'node', function(evt) {",
         )
-        guard_idx = helper.index("if (window._htCtxMenuBridgeHandled) return;")
-        lock_idx = helper.index("window._htCtxMenuBridgeHandled = true;")
-        reset_idx = helper.index(
-            "window.setTimeout(function() { window._htCtxMenuBridgeHandled = false; }, 50);"
-        )
+        dedup_call_idx = helper.index("if (_htDedupContextMenuRequest(id, eventId)) return;")
         dispatch_idx = helper.index(
             "document.dispatchEvent(new CustomEvent('ht:context-menu-request', { detail: detail }));"
         )
 
-        assert guard_idx < lock_idx < reset_idx < dispatch_idx
+        assert dedup_call_idx < dispatch_idx
 
     def test_contextmenu_handlers_route_through_bridge_helper_only(self) -> None:
         cxttap_handler = _between(
@@ -69,13 +70,18 @@ class TestCanvasJsViewModeDefaults:
             "\n\n        container.addEventListener('dragover', function(e) { e.preventDefault(); });",
         )
 
-        assert "dispatchContextMenuRequest({ id: node.id(), data: node.data() });" in cxttap_handler
+        assert "id: node.id()," in cxttap_handler
+        assert "data: node.data()," in cxttap_handler
+        assert "source: 'cxttap'" in cxttap_handler
         assert "document.dispatchEvent(new CustomEvent('ht:context-menu-request'" not in cxttap_handler
         assert "_htCtxMenuBridgeHandled = true" not in cxttap_handler
 
-        assert "dispatchContextMenuRequest({ id: nearest.id(), data: nearest.data() });" in native_handler
+        assert "id: hitNode.id()," in native_handler
+        assert "data: hitNode.data()," in native_handler
+        assert "source: 'contextmenu'" in native_handler
         assert "document.dispatchEvent(new CustomEvent('ht:context-menu-request'" not in native_handler
         assert "_htCtxMenuBridgeHandled = true" not in native_handler
+        assert "_htCtxMenuBridgeHandled" not in native_handler
 
 
 class TestCanvasJsDeferredEventWiring:

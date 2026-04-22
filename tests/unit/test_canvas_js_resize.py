@@ -31,7 +31,7 @@ class TestCanvasResizeBridgeJs:
 
     def test_resize_bridge_applies_node_and_compound_minimums(self) -> None:
         assert "var HT_NODE_MIN_SIZE = 40;" in CANVAS_RESIZE_JS
-        assert "var HT_COMPOUND_MIN_PADDING = 24;" in CANVAS_RESIZE_JS
+        assert "var HT_COMPOUND_MIN_PADDING = 20;" in CANVAS_RESIZE_JS
         assert "var children = node.children();" in CANVAS_RESIZE_JS
         assert "var childBox = children.boundingBox({ includeLabels: false, includeOverlays: false });" in CANVAS_RESIZE_JS
         assert "function _htResizeCompoundPadding(node) {" in CANVAS_RESIZE_JS
@@ -45,20 +45,28 @@ class TestCanvasResizeBridgeJs:
         assert "function _htResizeCompoundAnchoredBounds(calc, compoundState) {" in CANVAS_RESIZE_JS
         assert "function _htResizeApplyCompound(node, calc, compoundState) {" in CANVAS_RESIZE_JS
         assert "function _htResizeSyncCompoundChain(node) {" in CANVAS_RESIZE_JS
-        assert "offsetLeft: childX - startContentBounds.x1" in CANVAS_RESIZE_JS
-        assert "offsetRight: startContentBounds.x2 - childX" in CANVAS_RESIZE_JS
-        assert "offsetTop: childY - startContentBounds.y1" in CANVAS_RESIZE_JS
-        assert "offsetBottom: startContentBounds.y2 - childY" in CANVAS_RESIZE_JS
-        assert "var targetBounds = _htResizeCompoundAnchoredBounds(calc, compoundState);" in CANVAS_RESIZE_JS
-        assert "targetContentBounds.x2 - childStart.offsetRight" in CANVAS_RESIZE_JS
-        assert "targetContentBounds.x1 + childStart.offsetLeft" in CANVAS_RESIZE_JS
-        assert "targetContentBounds.y2 - childStart.offsetBottom" in CANVAS_RESIZE_JS
-        assert "targetContentBounds.y1 + childStart.offsetTop" in CANVAS_RESIZE_JS
+        assert "startContentBounds: startContentBounds" in CANVAS_RESIZE_JS
+        assert "var targetBounds = _htResizeCompoundAnchoredBounds(nextCalc, compoundState);" in CANVAS_RESIZE_JS
+        assert "var targetBounds = _htResizeCompoundAnchoredBounds(calc, compoundState);" not in CANVAS_RESIZE_JS
+        assert "var nextCalc = {" in CANVAS_RESIZE_JS
+        assert "width: Math.max(calc.width, liveMin.width)," in CANVAS_RESIZE_JS
+        assert "height: Math.max(calc.height, liveMin.height)," in CANVAS_RESIZE_JS
+        assert "var children = node.children();" in CANVAS_RESIZE_JS
         assert "calc.position.x + (relX * scaleX)" not in CANVAS_RESIZE_JS
         assert "calc.position.y + (relY * scaleY)" not in CANVAS_RESIZE_JS
-        assert "child.position({" in CANVAS_RESIZE_JS
-        assert "node.style('min-width', calc.width + 'px');" in CANVAS_RESIZE_JS
-        assert "node.style('min-height', calc.height + 'px');" in CANVAS_RESIZE_JS
+        assert "offsetLeft: childX - startContentBounds.x1" not in CANVAS_RESIZE_JS
+        assert "offsetRight: startContentBounds.x2 - childX" not in CANVAS_RESIZE_JS
+        assert "offsetTop: childY - startContentBounds.y1" not in CANVAS_RESIZE_JS
+        assert "offsetBottom: startContentBounds.y2 - childY" not in CANVAS_RESIZE_JS
+        assert "targetContentBounds.x2 - childStart.offsetRight" not in CANVAS_RESIZE_JS
+        assert "targetContentBounds.x1 + childStart.offsetLeft" not in CANVAS_RESIZE_JS
+        assert "targetContentBounds.y2 - childStart.offsetBottom" not in CANVAS_RESIZE_JS
+        assert "targetContentBounds.y1 + childStart.offsetTop" not in CANVAS_RESIZE_JS
+        assert "child.position({" not in CANVAS_RESIZE_JS
+        assert "node.style('min-width', nextCalc.width + 'px');" in CANVAS_RESIZE_JS
+        assert "node.style('min-height', nextCalc.height + 'px');" in CANVAS_RESIZE_JS
+        assert "node.style('min-width', calc.width + 'px');" not in CANVAS_RESIZE_JS
+        assert "node.style('min-height', calc.height + 'px');" not in CANVAS_RESIZE_JS
         assert "node.style('min-width-bias-left', leftBias);" in CANVAS_RESIZE_JS
         assert "node.style('min-width-bias-right', rightBias);" in CANVAS_RESIZE_JS
         assert "node.style('min-height-bias-top', topBias);" in CANVAS_RESIZE_JS
@@ -68,8 +76,10 @@ class TestCanvasResizeBridgeJs:
 
     def test_resize_bridge_compound_syncs_style_dimensions_to_rendered_box(self) -> None:
         assert "var finalBox = node.boundingBox({ includeLabels: false, includeOverlays: false });" in CANVAS_RESIZE_JS
-        assert "var finalWidth = _htResizeParsePx(finalBox ? (finalBox.w || (finalBox.x2 - finalBox.x1)) : calc.width, calc.width);" in CANVAS_RESIZE_JS
-        assert "var finalHeight = _htResizeParsePx(finalBox ? (finalBox.h || (finalBox.y2 - finalBox.y1)) : calc.height, calc.height);" in CANVAS_RESIZE_JS
+        assert "var finalWidth = _htResizeParsePx(finalBox ? (finalBox.w || (finalBox.x2 - finalBox.x1)) : nextCalc.width, nextCalc.width);" in CANVAS_RESIZE_JS
+        assert "var finalHeight = _htResizeParsePx(finalBox ? (finalBox.h || (finalBox.y2 - finalBox.y1)) : nextCalc.height, nextCalc.height);" in CANVAS_RESIZE_JS
+        assert "var finalWidth = _htResizeParsePx(finalBox ? (finalBox.w || (finalBox.x2 - finalBox.x1)) : calc.width, calc.width);" not in CANVAS_RESIZE_JS
+        assert "var finalHeight = _htResizeParsePx(finalBox ? (finalBox.h || (finalBox.y2 - finalBox.y1)) : calc.height, calc.height);" not in CANVAS_RESIZE_JS
         assert "node.style('width', finalWidth);" in CANVAS_RESIZE_JS
         assert "node.style('height', finalHeight);" in CANVAS_RESIZE_JS
 

@@ -2,17 +2,18 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlalchemy import select as sa_select
 from sqlmodel import Session, col, select
 
 from src.models.device import Device
 from src.models.location import Location
-from src.models.tag import DeviceTag, Tag
 from src.repositories.device_repository_support import apply_device_scope
 from src.repositories.device_repository_support import apply_owner_scope
 from src.repositories.device_repository_support import get_order_expression
 from src.repositories.device_repository_support import get_workspace_device_ids
+from src.repositories.device_repository_search_support import apply_search_filters
+from src.repositories.device_repository_search_support import build_search_statement
 
 
 def create(session: Session, device: Device) -> Device:
@@ -26,14 +27,16 @@ def get_by_id(
     session: Session,
     device_id: uuid.UUID,
     owner_id: uuid.UUID | None = None,
+    enforce_owner_scope: bool = True,
 ) -> Device | None:
-    device_ids = get_workspace_device_ids(session, None, owner_id)
+    scoped_owner_id = owner_id if enforce_owner_scope else None
+    device_ids = get_workspace_device_ids(session, None, scoped_owner_id)
     statement = apply_device_scope(
         select(Device).where(col(Device.id) == device_id),
         session,
         col,
         device_ids,
-        owner_id,
+        scoped_owner_id,
     )
     return session.exec(statement).first()
 
@@ -170,65 +173,11 @@ def search(
     workspace_id: uuid.UUID | None = None,
     owner_id: uuid.UUID | None = None,
 ) -> tuple[list[tuple[Device, str | None]], int]:
-    from src.domain.search import ParsedQuery, to_sql_like
-    from src.models.service import Service
+    from src.domain.search import ParsedQuery
 
-    stmt = (
-        sa_select(Device, Location.name)  # type: ignore[call-overload]
-        .outerjoin(Location, Device.location_id == Location.id)
-    )
-
+    stmt = build_search_statement()
     device_ids = get_workspace_device_ids(session, workspace_id, owner_id)
-
-    if parsed.types:
-        stmt = stmt.where(or_(*[func.lower(col(Device.type)).ilike(v.lower()) for v in parsed.types]))
-
-    if parsed.ip_patterns:
-        stmt = stmt.where(or_(*[
-            col(Device.ip).ilike(to_sql_like(v), escape="\\")
-            for v in parsed.ip_patterns
-        ]))
-
-    if parsed.os_patterns:
-        stmt = stmt.where(or_(*[
-            col(Device.os).ilike(f"%{to_sql_like(v)}%", escape="\\")
-            for v in parsed.os_patterns
-        ]))
-
-    if parsed.tags:
-        tag_subq = (
-            sa_select(DeviceTag.device_id)  # type: ignore[call-overload]
-            .join(Tag, DeviceTag.tag_id == Tag.id)
-            .where(or_(*[col(Tag.name).ilike(f"%{v}%") for v in parsed.tags]))
-        ).scalar_subquery()
-        stmt = stmt.where(col(Device.id).in_(tag_subq))
-
-    if parsed.location_patterns:
-        stmt = stmt.where(or_(*[
-            col(Location.name).ilike(f"%{to_sql_like(v)}%", escape="\\")
-            for v in parsed.location_patterns
-        ]))
-
-    if parsed.service_patterns:
-        svc_subq = (
-            sa_select(Service.device_id)  # type: ignore[call-overload]
-            .where(or_(*[
-                col(Service.name).ilike(f"%{to_sql_like(v)}%", escape="\\")
-                for v in parsed.service_patterns
-            ]))
-        ).scalar_subquery()
-        stmt = stmt.where(col(Device.id).in_(svc_subq))
-
-    if parsed.free_text:
-        ft = f"%{parsed.free_text}%"
-        stmt = stmt.where(or_(
-            col(Device.name).ilike(ft),
-            col(Device.ip).ilike(ft),
-            col(Device.os).ilike(ft),
-            col(Device.notes).ilike(ft),
-            col(Location.name).ilike(ft),
-        ))
-
+    stmt = apply_search_filters(stmt, parsed)
     stmt = apply_device_scope(stmt, session, col, device_ids, owner_id)
 
     count_stmt = sa_select(func.count()).select_from(stmt.subquery())

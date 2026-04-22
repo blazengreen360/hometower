@@ -26,7 +26,8 @@ description: Hometower's code review rejection matrix and pattern library — th
 
 ### 3. Layered Architecture
 - [ ] `src/domain/` imports only `src/models/types.py` — no SQLModel, FastAPI, Loguru
-- [ ] `src/repositories/` is the only layer with `Session`
+- [ ] `Session` appears only in repositories, services, routers, and approved infrastructure entry points
+- [ ] Repositories never `commit()` / `rollback()` and routers do not normally own transaction control
 - [ ] `src/api/routers/` delegates to services — no direct repo/domain calls
 - [ ] `src/ui/` does not import from `src/repositories/`
 - [ ] Business logic not inline in FastAPI handlers

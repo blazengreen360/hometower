@@ -1,0 +1,3 @@
+1. CICD pipeline
+2. Git worktree
+3. feature branches

@@ -3,7 +3,7 @@
 Items discovered during execution that need attention but don't belong in the product backlog.
 Project-Manager reads this at the start of every session. Items graduate to stories (`doc/stories/`), bugs (`doc/bugs/`), or RFCs (`doc/rfc/`) when clarified.
 
-Last updated: 19 April 2026 — resolved T-011 after HT-082 follow-up closeout.
+Last updated: 22 April 2026 — recorded the remaining HT-077 replay-persistence interruption proof gap during final PM doc sync.
 
 ## Open
 
@@ -13,6 +13,7 @@ Last updated: 19 April 2026 — resolved T-011 after HT-082 follow-up closeout.
 | T-005 | HT-031 code-review residual | tech-debt | `src/ui/pages/inventory_page_controller.py` remains high-complexity at 379 lines after cap fix. Schedule targeted decomposition of orchestration methods before next bulk-feature expansion. | — | MEDIUM | 0 |
 | T-006 | BUG-HUNT-14-04-26.1 | test-gap | Add a real Postgres concurrent import contention integration test to validate ordered DELETE clear-path behavior under lock pressure; current BUG-001 proof is unit-level only. | — | MEDIUM | 0 |
 | T-009 | HT-050 browser validation | follow-up | In browser validation, `HT_READONLY` sometimes flips back to `true` shortly after entering edit mode, likely due to a canvas re-init/personal-draft load race. It did not block the final production-path resize fix, but it is worth a separate targeted investigation because it can interfere with tooling/devtools sessions. | — | LOW | 0 |
+| T-015 | HT-077 dual-review residual | test-gap | Add a forced-navigation/browser-abandon proof for the narrow window between API-backed published detach/reparent replay success and completion of the compensating autosave; current undo replay + reload coverage passes, but that interruption edge is not explicitly exercised. | — | LOW | 0 |
 |---|---|---|---|---|---|---|
 
 ## Resolved
@@ -28,6 +29,7 @@ Last updated: 19 April 2026 — resolved T-011 after HT-082 follow-up closeout.
 | T-012 | Reordered the `get_device(...)` router signature in `src/api/routers/devices.py` so `Request` precedes defaulted query params, restoring FastAPI app import and unblocking HT-082 dashboard integration/live validation. | HT-082 follow-up verification unblock | 19 Apr 2026 |
 | T-013 | Fixed `src/services/canvas_undo_service.py` restore-conflict rollback reachability, corrected devices-router owner scoping, and stabilized `tests/integration/test_devices_include.py` to the owner-scoped model; the subsequent full gate rerun passed (`1893 passed, 2 warnings`, mypy PASS, arch greps PASS, build PASS). | HT-082 gate rerun unblock | 19 Apr 2026 |
 | T-011 | Closed the HT-082 follow-up by hardening dashboard owner scoping, recent-device route resolution, legacy no-`Device.owner_id` fallback behavior, and current-layout-only placement / placed-id reads; final current-head verify gate passed (`1918 passed, 2 warnings`, mypy PASS, arch greps PASS, build PASS), focused live validation passed, and dual Code-Reviewer lanes APPROVED. | HT-082 follow-up final closeout | 19 Apr 2026 |
+| T-014 | Fixed the device detail panel shell test harness boundary by resolving `ui.element` at call time instead of capturing it in a default argument, then reran the close-sync and adjacent panel execution suites successfully. | HT-077 current-diff gate rerun unblock | 21 Apr 2026 |
 
 ---
 

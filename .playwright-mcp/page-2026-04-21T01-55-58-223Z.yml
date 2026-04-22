@@ -1,0 +1,88 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "Hometower" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e7]: Topology
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - button "Auto-Layout" [ref=e10] [cursor=pointer]:
+          - generic [ref=e11]:
+            - img [ref=e12]: account_tree
+            - generic [ref=e13]: Auto-Layout
+        - button "Save Version" [ref=e14] [cursor=pointer]:
+          - generic [ref=e16]: Save Version
+        - button "History" [ref=e17] [cursor=pointer]:
+          - generic [ref=e19]: History
+      - generic [ref=e20]:
+        - button "Undo unavailable" [disabled] [ref=e21]:
+          - img [ref=e23]: undo
+        - button "Redo unavailable" [disabled] [ref=e24]:
+          - img [ref=e26]: redo
+      - button "Edit" [ref=e27] [cursor=pointer]:
+        - generic [ref=e28]:
+          - img [ref=e29]: edit
+          - generic [ref=e30]: Edit
+    - button "Expand \"admin@hometower.local\"" [ref=e31] [cursor=pointer]:
+      - generic [ref=e32]:
+        - generic [ref=e33]: admin@hometower.local
+        - generic [ref=e34]: arrow_drop_down
+  - complementary [ref=e35]:
+    - generic [ref=e36]:
+      - button [ref=e38] [cursor=pointer]:
+        - img [ref=e40]: chevron_left
+      - link "Dashboard" [ref=e41] [cursor=pointer]:
+        - generic: dashboard
+        - generic: Dashboard
+      - link "Workspaces" [ref=e42] [cursor=pointer]:
+        - generic: workspaces
+        - generic: Workspaces
+      - link "Inventory" [ref=e43] [cursor=pointer]:
+        - generic: inventory_2
+        - generic: Inventory
+      - link "IPAM" [ref=e44] [cursor=pointer]:
+        - generic: grid_view
+        - generic: IPAM
+      - link "Map" [ref=e45] [cursor=pointer]:
+        - generic: map
+        - generic: Map
+      - separator [ref=e46]
+      - generic [ref=e47]: Settings
+      - link "Locations" [ref=e48] [cursor=pointer]:
+        - generic: location_on
+        - generic: Locations
+      - link "Networks" [ref=e49] [cursor=pointer]:
+        - generic: lan
+        - generic: Networks
+      - link "Power" [ref=e50] [cursor=pointer]:
+        - generic: bolt
+        - generic: Power
+      - link "Users" [ref=e51] [cursor=pointer]:
+        - generic: people
+        - generic: Users
+      - link "Data" [ref=e52] [cursor=pointer]:
+        - generic: cloud_download
+        - generic: Data
+      - link "Profile" [ref=e53] [cursor=pointer]:
+        - generic: person
+        - generic: Profile
+      - link "About" [ref=e54] [cursor=pointer]:
+        - generic: info
+        - generic: About
+  - main [ref=e56]:
+    - generic [ref=e59]:
+      - generic [ref=e60]:
+        - link "Workspaces" [ref=e61] [cursor=pointer]:
+          - generic: Workspaces
+        - generic [ref=e62]: /
+        - link "debug-ws-7898bb58" [ref=e63] [cursor=pointer]:
+          - generic: debug-ws-7898bb58
+        - generic [ref=e64]: /
+        - generic [ref=e65]: debug-topo-7898bb58
+      - generic [ref=e67]:
+        - generic [ref=e71]:
+          - button "Zoom In" [ref=e72] [cursor=pointer]: +
+          - button "Zoom Out" [ref=e73] [cursor=pointer]: −
+          - button "Fit to Screen" [ref=e74] [cursor=pointer]:
+            - img [ref=e75]
+          - button "Help" [ref=e78] [cursor=pointer]: "?"
+        - complementary "Topology side panels"

@@ -76,6 +76,6 @@ One-way data flow. The DB is source of truth. JS never mutates Python state dire
 ## Verification
 
 After any canvas change:
-1. `bash .github/skills/verify-gate/scripts/run.sh --fast` — arch-grep catches stray repo imports in `src/ui/`.
+1. Use the current repo verification path instead of the removed `verify-gate` script: rerun the relevant AGENTS checks directly or use `.venv/bin/python .github/skills/deterministic-review-tooling/scripts/run_review_gates.py` when preparing review evidence.
 2. Manually open the topology page and confirm: view-mode cannot write, edit-mode can, undo/redo work, keyboard shortcuts respect readonly.
 3. Browser devtools console should show no unhandled Cytoscape errors.

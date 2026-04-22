@@ -2,18 +2,23 @@
 import html
 import json
 
-import httpx
 from nicegui import ui
 
 from src.models.types import ConnectionType
+from src.ui.components.connection_detail_panel_support import can_edit_connection
+from src.ui.components.connection_detail_panel_support import patch_connection
+from src.ui.components.device_detail_panel_shell import (
+    build_panel_visibility_js,
+    build_right_rail_panel,
+)
 from src.ui.components.toast import show_toast
 from src.ui.design.primitives import card_section
 from src.ui.design.primitives import card_surface
 from src.ui.design.primitives import danger_button
 from src.ui.design.primitives import primary_button
 from src.ui.design.primitives import secondary_button
-from src.utils.logger import logger
-from src.utils.settings import settings
+
+_CONNECTION_PANEL_HIDE_JS = build_panel_visibility_js("connection-detail-panel", False)
 
 _BRIDGE_JS = """
 (function() {
@@ -32,18 +37,13 @@ _BRIDGE_JS = """
         });
     });
     document.addEventListener('ht:node-selected', function() {
-        var p = document.getElementById('connection-detail-panel');
-        if (p) p.style.display = 'none';
+        __HIDE_CONNECTION_PANEL_JS__
     });
     document.addEventListener('ht:canvas-bg-click', function() {
-        var p = document.getElementById('connection-detail-panel');
-        if (p) p.style.display = 'none';
+        __HIDE_CONNECTION_PANEL_JS__
     });
 })();
-"""
-
-_ROLES_WITH_EDIT = {"Admin", "Contributor"}
-
+""".replace("__HIDE_CONNECTION_PANEL_JS__", _CONNECTION_PANEL_HIDE_JS)
 
 def _build_cy_edge_remove_js(conn_id: str) -> str:
     """Build JS to remove an edge by id using safe JSON serialization."""
@@ -91,49 +91,12 @@ def _build_request_delete_edge_js(
         "if(!window._cy)return;"
         "var edge=window._cy.getElementById(edgeId);"
         "if(edge && edge.length)return;"
-        "var panel=document.getElementById('connection-detail-panel');"
-        "if(panel)panel.style.display='none';"
+        f"{build_panel_visibility_js('connection-detail-panel', False)}"
         "};"
         "setTimeout(closeIfRemoved,300);"
         "setTimeout(closeIfRemoved,900);"
         "})();"
     )
-
-
-def can_edit_connection(user_role: str) -> bool:
-    """Return whether the role can perform connection write actions."""
-    return user_role in _ROLES_WITH_EDIT
-
-
-async def _api_patch_connection(
-    token: str, conn_id: str, payload: dict[str, object]
-) -> bool:
-    try:
-        async with httpx.AsyncClient() as c:
-            r = await c.patch(
-                f"{settings.api_base_url}/api/connections/{conn_id}",
-                json=payload,
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=5.0,
-            )
-        return r.status_code == 200
-    except httpx.HTTPError as exc:
-        logger.error("Connection PATCH: {}", str(exc))
-        return False
-
-
-async def _api_delete_connection(token: str, conn_id: str) -> bool:
-    try:
-        async with httpx.AsyncClient() as c:
-            r = await c.delete(
-                f"{settings.api_base_url}/api/connections/{conn_id}",
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=5.0,
-            )
-        return r.status_code == 204
-    except httpx.HTTPError as exc:
-        logger.error("Connection DELETE: {}", str(exc))
-        return False
 
 
 def render_connection_detail_panel(token: str, user_role: str) -> None:
@@ -146,38 +109,24 @@ def render_connection_detail_panel(token: str, user_role: str) -> None:
 
     ui.add_body_html(f"<script>{_BRIDGE_JS}</script>")
 
-    panel = ui.element("div").props(
-        'role="complementary" aria-label="Connection details" '
-        'id="connection-detail-panel"'
-    ).style(
-        "display:none; flex-direction:column; gap:8px; width:260px; "
-        "min-width:260px; padding:16px; background:var(--ht-bg-surface-raised); "
-        "overflow-y:auto; flex-shrink:0;"
+    panel = build_right_rail_panel(
+        "connection-detail-panel", "Connection details", element_builder=ui.element
     )
 
     with panel:
         with ui.row().classes("justify-between items-center w-full"):
-            ui.label("Connection").style(
-                "color:var(--ht-text-primary); font-size:1.25rem; font-weight:600;"
-            )
+            ui.label("Connection").style("color:var(--ht-text-primary); font-size:1.25rem; font-weight:600;")
 
             async def _close() -> None:
-                await ui.run_javascript(
-                    "document.getElementById('connection-detail-panel')"
-                    ".style.display='none'"
-                )
+                await ui.run_javascript(build_panel_visibility_js("connection-detail-panel", False))
                 state["conn_id"] = None
 
-            ui.button(icon="close", on_click=_close).props(
-                "flat dense aria-label='Close panel'"
-            ).style("color:var(--ht-text-secondary);")
+            ui.button(icon="close", on_click=_close).props("flat dense aria-label='Close panel'").style(
+                "color:var(--ht-text-secondary);"
+            )
 
-        _src_lbl.append(ui.label("\u2014").style(
-            "font-size:0.875rem; color:var(--ht-text-secondary);"
-        ))
-        _tgt_lbl.append(ui.label("\u2014").style(
-            "font-size:0.875rem; color:var(--ht-text-secondary);"
-        ))
+        _src_lbl.append(ui.label("\u2014").style("font-size:0.875rem; color:var(--ht-text-secondary);"))
+        _tgt_lbl.append(ui.label("\u2014").style("font-size:0.875rem; color:var(--ht-text-secondary);"))
         ui.separator()
         content = ui.column().classes("w-full gap-2")
         _body_col.append(content)
@@ -212,9 +161,9 @@ def render_connection_detail_panel(token: str, user_role: str) -> None:
                 with confirm_dlg:
                     with card_surface(ui.card()).classes("min-w-[280px]"):
                         with card_section(ui.column()):
-                            ui.label(
-                                f"Delete connection between {safe_src} and {safe_tgt}?"
-                            ).classes("ht-section-title")
+                            ui.label(f"Delete connection between {safe_src} and {safe_tgt}?").classes(
+                                "ht-section-title"
+                            )
                             with ui.row().classes("justify-end gap-2"):
                                 async def _do_del(_cid: str = cid) -> None:
                                     await ui.run_javascript(
@@ -236,10 +185,8 @@ def render_connection_detail_panel(token: str, user_role: str) -> None:
                                 secondary_button(ui.button("Cancel", on_click=confirm_dlg.close))
                                 danger_button(ui.button("Delete", on_click=_do_del))
 
-                async def _save(
-                    _ts: ui.select = ts, _li: ui.input = li, _cid: str = cid
-                ) -> None:
-                    ok = await _api_patch_connection(
+                async def _save(_ts: ui.select = ts, _li: ui.input = li, _cid: str = cid) -> None:
+                    ok = await patch_connection(
                         token, _cid, {"type": _ts.value, "label": _li.value or None}
                     )
                     if ok:
@@ -260,16 +207,12 @@ def render_connection_detail_panel(token: str, user_role: str) -> None:
                     primary_button(ui.button("Save", on_click=_save)).props("dense")
                     danger_button(ui.button("Delete", on_click=lambda: confirm_dlg.open())).props("dense")
             else:
-                ui.label(f"Type: {safe_ctype}").style(
-                    "font-size:0.875rem; color:var(--ht-text-primary);"
-                )
+                ui.label(f"Type: {safe_ctype}").style("font-size:0.875rem; color:var(--ht-text-primary);")
                 ui.label(f"Label: {safe_clabel or '\u2014'}").style(
                     "font-size:0.875rem; color:var(--ht-text-primary);"
                 )
 
-        await ui.run_javascript(
-            "document.getElementById('connection-detail-panel').style.display='flex'"
-        )
+        await ui.run_javascript(build_panel_visibility_js("connection-detail-panel", True))
 
     async def _on_conn_panel_select(e: object) -> None:
         args = getattr(e, "args", None)

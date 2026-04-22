@@ -11,6 +11,15 @@ from src.repositories import device_repository, tag_repository
 from src.utils.logger import logger
 
 
+def _assert_device_exists(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> None:
+    if device_repository.get_by_id(session, device_id, owner_id=owner_id) is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+
 def _raise_tag_conflict(exc: IntegrityError, session: Session) -> None:
     """Rollback failed transaction and surface duplicate-name conflicts as HTTP 409."""
     session.rollback()
@@ -92,11 +101,13 @@ def delete(tag_id: uuid.UUID, session: Session) -> None:
 
 
 def attach_to_device(
-    device_id: uuid.UUID, tag_id: uuid.UUID, session: Session
+    device_id: uuid.UUID,
+    tag_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> None:
     """Idempotent attach: verify device exists (404), verify tag exists (404), then attach."""
-    if device_repository.get_by_id(session, device_id) is None:
-        raise HTTPException(status_code=404, detail="Device not found")
+    _assert_device_exists(device_id, session, owner_id=owner_id)
     if tag_repository.get_by_id(session, tag_id) is None:
         raise HTTPException(status_code=404, detail="Tag not found")
     tag_repository.attach_to_device(session, device_id, tag_id)
@@ -105,16 +116,23 @@ def attach_to_device(
 
 
 def detach_from_device(
-    device_id: uuid.UUID, tag_id: uuid.UUID, session: Session
+    device_id: uuid.UUID,
+    tag_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> None:
     """Detach tag from device. No-op if association does not exist."""
+    _assert_device_exists(device_id, session, owner_id=owner_id)
     tag_repository.detach_from_device(session, device_id, tag_id)
     session.commit()
     logger.info("Tag detached: device_id={} tag_id={}", device_id, tag_id)
 
 
-def get_by_device(device_id: uuid.UUID, session: Session) -> list[Tag]:
+def get_by_device(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> list[Tag]:
     """Return tags for a device. Raises HTTP 404 if device not found."""
-    if device_repository.get_by_id(session, device_id) is None:
-        raise HTTPException(status_code=404, detail="Device not found")
+    _assert_device_exists(device_id, session, owner_id=owner_id)
     return tag_repository.get_by_device(session, device_id)

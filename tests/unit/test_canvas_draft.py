@@ -156,7 +156,7 @@ class TestCanvasDraftPublishJS:
     def test_publish_dispatches_stencil_device_published_event(self) -> None:
         assert "ht:stencil-device-published" in CANVAS_DRAFT_PUBLISH_JS
         assert "var stencilDevice = {" in CANVAS_DRAFT_PUBLISH_JS
-        assert "if (window.htStencilUpsertPublishedDevice) window.htStencilUpsertPublishedDevice(stencilDevice);" in CANVAS_DRAFT_PUBLISH_JS
+        assert "window.htStencilUpsertPublishedDevice" not in CANVAS_DRAFT_PUBLISH_JS
         assert "detail: { device: stencilDevice }" in CANVAS_DRAFT_PUBLISH_JS
 
     def test_promote_connections_reconciles_duplicates_after_async_settlement(self) -> None:

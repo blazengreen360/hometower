@@ -26,20 +26,21 @@ from src.ui.components.device_detail_panel_content import (
     render_custom_fields_block,
     render_general_content,
     render_location_content,
-    render_network_content,
-    render_network_memberships_block,
+    render_network_section,
     render_status_content,
     render_tags_block,
 )
 from src.ui.components.device_detail_panel_shell import (
     build_detail_panel,
     build_neighbor_names,
+    build_panel_visibility_js,
     handle_panel_select,
     push_device_field_change,
 )
 from src.ui.components.canvas_network_membership_sync import (
     sync_canvas_device_network_memberships,
 )
+from src.ui.components.topology_network_panel import read_active_network_ids
 from src.ui.components.toast import show_toast
 from src.utils.logger import logger
 from src.utils.settings import settings
@@ -63,7 +64,7 @@ def render_detail_panel(token: str, user_role: str) -> None:
                 await _refresh()
 
     async def _close() -> None:
-        await ui.run_javascript("document.getElementById('device-detail-panel').style.display='none'")
+        await ui.run_javascript(build_panel_visibility_js("device-detail-panel", False))
         state["device_id"] = state["last_device"] = None
 
     live_lbl, content = build_detail_panel(is_editor, _on_duplicate, _close)
@@ -85,8 +86,11 @@ def render_detail_panel(token: str, user_role: str) -> None:
         connections = await _api_get_connections(token, did)
         attachments = await _api_get_attachments(token, did)
         all_tags = await _api_get_all_tags(token) if is_editor else []
-        all_networks = await _api_get_all_networks(token) if is_editor else []
-        neighbor_names = await build_neighbor_names(did, connections, lambda neighbor_id: _api_get_device(token, neighbor_id))
+        all_networks = await _api_get_all_networks(token)
+        active_network_ids = await read_active_network_ids()
+        neighbor_names = await build_neighbor_names(
+            did, connections, lambda neighbor_id: _api_get_device(token, neighbor_id)
+        )
 
         async def _save_device_field(
             field: str,
@@ -148,9 +152,6 @@ def render_detail_panel(token: str, user_role: str) -> None:
         def _on_change() -> None:
             asyncio.ensure_future(_refresh())
 
-        async def _on_attachments_change() -> None:
-            await _refresh()
-
         async def _on_status_change(e: object) -> None:
             value = getattr(e, "value", None)
             if isinstance(value, str) and await _save_device_field(
@@ -158,6 +159,7 @@ def render_detail_panel(token: str, user_role: str) -> None:
             ):
                 _on_change()
 
+        _on_attachments_change = _refresh
         content.clear()
         with content:
             render_parent_breadcrumb(parent_chain, state, _refresh)
@@ -176,27 +178,19 @@ def render_detail_panel(token: str, user_role: str) -> None:
                     save_power=_save_callback("power_watts", device.power_watts, "Power"),
                 )
 
-            with ui.expansion("Network", icon="lan", value=True).classes("w-full"):
-                render_network_content(
+            with ui.expansion("Networks", icon="lan", value=True).classes("w-full"):
+                render_network_section(
                     device,
                     did,
                     token,
                     is_editor,
                     device.version,
                     _on_change,
-                    save_ip=_save_callback("ip", device.ip, "IP"),
-                    save_mac=_save_callback("mac", device.mac, "MAC"),
-                    save_os=_save_callback("os", device.os, "OS"),
-                )
-
-            with ui.expansion("Network Memberships", icon="hub", value=True).classes("w-full"):
-                render_network_memberships_block(
-                    did,
-                    device.networks,
+                    _save_callback("ip", device.ip, "IP"),
+                    _save_callback("mac", device.mac, "MAC"),
+                    _save_callback("os", device.os, "OS"),
                     all_networks,
-                    token,
-                    is_editor,
-                    _on_change,
+                    active_network_ids,
                 )
 
             with ui.expansion("Status", icon="circle", value=True).classes("w-full"):
@@ -225,7 +219,7 @@ def render_detail_panel(token: str, user_role: str) -> None:
 
             render_children_section(children_list, state, _refresh)
 
-        await ui.run_javascript("document.getElementById('device-detail-panel').style.display='flex'")
+        await ui.run_javascript(build_panel_visibility_js("device-detail-panel", True))
         live_lbl.set_text(f"Loaded {html.escape(device.name)}")
 
     async def _on_panel_select(e: object) -> None:

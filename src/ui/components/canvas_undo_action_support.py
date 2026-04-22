@@ -1,0 +1,110 @@
+"""Helper handlers for forward canvas undo-bridge actions."""
+
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+
+from src.ui.components.canvas_undo_dispatch_types import CallApi, ResolveFailure
+from src.ui.components.canvas_undo_dispatch_types import ResolveSuccess
+from src.ui.components.canvas_undo_handler_utils import (
+    as_dict,
+    graph_edge_payload,
+    response_detail,
+)
+from src.ui.components.canvas_undo_action_device_support import (
+    handle_delete_published_node_action,
+    handle_reparent_device_action,
+    handle_update_device_field_action,
+)
+
+ActionHandler = Callable[
+    [str, dict[str, object], str, ResolveSuccess, ResolveFailure, CallApi],
+    Awaitable[None],
+]
+
+
+async def handle_create_edge_action(
+    entry_id: str,
+    payload: dict[str, object],
+    _token: str,
+    resolve_success: ResolveSuccess,
+    resolve_failure: ResolveFailure,
+    call_api: CallApi,
+) -> None:
+    response = await call_api(
+        "POST",
+        "/api/connections/",
+        {
+            "source_id": payload.get("source_id"),
+            "target_id": payload.get("target_id"),
+            "type": payload.get("connection_type", "Ethernet"),
+            "label": payload.get("label"),
+        },
+    )
+    if response.status_code != 201:
+        await resolve_failure("forward", entry_id, response_detail(response))
+        return
+
+    edge_payload = graph_edge_payload(as_dict(response.json()))
+    await resolve_success(
+        "forward",
+        entry_id,
+        {
+            "entry": {
+                "entry_id": entry_id,
+                "type": "create_edge",
+                "label": "Create edge",
+                "execution": "api",
+                "forward": {"op": "create_published_edge", "payload": edge_payload},
+                "reverse": {"op": "delete_published_edge", "payload": edge_payload},
+            },
+            "graph_patch": {"op": "add_edge", "edge": edge_payload},
+        },
+    )
+
+
+async def handle_delete_edge_action(
+    entry_id: str,
+    payload: dict[str, object],
+    _token: str,
+    resolve_success: ResolveSuccess,
+    resolve_failure: ResolveFailure,
+    call_api: CallApi,
+) -> None:
+    connection_id = str(payload.get("connection_id", ""))
+    response = await call_api("DELETE", f"/api/connections/{connection_id}", None)
+    if response.status_code not in {204, 404}:
+        await resolve_failure("forward", entry_id, response_detail(response))
+        return
+
+    edge_payload = {
+        "connection_id": connection_id,
+        "source_id": payload.get("source_id"),
+        "target_id": payload.get("target_id"),
+        "connection_type": payload.get("connection_type", "Ethernet"),
+        "label": payload.get("label"),
+    }
+    await resolve_success(
+        "forward",
+        entry_id,
+        {
+            "entry": {
+                "entry_id": entry_id,
+                "type": "delete_edge",
+                "label": "Delete edge",
+                "execution": "api",
+                "forward": {"op": "delete_published_edge", "payload": edge_payload},
+                "reverse": {"op": "create_published_edge", "payload": edge_payload},
+            },
+            "graph_patch": {"op": "remove_edge", "connection_id": connection_id},
+        },
+    )
+
+
+ACTION_HANDLERS: dict[str, ActionHandler] = {
+    "create_edge": handle_create_edge_action,
+    "delete_edge": handle_delete_edge_action,
+    "delete_published_node": handle_delete_published_node_action,
+    "update_device_field": handle_update_device_field_action,
+    "reparent_device": handle_reparent_device_action,
+}

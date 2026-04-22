@@ -31,8 +31,12 @@ class TestSessionExpiryJS:
     def test_js_includes_next_param(self) -> None:
         assert "next=" in self._get_js()
 
-    def test_js_uses_current_pathname(self) -> None:
-        assert "pathname" in self._get_js()
+    def test_js_preserves_full_current_location(self) -> None:
+        js = self._get_js()
+
+        assert "window.location.pathname" in js
+        assert "window.location.search" in js
+        assert "window.location.hash" in js
 
     def test_js_uses_sign_in_button_label(self) -> None:
         js = self._get_js()
@@ -91,3 +95,21 @@ class TestAppShellNavItems:
         )
         assert power_item is not None
         assert power_item.get("admin_only") == "true"
+
+
+class TestAppShellSidebarAffordances:
+    def test_global_css_keeps_sidebar_reopen_available_when_collapsed(self) -> None:
+        from src.ui.components.app_shell import _GLOBAL_CSS
+
+        assert ".ht-sidebar-reopen {" in _GLOBAL_CSS
+        assert "body.ht-sidebar-collapsed .ht-sidebar-reopen" in _GLOBAL_CSS
+        assert "@media (max-width: 768px)" in _GLOBAL_CSS
+        assert ".ht-sidebar-reopen { display: inline-flex !important; }" in _GLOBAL_CSS
+
+    def test_global_css_releases_sidebar_width_and_locks_page_height(self) -> None:
+        from src.ui.components.app_shell import _GLOBAL_CSS
+
+        assert "body.ht-sidebar-collapsed #ht-app-sidebar" in _GLOBAL_CSS
+        assert "padding-left: 0 !important;" in _GLOBAL_CSS
+        assert "height: 100vh;" in _GLOBAL_CSS
+        assert ".q-page-container," in _GLOBAL_CSS

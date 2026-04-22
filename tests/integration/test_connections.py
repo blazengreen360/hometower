@@ -26,11 +26,10 @@ class TestCreateConnection:
 
 
 class TestListConnections:
-    def test_reader_can_list_returns_200(
+    def test_owner_can_list_returns_200(
         self,
         client: TestClient,
         contributor_token: str,
-        reader_token: str,
         two_devices: tuple[int, int],
     ) -> None:
         src, tgt = two_devices
@@ -41,19 +40,19 @@ class TestListConnections:
         )
         resp = client.get(
             "/api/connections/",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert resp.status_code == 200
         data = resp.json()
         assert "items" in data
         assert "total" in data
         assert isinstance(data["items"], list)
+        assert data["total"] == 1
 
     def test_filter_by_source_id(
         self,
         client: TestClient,
         contributor_token: str,
-        reader_token: str,
         two_devices: tuple[int, int],
     ) -> None:
         src, tgt = two_devices
@@ -64,7 +63,7 @@ class TestListConnections:
         )
         resp = client.get(
             f"/api/connections/?source_id={src}",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert resp.status_code == 200
         items = resp.json()["items"]
@@ -84,11 +83,10 @@ class TestListConnections:
 
 
 class TestGetConnection:
-    def test_reader_can_get_by_id_returns_200(
+    def test_owner_can_get_by_id_returns_200(
         self,
         client: TestClient,
         contributor_token: str,
-        reader_token: str,
         two_devices: tuple[int, int],
     ) -> None:
         src, tgt = two_devices
@@ -100,7 +98,7 @@ class TestGetConnection:
         conn_id = create_resp.json()["id"]
         resp = client.get(
             f"/api/connections/{conn_id}",
-            headers={"Authorization": f"Bearer {reader_token}"},
+            headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert resp.status_code == 200
         assert resp.json()["id"] == conn_id

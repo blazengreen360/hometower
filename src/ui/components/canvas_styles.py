@@ -5,36 +5,11 @@ CANVAS_STYLE_JS remains as a backward-compatible alias (dark theme).
 """
 import json
 
-from src.models.types import DeviceType
+from src.ui.components.canvas_styles_support import EDGE_STYLE_BY_CONNECTION_TYPE
+from src.ui.components.canvas_styles_support import _container_watermark_uri
+from src.ui.components.canvas_styles_support import build_container_icon_styles
+from src.ui.components.canvas_styles_support import build_selector_styles
 from src.ui.design.tokens import DEVICE_TYPE_COLORS, THEMES
-
-EDGE_STYLE_BY_CONNECTION_TYPE: dict[str, dict[str, object]] = {
-    "Ethernet": {"line-style": "solid", "width": 2},
-    "WiFi": {"line-style": "dashed"},
-    "Fibre": {"width": 4},
-    "iSCSI": {"line-style": "dotted"},
-    "NFS": {"line-style": "dotted"},
-    "VM": {
-        "line-style": "dashed",
-        "line-color": DEVICE_TYPE_COLORS[DeviceType.VM],
-        "target-arrow-color": DEVICE_TYPE_COLORS[DeviceType.VM],
-    },
-    "Other": {"width": 1, "opacity": 0.7},
-}
-
-
-def _build_selector_styles(
-    element_type: str,
-    key_name: str,
-    styles_by_value: dict[str, dict[str, object]],
-) -> list[dict[str, object]]:
-    selectors: list[dict[str, object]] = []
-    for value, style in styles_by_value.items():
-        selectors.append({
-            "selector": f'{element_type}[{key_name} = "{value}"]',
-            "style": style,
-        })
-    return selectors
 
 
 _CANVAS_STYLES_REMOVED = None  # removed in HT-027; replaced by build_theme_style_json
@@ -104,8 +79,8 @@ def build_theme_style_json(theme_name: str) -> str:
             "style":    {"background-color": colour},
         })
     # Status and connection-type styles
-    styles.extend(_build_selector_styles("node", "status", status_style_by_device_status))
-    styles.extend(_build_selector_styles(
+    styles.extend(build_selector_styles("node", "status", status_style_by_device_status))
+    styles.extend(build_selector_styles(
         "edge",
         "connection_type",
         {k: v for k, v in EDGE_STYLE_BY_CONNECTION_TYPE.items() if k != "Ethernet"},
@@ -125,6 +100,7 @@ def build_theme_style_json(theme_name: str) -> str:
     styles.append({"selector": ":parent",        "style": _compound_style})
     # node.container — empty container (no children yet)
     styles.append({"selector": "node.container",  "style": _compound_style})
+    styles.extend(build_container_icon_styles(theme_name))
     # node.collapsed — shrink compound when children are hidden
     styles.append({
         "selector": "node.collapsed",
@@ -195,6 +171,23 @@ def build_theme_style_json(theme_name: str) -> str:
         "selector": "edge.ht-network-dim",
         "style": {
             "opacity": 0.08,
+        },
+    })
+    # Drag-reparent visual indicators (HT-077)
+    styles.append({
+        "selector": "node.ht-drop-target",
+        "style": {
+            "border-width": 3,
+            "border-color": t["accent"],
+            "border-style": "solid",
+        },
+    })
+    styles.append({
+        "selector": "node.ht-will-detach",
+        "style": {
+            "border-width": 3,
+            "border-color": t["warning"],
+            "border-style": "dashed",
         },
     })
     return json.dumps(styles)

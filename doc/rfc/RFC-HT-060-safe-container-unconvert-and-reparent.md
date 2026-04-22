@@ -730,7 +730,7 @@ No new SQLModel registration is required.
 - `CHANGELOG.md` — add `[Unreleased]` HT-060 entry at implementation time
 
 ### 10. Verification
-- `.github/skills/verify-gate/scripts/run.sh --fast`
+- `.agents/skills/verify-gate/scripts/run.sh --fast`
 
 ### Risks / open questions for Feature-Engineer
 - none — this RFC resolves all story-level open questions and preserves HT-046 explicitly

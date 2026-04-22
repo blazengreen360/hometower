@@ -1,0 +1,16 @@
+- main [ref=e5]:
+  - generic [ref=e7]:
+    - generic [ref=e9]:
+      - generic [ref=e10]: Hometower
+      - generic [ref=e11]: Sign in to manage your homelab inventory, topology history, and workspace settings.
+      - generic [ref=e16]:
+        - generic: Email
+        - textbox "Email" [ref=e17]:
+          - /placeholder: admin@hometower.local
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic: Password
+          - textbox "Password" [ref=e22]
+        - generic [ref=e24] [cursor=pointer]: visibility_off
+    - button "Log in" [ref=e26] [cursor=pointer]:
+      - generic [ref=e28]: Log in

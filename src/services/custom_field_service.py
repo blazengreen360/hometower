@@ -20,17 +20,24 @@ def _raise_custom_field_conflict(exc: IntegrityError, session: Session) -> None:
     ) from exc
 
 
-def _assert_device_exists(device_id: uuid.UUID, session: Session) -> None:
+def _assert_device_exists(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> None:
     """Raise HTTP 404 if the given device_id does not exist."""
-    if device_repository.get_by_id(session, device_id) is None:
+    if device_repository.get_by_id(session, device_id, owner_id=owner_id) is None:
         raise HTTPException(status_code=404, detail="Device not found")
 
 
 def create(
-    device_id: uuid.UUID, data: CustomFieldCreate, session: Session
+    device_id: uuid.UUID,
+    data: CustomFieldCreate,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> CustomField:
     """Normalize key, check per-device uniqueness (409), persist."""
-    _assert_device_exists(device_id, session)
+    _assert_device_exists(device_id, session, owner_id=owner_id)
     normalized = normalize_custom_field_key(data.key)
     existing = custom_field_repository.get_by_device_and_key_normalized(
         session, device_id, normalized
@@ -52,21 +59,29 @@ def create(
     return result
 
 
-def get_by_device(device_id: uuid.UUID, session: Session) -> list[CustomField]:
+def get_by_device(
+    device_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> list[CustomField]:
     """Return all custom fields for a device. HTTP 404 if device not found."""
-    _assert_device_exists(device_id, session)
+    _assert_device_exists(device_id, session, owner_id=owner_id)
     return custom_field_repository.get_by_device(session, device_id)
 
 
 def update(
-    device_id: uuid.UUID, cf_id: uuid.UUID, data: CustomFieldUpdate, session: Session
+    device_id: uuid.UUID,
+    cf_id: uuid.UUID,
+    data: CustomFieldUpdate,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
 ) -> CustomField:
     """Partial update; re-check key uniqueness if key changes.
 
     HTTP 404 if cf not found or doesn't belong to device_id.
     HTTP 409 if new key collides with existing key on same device.
     """
-    _assert_device_exists(device_id, session)
+    _assert_device_exists(device_id, session, owner_id=owner_id)
     cf = custom_field_repository.get_by_id(session, cf_id)
     if cf is None or cf.device_id != device_id:
         raise HTTPException(status_code=404, detail="Custom field not found")
@@ -96,9 +111,14 @@ def update(
     return result
 
 
-def delete(device_id: uuid.UUID, cf_id: uuid.UUID, session: Session) -> None:
+def delete(
+    device_id: uuid.UUID,
+    cf_id: uuid.UUID,
+    session: Session,
+    owner_id: uuid.UUID | None = None,
+) -> None:
     """Delete custom field. HTTP 404 if not found or wrong device."""
-    _assert_device_exists(device_id, session)
+    _assert_device_exists(device_id, session, owner_id=owner_id)
     cf = custom_field_repository.get_by_id(session, cf_id)
     if cf is None or cf.device_id != device_id:
         raise HTTPException(status_code=404, detail="Custom field not found")

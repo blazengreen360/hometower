@@ -1,15 +1,16 @@
 # Hometower Product Backlog
 
-Last updated: 18 April 2026 — HT-082 shipped after live validation, APPROVED review, and local commit. 10 stories in Ready.
+Last updated: 22 April 2026 — HT-077 code-path closeout is gate-clean and the PM-owned doc sync is intentionally conservative on exact-worktree approval state. 8 stories in Ready.
 
 ## In Progress
 | ID | Story | MoSCoW | Assigned |
 |---|---|---|---|
-| — | — | — | — |
+| HT-077 | Container behavior overhaul — un-parent, resize, icon watermark | Must | Project-Manager (final doc sync) |
 
 ## Done
 | ID | Story | MoSCoW | Shipped |
 |---|---|---|---|
+| HT-076 | Canvas full-screen layout & panel consolidation | Must | 19 Apr 2026 |
 | HT-082 | Dashboard Revamp & Power Widgets | Must | 18 Apr 2026 |
 | HT-081 | Data Table Enhancements & Pagination (Workspaces/Topologies/IAM) | Must | 18 Apr 2026 |
 | HT-078 | Inventory stencils panel — fix empty device list | Must | 18 Apr 2026 |
@@ -87,22 +88,20 @@ Last updated: 18 April 2026 — HT-082 shipped after live validation, APPROVED r
 ## Ready for Development
 | # | ID | Story | MoSCoW | Size | Depends on |
 |---|---|---|---|---|---|
-| 1 | HT-076 | Canvas full-screen layout & panel consolidation | Must | L | HT-078 |
-| 2 | HT-077 | Container behavior overhaul — un-parent, resize, icon watermark | Must | L | — |
-| 3 | HT-083 | Beautiful Empty States & Minimalist Onboarding | Should | S | HT-080 |
-| 4 | HT-085 | Financial Power Management (Cost Tracking via Locations) | Should | M | HT-082 |
-| 5 | HT-079 | Canvas minimap navigation overview | Should | M | HT-076 |
-| 6 | HT-084 | Taxi-cab (Orthogonal) Edge Routing Styles | Should | M | HT-030 |
-| 7 | HT-065 | Canvas visual polish and edge-case cleanup | Could | M | — |
-| 8 | HT-037 | Connection port / interface mapping | Could | S | HT-030 |
-| 9 | HT-043 | QR code labels for devices | Could | S | — |
-| 10 | HT-014 | Export canvas to PNG/SVG | Could | S | — |
+| 1 | HT-083 | Beautiful Empty States & Minimalist Onboarding | Should | S | HT-080 |
+| 2 | HT-085 | Financial Power Management (Cost Tracking via Locations) | Should | M | HT-082 |
+| 3 | HT-079 | Canvas minimap navigation overview | Should | M | HT-076 |
+| 4 | HT-084 | Taxi-cab (Orthogonal) Edge Routing Styles | Should | M | HT-030 |
+| 5 | HT-065 | Canvas visual polish and edge-case cleanup | Could | M | — |
+| 6 | HT-037 | Connection port / interface mapping | Could | S | HT-030 |
+| 7 | HT-043 | QR code labels for devices | Could | S | — |
+| 8 | HT-014 | Export canvas to PNG/SVG | Could | S | — |
 
 ## Defined (needs refinement)
 | ID | Story | MoSCoW | Blocker |
 |---|---|---|---|
 | HT-086 | Deep Execution Environments (UML-Style Deployment Modeling) | Should | Story is currently on-hold and depends on HT-077; needs explicit reactivation and sequencing before it can return to Ready |
-| HT-089 | Session ownership contract alignment | Must | Architect must reconcile the AGENTS session-ownership rule with the current service-layer transaction pattern before implementation starts |
+| HT-089 | Session ownership contract alignment | Must | Align AGENTS, coding patterns, review checklist, and CI-Gatekeeper to the approved request-scoped Session contract; routers may inject/pass `Session`, services own `commit()` / `rollback()`, repositories never `commit()` / `rollback()`, and only approved infrastructure entry points may create sessions |
 
 ## Superseded
 | ID | Story | Superseded By |

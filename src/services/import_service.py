@@ -1,5 +1,5 @@
 """Import service — TRUNCATE-then-INSERT full-snapshot restore (HT-013)."""
-from sqlalchemy import text
+from sqlalchemy import delete, table
 from sqlmodel import Session
 
 from src.services.import_validation import (
@@ -56,9 +56,9 @@ def _clear_all_tables(session: Session) -> None:
         "workspaces",
         "users",
     ]
-    for table in tables:
-        # Use plain DELETE so this code path is safe for Postgres and SQLite.
-        session.exec(text(f"DELETE FROM {table}"))  # type: ignore[call-overload]
+    for table_name in tables:
+        # Use SQLAlchemy DELETE constructs so this code path is safe for Postgres and SQLite.
+        session.exec(delete(table(table_name)))
 
 
 def import_full_snapshot(
@@ -67,31 +67,37 @@ def import_full_snapshot(
     """Destructively replace all data with the contents of *payload*."""
     logger.info("import_full_snapshot: starting replace — version={v}", v=payload.version)
 
-    validate_device_location_refs(payload)
-    validate_device_parent_refs(payload)
-    validate_network_rows(payload)
-    validate_device_network_refs(payload)
-    validate_device_network_subnets(payload)
-    _clear_all_tables(session)
-    # Remove stale identity-map objects so re-inserting same primary keys is conflict-free.
-    session.expunge_all()
-    insert_snapshot_rows(session, payload)
+    try:
+        validate_device_location_refs(payload)
+        validate_device_parent_refs(payload)
+        validate_network_rows(payload)
+        validate_device_network_refs(payload)
+        validate_device_network_subnets(payload)
+        _clear_all_tables(session)
+        # Remove stale identity-map objects so re-inserting same primary keys is conflict-free.
+        session.expunge_all()
+        insert_snapshot_rows(session, payload)
 
-    counts = {
-        "users": len(payload.users),
-        "workspaces": len(payload.workspaces),
-        "topologies": len(payload.topologies),
-        "locations": len(payload.locations),
-        "tags": len(payload.tags),
-        "networks": len(payload.networks),
-        "devices": len(payload.devices),
-        "device_networks": len(payload.device_networks),
-        "services": len(payload.services),
-        "service_dependencies": len(payload.service_dependencies),
-        "connections": len(payload.connections),
-        "device_tags": len(payload.device_tags),
-        "custom_fields": len(payload.custom_fields),
-        "diagram_layouts": len(payload.diagram_layouts),
-    }
+        counts = {
+            "users": len(payload.users),
+            "workspaces": len(payload.workspaces),
+            "topologies": len(payload.topologies),
+            "locations": len(payload.locations),
+            "tags": len(payload.tags),
+            "networks": len(payload.networks),
+            "devices": len(payload.devices),
+            "device_networks": len(payload.device_networks),
+            "services": len(payload.services),
+            "service_dependencies": len(payload.service_dependencies),
+            "connections": len(payload.connections),
+            "device_tags": len(payload.device_tags),
+            "custom_fields": len(payload.custom_fields),
+            "diagram_layouts": len(payload.diagram_layouts),
+        }
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+
     logger.info("import_full_snapshot: complete — {counts}", counts=counts)
     return counts

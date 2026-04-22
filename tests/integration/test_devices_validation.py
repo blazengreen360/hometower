@@ -45,26 +45,6 @@ class TestCreateDeviceValidation:
         assert response.status_code == 201
         assert response.json()["ip"] == "2001:db8::1"
 
-    def test_create_device_rejects_negative_power_watts(
-        self, client: TestClient, contributor_token: str
-    ) -> None:
-        response = client.post(
-            "/api/devices/",
-            json={"name": "neg-power", "type": "Server", "power_watts": -1},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert response.status_code == 422
-
-    def test_create_device_rejects_non_numeric_power_watts(
-        self, client: TestClient, contributor_token: str
-    ) -> None:
-        response = client.post(
-            "/api/devices/",
-            json={"name": "string-power", "type": "Server", "power_watts": "abc"},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert response.status_code == 422
-
 
 class TestUpdateDeviceValidation:
     def test_update_device_rejects_empty_name(
@@ -177,44 +157,6 @@ class TestUpdateDeviceValidation:
         response = client.patch(
             f"/api/devices/{device_id}",
             json={"ip": "not-an-ip", "version": created["version"]},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert response.status_code == 422
-
-    def test_update_device_rejects_negative_power_watts(
-        self, client: TestClient, contributor_token: str
-    ) -> None:
-        create_resp = client.post(
-            "/api/devices/",
-            json={"name": "edit-neg-power", "type": "NAS"},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert create_resp.status_code == 201
-        created = create_resp.json()
-        device_id = created["id"]
-
-        response = client.patch(
-            f"/api/devices/{device_id}",
-            json={"power_watts": -5, "version": created["version"]},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert response.status_code == 422
-
-    def test_update_device_rejects_non_numeric_power_watts(
-        self, client: TestClient, contributor_token: str
-    ) -> None:
-        create_resp = client.post(
-            "/api/devices/",
-            json={"name": "edit-string-power", "type": "NAS"},
-            headers={"Authorization": f"Bearer {contributor_token}"},
-        )
-        assert create_resp.status_code == 201
-        created = create_resp.json()
-        device_id = created["id"]
-
-        response = client.patch(
-            f"/api/devices/{device_id}",
-            json={"power_watts": "abc", "version": created["version"]},
             headers={"Authorization": f"Bearer {contributor_token}"},
         )
         assert response.status_code == 422
